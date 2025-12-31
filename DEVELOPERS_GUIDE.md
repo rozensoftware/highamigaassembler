@@ -389,7 +389,7 @@ code dereferencing:
 ```has
 code null_checks:
     proc safe_deref(ptr: long*) -> long {
-        if ptr == 0 {
+        if (ptr == 0) {
             return -1;      ; Null pointer
         }
         return *ptr;        ; Safe dereference
@@ -401,10 +401,13 @@ code null_checks:
 ## Control Flow
 
 ### If-Else Statements
+
+**Note:** IF conditions must be enclosed in parentheses.
+
 ```has
 code conditionals:
     proc compare(a: long, b: long) -> long {
-        if a > b {
+        if (a > b) {
             return a;
         } else {
             return b;
@@ -412,9 +415,9 @@ code conditionals:
     }
     
     proc test_if(x: long) -> long {
-        if x == 0 {
+        if (x == 0) {
             return 1;
-        } else if x == 1 {
+        } else if (x == 1) {
             return 2;
         } else {
             return 3;
@@ -423,10 +426,13 @@ code conditionals:
 ```
 
 ### While Loops
+
+**Note:** WHILE conditions must be enclosed in parentheses.
+
 ```has
 code while_loops:
     proc count_down(n: long) -> long {
-        while n > 0 {
+        while (n > 0) {
             n = n - 1;
         }
         return n;  ; Returns 0
@@ -435,7 +441,7 @@ code while_loops:
     proc sum_series(limit: long) -> long {
         var sum: long = 0;
         var i: long = 0;
-        while i < limit {
+        while (i < limit) {
             sum = sum + i;
             i = i + 1;
         }
@@ -444,16 +450,21 @@ code while_loops:
 ```
 
 ### Do-While Loops
+
+**Note:** DO-WHILE loops are not yet implemented in the current version of the compiler. This feature is planned for a future release.
+
+<!-- Future syntax (not yet supported):
 ```has
 code do_while:
     proc run_once(n: long) -> long {
         do {
             n = n * 2;
-        } while n < 0;  ; Body always executes once
+        } while (n < 0);  ; Body always executes once
         
         return n;
     }
 ```
+-->
 
 ### For Loops
 ```has
@@ -490,7 +501,7 @@ code dbra_loop:
 code loop_control:
     proc find_value(arr: long*, len: long, target: long) -> long {
         for i = 0 to len {
-            if arr[i] == target {
+            if (arr[i] == target) {
                 break;      ; Exit loop early
             }
         }
@@ -500,7 +511,7 @@ code loop_control:
     proc skip_even(limit: long) -> long {
         var sum: long = 0;
         for i = 0 to limit {
-            if i % 2 == 0 {
+            if (i % 2 == 0) {
                 continue;   ; Skip to next iteration
             }
             sum = sum + i;
@@ -532,12 +543,12 @@ code arithmetic:
 ```has
 code comparisons:
     proc compare(a: long, b: long) -> long {
-        if a == b { return 1; }       ; Equal
-        if a != b { return 1; }       ; Not equal
-        if a < b { return 1; }        ; Less than
-        if a <= b { return 1; }       ; Less or equal
-        if a > b { return 1; }        ; Greater than
-        if a >= b { return 1; }       ; Greater or equal
+        if (a == b) { return 1; }       ; Equal
+        if (a != b) { return 1; }       ; Not equal
+        if (a < b) { return 1; }        ; Less than
+        if (a <= b) { return 1; }       ; Less or equal
+        if (a > b) { return 1; }        ; Greater than
+        if (a >= b) { return 1; }       ; Greater or equal
         
         return 0;
     }
@@ -547,13 +558,13 @@ code comparisons:
 ```has
 code logical:
     proc logic(a: long, b: long) -> long {
-        if a > 0 && b > 0 {           ; Logical AND
+        if (a > 0 && b > 0) {           ; Logical AND
             return 1;
         }
-        if a < 0 || b < 0 {           ; Logical OR
+        if (a < 0 || b < 0) {           ; Logical OR
             return 2;
         }
-        if !a {                        ; Logical NOT
+        if (!a) {                        ; Logical NOT
             return 3;
         }
         return 0;
@@ -728,6 +739,50 @@ code loops:
 
 ## Code Execution Order
 
+### ⚠️ Important: No "main()" Entry Point
+
+**HAS executes from top to bottom, exactly like traditional assembly language. There is NO special "main()" entry point.**
+
+When you load and run a compiled HAS program:
+1. Execution starts at the **first instruction** in the first code section
+2. Code executes sequentially from top to bottom
+3. Procedures are only executed when explicitly called or when execution reaches them
+
+```has
+code example:
+    ; This instruction executes FIRST when program starts
+    asm "move.l #42,d0";
+    
+    ; This procedure will NOT run unless called
+    proc helper() -> long {
+        return 100;
+    }
+    
+    ; If execution reaches here, this runs next
+    asm "move.l #1,d1";
+    
+    ; A procedure named "main" has NO special meaning
+    ; It only runs if called or if execution reaches it
+    proc main() -> long {
+        return 0;
+    }
+```
+
+**To create a traditional program with a main function, you must explicitly call it:**
+
+```has
+code program:
+    ; Program entry point - starts HERE
+    call main();  ; Explicitly call main
+    asm "rts";    ; Return to OS
+    
+    ; This only runs when called above
+    proc main() -> long {
+        var result: long = 42;
+        return result;
+    }
+```
+
 ### Top-to-Down Execution (Like Assembler)
 HAS code executes from top to bottom, similar to traditional assembly language:
 
@@ -738,22 +793,24 @@ code execution_order:
     }
     
     proc main() -> long {
-        // This runs first (entry point)
+        ; This does NOT run automatically!
+        ; It only runs if execution reaches here or if explicitly called
         var val: long = setup();
         return val;
     }
     
     proc cleanup() -> long {
-        // This only executes if called explicitly
+        ; This only executes if called explicitly
         return 0;
     }
 ```
 
 **Key Points:**
 - Code sections are processed in order from first to last
-- Procedures don't execute unless called
+- Procedures don't execute unless called OR unless execution reaches them sequentially
 - Forward declarations (`func`) allow calling procedures defined later
 - Global data in `data` and `bss` sections is available to all procedures
+- **There is no automatic entry point** - execution starts at the first instruction
 
 ### Example: Execution Flow
 ```has
@@ -763,35 +820,81 @@ data settings:
     counter = 0
 
 code app:
-    // Executed in order:
-    // 1. setup() is defined
+    ; Execution starts HERE (first instruction)
+    call main();  ; Explicitly call main
+    asm "rts";    ; Return to OS
+    
+    ; Procedure definitions (only run when called)
     proc setup() -> long {
         return VERSION;
     }
     
-    // 2. process() is defined
     proc process(input: long) -> long {
         return input * 2;
     }
     
-    // 3. main() is defined and becomes entry point
+    ; This does NOT auto-execute - must be called
     proc main() -> long {
-        var x: long = setup();     // Call setup
-        var y: long = process(x);  // Call process
+        var x: long = setup();     ; Call setup
+        var y: long = process(x);  ; Call process
         return y;
     }
     
-    // 4. helper() is defined but only runs if called
     proc helper() -> long {
         return counter;
     }
 ```
 
 When compiled and run:
-1. `main()` executes
-2. `setup()` called → returns 1
-3. `process(1)` called → returns 2
-4. Program ends with value 2
+1. Execution starts at `call main();`
+2. `main()` is called → calls `setup()` → returns 1
+3. `main()` calls `process(1)` → returns 2
+4. `main()` returns to the `call` site
+5. Program executes `rts` → returns to OS
+
+### Best Practice: Using main()
+
+While `main()` has no special meaning in HAS, you can follow this pattern for clarity:
+
+```has
+code program:
+    ; Entry point - execution starts here
+    call main();
+    asm "rts";
+    
+    ; Main application logic
+    proc main() -> long {
+        ; Your code here
+        return 0;
+    }
+```
+
+**Why this pattern is useful:**
+- Makes the entry point explicit and easy to find
+- Similar to C/C++ conventions (familiar to other programmers)
+- Keeps setup/initialization separate from application logic
+- Easy to add other top-level code (like cleanup) after main() returns
+
+**Alternative patterns:**
+
+```has
+code startup:
+    ; Direct execution - no procedure call
+    var result: long = 42;
+    asm "rts";
+```
+
+or
+
+```has
+code app:
+    asm "jsr _init";  ; Call your initialization
+    asm "jsr _run";   ; Call your main loop
+    asm "jsr _quit";  ; Call cleanup
+    asm "rts";        ; Return to OS
+```
+
+See [examples/execution_order_demo.has](examples/execution_order_demo.has) for a complete demonstration.
 
 ---
 
@@ -841,7 +944,7 @@ code game:
         
         // Run game loop
         var running: long = 1;
-        while running {
+        while (running) {
             // Game logic here
             running = 0;        // Exit when done
         }
@@ -884,7 +987,7 @@ code game:
     }
     
     proc game_loop() -> long {
-        while is_running {
+        while (is_running) {
             update_frame();
             render();
         }
@@ -1028,7 +1131,7 @@ code structured:
     
     proc main() -> long {
         var input[100];
-        if validate_input(input[0]) {
+        if (validate_input(input[0])) {
             return process_data(&input[0]);
         } else {
             return handle_error(1);

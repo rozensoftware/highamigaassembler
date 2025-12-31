@@ -1,0 +1,63 @@
+// Demonstration of HAS execution order
+// =====================================
+// IMPORTANT: HAS executes from top to bottom like traditional assembly.
+// There is NO automatic "main()" entry point!
+
+const MESSAGE = 42;
+
+data state:
+    initialized = 0
+
+code demo:
+    // ========================================
+    // EXECUTION STARTS HERE (first instruction)
+    // ========================================
+    call startup();    ; Explicitly call our startup procedure
+    asm "rts";         ; Return to AmigaDOS/Exec
+    
+    // Procedure definitions below only execute when called
+    
+    proc startup() -> long {
+        var result: long;
+        
+        ; This runs because we called it above
+        result = initialize();
+        result = process(result);
+        call cleanup();
+        
+        return result;
+    }
+    
+    proc initialize() -> long {
+        ; Only runs when called by startup()
+        return MESSAGE;
+    }
+    
+    proc process(value: long) -> long {
+        ; Only runs when called by startup()
+        return value * 2;
+    }
+    
+    proc cleanup() -> void {
+        ; Only runs when called by startup()
+        asm "nop";
+        return;
+    }
+    
+    // A procedure named "main" has NO special meaning
+    // It would only run if we called it explicitly
+    proc main() -> long {
+        ; This NEVER runs in this program!
+        ; We would need to add: call main();
+        return 99;
+    }
+
+// Execution flow:
+// 1. Program starts at "call startup();"
+// 2. startup() is called
+// 3. startup() calls initialize() -> returns 42
+// 4. startup() calls process(42) -> returns 84
+// 5. startup() calls cleanup()
+// 6. startup() returns 84
+// 7. Program executes "rts" and returns to OS
+// 8. main() NEVER executes (it's not called)

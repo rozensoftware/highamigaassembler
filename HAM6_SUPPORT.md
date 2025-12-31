@@ -180,7 +180,7 @@ code main:
         var result: int;
         
         result = SetGraphicsMode(2);
-        if result < 0 {
+        if (result < 0) {
             return -1;
         }
         
@@ -209,7 +209,7 @@ code loader:
         
         // Allocate memory for HAM6 bitmap (61,440 bytes)
         picture_ptr = HeapAlloc(61440);
-        if picture_ptr == null {
+        if (picture_ptr == null) {
             return -1;  // Out of memory
         }
         
@@ -217,7 +217,7 @@ code loader:
         
         // Setup and display
         result = SetGraphicsMode(2);
-        if result < 0 {
+        if (result < 0) {
             call HeapFree(picture_ptr);
             return -1;
         }

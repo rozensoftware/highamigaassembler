@@ -65,11 +65,18 @@ Create a file `hello.has`:
 
 ```has
 code main:
+    ; Program execution starts HERE (first instruction)
+    call main();  ; Explicitly call our main procedure
+    asm "rts";    ; Return to OS
+    
+    ; This procedure only runs when called above
     proc main() -> int {
         var result:int = 42;
         return result;
     }
 ```
+
+**Note:** HAS executes from top to bottom like traditional assembly. There is no automatic \"main()\" entry point - execution starts at the first instruction in your code section. See [DEVELOPERS_GUIDE.md](DEVELOPERS_GUIDE.md) for details on execution order.
 
 **Compile to assembly**:
 ```bash
