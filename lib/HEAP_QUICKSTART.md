@@ -1,9 +1,9 @@
-# Heap Memory Manager - Quick Start Guide
+# Heap Memory Manager - Quick Start Guide (current heap.s)
 
 ## Files
 
 - **lib/heap.s** - Core heap allocator implementation (68000 assembly)
-- **lib/HEAP_README.md** - Complete API reference and usage documentation  
+- **lib/HEAP_README.md** - Complete API reference and usage documentation
 - **lib/HEAP_DESIGN.md** - Design decisions and architecture details
 - **examples/heap_test.has** - Test examples (commented, ready to use)
 
@@ -11,20 +11,18 @@
 
 ### 1. Initialize Heap
 
-First, allocate a memory region for the heap:
+The current heap uses an internal buffer defined in heap.s. No arguments are required.
 
 ```asm
 ; In your startup code:
-lea heap_memory,a0          ; a0 = start of 64KB buffer
-move.l #65536,d0            ; d0 = size (64KB)
-jsr heap_init               ; Initialize
+jsr HeapInit
 ```
 
-### 2. Allocate Memory
+### 2. Allocate Memory (size in words)
 
 ```asm
-move.l #256,d0              ; d0 = size (256 bytes)
-jsr malloc
+move.l #128,d0              ; 128 words = 256 bytes
+jsr HeapAlloc
 ; d0 now contains address (or 0 if failed)
 ```
 
@@ -38,8 +36,8 @@ move.l #0x12345678,(a0)     ; Write to memory
 ### 4. Free Memory
 
 ```asm
-move.l a0,a0                ; a0 = address to free
-jsr free
+move.l d0,a0                ; a0 = address to free
+jsr HeapFree                ; Safe if a0 = 0
 ```
 
 ## Integration Steps
@@ -59,8 +57,8 @@ code myapp:
     proc test_malloc() -> int {
         var ptr:int = 0;
         
-        ; Allocate 256 bytes inline
-        asm "move.l #256,d0; jsr malloc; move.l d0,ptr_addr";
+        ; Allocate 256 bytes inline (128 words)
+        asm "move.l #128,d0; jsr HeapAlloc; move.l d0,ptr_addr";
         
         return ptr;
     }
@@ -71,9 +69,9 @@ code myapp:
 ### Array Allocation
 
 ```asm
-; Allocate array of 100 integers (400 bytes)
-move.l #400,d0
-jsr malloc
+; Allocate array of 100 integers (400 bytes => 200 words)
+move.l #200,d0
+jsr HeapAlloc
 move.l d0,array_base
 
 ; Access element at index i:
@@ -85,9 +83,9 @@ add.l array_base,d0         ; d0 = &array[i]
 ### Linked List Node
 
 ```asm
-; Allocate node (8 bytes data + 8 bytes pointers = 16 bytes)
-move.l #16,d0
-jsr malloc
+; Allocate node (8 bytes data + 8 bytes pointers = 16 bytes => 8 words)
+move.l #8,d0
+jsr HeapAlloc
 move.l d0,node_ptr
 
 ; Write data
@@ -106,46 +104,29 @@ move.l #0,12(node_ptr)      ; prev = NULL
 cmp.l #0,ptr                ; Check if ptr is not NULL
 beq skip_free
 move.l ptr,a0
-jsr free
+jsr HeapFree
 skip_free:
 ```
 
 ## Allocation Sizes
 
-| Requested | Allocated | Overhead | % |
-|-----------|-----------|----------|---|
-| 1-15      | 16        | 12       | 75% |
-| 16        | 16        | 12       | 75% |
-| 256       | 256       | 12       | 4.7% |
-| 1024      | 1024      | 12       | 1.2% |
-| 4096      | 4096      | 12       | 0.3% |
+| Requested (words) | Allocated (words) | Overhead (bytes) |
+|-------------------|-------------------|------------------|
+| 1-2               | 2                 | 4                |
+| 128 (256B)        | 128               | 4                |
+| 512 (1KB)         | 512               | 4                |
+| 2048 (4KB)        | 2048              | 4                |
 
-**Note:** All allocations include 12-byte header internally
+**Note:** Header is 4 bytes; requests are in words (16-bit units)
 
 ## Performance Tips
 
 1. **Batch allocations**: Allocate once, use multiple times (reduces fragmentation)
-2. **Free in reverse order**: Helps with coalescing
+2. **Free in reverse-ish order**: Helps keep larger blocks contiguous
 3. **Use fixed-size pools**: For frequent allocations of same size
-4. **Check for NULL**: Always check malloc() return value
+4. **Check for NULL**: Always check HeapAlloc return value
 
 ## Debugging
-
-### Get Heap Statistics
-
-```asm
-jsr heap_stat
-; d0 = free bytes
-; d1 = used bytes
-```
-
-### Check for Leaks
-
-```asm
-; Before and after operations:
-jsr heap_stat
-; Compare free bytes - should not continuously decrease
-```
 
 ### Validate Allocations
 
@@ -161,9 +142,9 @@ bne memory_corrupted
 ## Known Limitations
 
 - No realloc() - can't resize existing blocks
-- No alignment control - blocks start immediately after header
-- Single heap - one region per system
-- First-fit only - may not be optimal for all patterns
+- No alignment control beyond word alignment
+- Single heap - fixed internal buffer
+- First-fit scan only
 
 ## Next Steps
 

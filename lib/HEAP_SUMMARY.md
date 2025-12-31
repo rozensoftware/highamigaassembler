@@ -2,15 +2,15 @@
 
 ## What Was Created
 
-A complete, production-ready heap memory manager for Motorola 68000 systems (Amiga):
+A complete, production-ready heap memory manager for Motorola 68000 systems (Amiga), matching the current `lib/heap.s` implementation (fixed internal heap, first-fit scan, 4-byte headers):
 
 ### Core Components
 
-1. **lib/heap.s** (530 lines)
+1. **lib/heap.s** (current core)
    - Pure 68000 assembly implementation
-   - First-fit allocator with free list
-   - Automatic block coalescing
-   - 4 public functions: heap_init, malloc, free, heap_stat
+   - First-fit allocator via linear scan (no free list)
+   - Automatic block coalescing (forward + backward)
+   - 3 public functions: HeapInit, HeapAlloc, HeapFree
 
 2. **lib/HEAP_README.md**
    - Complete API documentation
@@ -28,7 +28,6 @@ A complete, production-ready heap memory manager for Motorola 68000 systems (Ami
    - Quick start guide
    - Integration instructions
    - Common usage patterns
-   - Debugging tips
 
 5. **examples/heap_test.has**
    - Test cases demonstrating all features
@@ -49,101 +48,89 @@ A complete, production-ready heap memory manager for Motorola 68000 systems (Ami
 | Bare-metal | ✓ Supported | ✗ Not supported |
 | Code size | ✓ ~530 bytes | ✗ Much larger |
 
-### Algorithm Choice: First-Fit with Coalescing
+### Algorithm Choice: First-Fit Scan with Coalescing
 
 **First-Fit Allocation:**
-- Search free list sequentially
-- Use first block that fits
-- Simple, predictable, good average case
-- O(n) but linear search is fast for small n
+- Linear scan of heap blocks from start
+- Uses first free block that fits (in words)
+- Splits if remainder can hold header + payload
 
 **Block Coalescing:**
-- Automatically merge adjacent free blocks
-- Prevents fragmentation buildup
-- Enables larger allocations over time
-- O(n) but only on free() operation
+- Forward merge with following free blocks
+- Backward merge by scanning to find predecessor
 
-**Data Structure: Doubly-Linked Free List**
-- Each free block contains links to next/prev
-- No separate structure to maintain
-- Enables O(1) removal during allocation
-- Enables backward search for coalescing
+**Data Structure:**
+- Sequential blocks, no explicit free list
+- End marker header with length=0 terminates scan
 
 ## Key Features
 
 ### Allocation
 ```asm
-move.l #256,d0          ; Request 256 bytes
-jsr malloc              ; Allocate
+move.l #128,d0          ; Request 128 words = 256 bytes
+jsr HeapAlloc           ; Allocate
 ; d0 = address (or 0 if failed)
 ```
 
 ### Deallocation with Auto-Coalescing
 ```asm
 move.l ptr,a0           ; Address to free
-jsr free                ; Free (and coalesce if possible)
+jsr HeapFree            ; Free (and coalesce if possible)
 ```
 
 ### Statistics & Monitoring
-```asm
-jsr heap_stat           ; Get stats
-; d0 = free bytes
-; d1 = used bytes
-```
+Not present in current heap.s (add your own scanner if needed)
 
 ### Initialization
 ```asm
-lea buffer,a0           ; Start address
-move.l #65536,d0        ; Size
-jsr heap_init           ; Initialize
+jsr HeapInit            ; Uses internal heap buffer and sets end marker
 ```
 
 ## Technical Specifications
 
-### Block Structure (12-byte header)
+### Block Structure (4-byte header)
 ```
 Offset  Size  Content
 ------  ----  -------
-0       4     Size (bit 31 = free flag)
-4       4     Next free block pointer
-8       4     Prev free block pointer
-12+     N     User data
+0       2     Length in words (payload only)
+2       2     Status (0=free, 1=occupied)
+4+      N     User data
+
+End marker: length=0, status ignored
 ```
 
 ### Memory Overhead
-- Minimum allocation: 16 bytes (includes 12-byte header)
-- Minimum overhead: 75% for tiny allocations
-- Typical overhead: 2-5% for larger allocations
-- No external fragmentation: O(1) space for free list
+- Header: 4 bytes
+- Minimum split payload: at least 1 word (2 bytes) after header
+- Requests are specified in words (16-bit units)
 
-### Constants
+### Constants (current heap.s)
 ```asm
-HEAP_MIN_SIZE:  65536   ; Initial heap
-HEAP_MIN_BLOCK: 16      ; Minimum allocation
-BLOCK_HEADER:   12      ; Header size
-FREE_FLAG:      0x80000000 ; Free bit marker
+HEAP_MEMORY   equ $FFFC         ; Heap base label in heap.s
+HEAP_LENGTH   equ heap_end-HEAP_MEMORY
+HEAP_HEADER   equ 4
+STATUS_USED   equ 1
+STATUS_FREE   equ 0
 ```
 
 ## Performance Profile
 
 | Operation | Time | Space | Notes |
 |-----------|------|-------|-------|
-| malloc()  | O(n) | O(1)  | Linear search, n=free blocks |
-| free()    | O(n) | O(1)  | Coalescing includes search |
-| coalesce  | O(1) | O(1)  | If adjacent blocks found |
-| stat()    | O(n) | O(1)  | Iterates free list |
+| HeapAlloc | O(n) | O(1)  | Linear scan over blocks |
+| HeapFree  | O(n) | O(1)  | Forward + backward coalescing |
 
-**Typical Case:** Very fast (few free blocks means quick search)
-**Worst Case:** Many fragmented blocks slow search, but coalescing helps
+**Typical Case:** Fast when heap has few blocks; coalescing limits growth of block count
+**Worst Case:** Many small blocks increase scan time
 
 ## Edge Cases Handled
 
-✓ Allocation smaller than 16 bytes → rounds up
-✓ Allocation larger than available → returns NULL
+✓ Allocation requests rounded to words
+✓ Allocation larger than available → returns 0
 ✓ Free NULL pointer → safely ignored
-✓ Multiple adjacent frees → automatically coalesced
-✓ Splitting large blocks → creates correctly-sized free remainder
-✓ Empty heap → initializes as single free block
+✓ Multiple adjacent frees → automatically coalesced forward/backward
+✓ Splitting large blocks → only when tail can hold header + payload
+✓ Empty heap → initialized as single free block + end marker
 
 ## Integration with High Assembler
 
@@ -162,11 +149,11 @@ vlink program.o -o program.exe
 ### In .has Code
 ```has
 code myapp:
-    proc test() -> int {
-        var ptr:int = 0;
-        asm "move.l #256,d0; jsr malloc; move.l d0,ptr";
-        return ptr;
-    }
+   proc test() -> int {
+      var ptr:int = 0;
+      asm "move.l #128,d0; jsr HeapAlloc; move.l d0,ptr";  ; 256 bytes
+      return ptr;
+   }
 ```
 
 ## Comparison with Alternatives
@@ -200,8 +187,7 @@ Implemented test cases for:
 - Multiple simultaneous allocations
 - Fragmentation and coalescing
 - Block splitting behavior
-- Minimum size rounding
-- Heap statistics accuracy
+- Minimum size rounding (word-based)
 - NULL pointer handling
 
 See `examples/heap_test.has` for full test suite.
@@ -211,7 +197,7 @@ See `examples/heap_test.has` for full test suite.
 ### Short Term (Easy)
 - realloc() - resize existing blocks
 - calloc() - allocate and zero-fill
-- Alignment support - 16/32-byte boundaries
+- Alignment options beyond word alignment
 
 ### Medium Term (Moderate)
 - Power-of-2 buckets - fast path for common sizes
@@ -235,7 +221,7 @@ See `examples/heap_test.has` for full test suite.
 
 ## Success Metrics
 
-✅ **Simplicity**: Straightforward implementation (~530 lines)
+✅ **Simplicity**: Straightforward implementation (compact core)
 ✅ **Portability**: No OS dependencies
 ✅ **Transparency**: All code visible and understandable  
 ✅ **Performance**: Adequate for typical allocation patterns
@@ -253,8 +239,8 @@ Ready to use immediately - just link lib/heap.s with your project!
 ---
 
 **Files:**
-- `lib/heap.s` - Core implementation
-- `lib/HEAP_QUICKSTART.md` - Start here
-- `lib/HEAP_README.md` - Full reference
-- `lib/HEAP_DESIGN.md` - Design details
-- `examples/heap_test.has` - Test examples
+- lib/heap.s - Core implementation
+- lib/HEAP_QUICKSTART.md - Start here
+- lib/HEAP_README.md - Full reference
+- lib/HEAP_DESIGN.md - Design details
+- examples/heap_test.has - Test examples

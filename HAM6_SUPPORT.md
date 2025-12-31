@@ -198,8 +198,9 @@ code main:
 code loader:
     extern func SetGraphicsMode(mode: int) -> int;
     extern func ShowPicture(picture_addr: ptr) -> int;
-    extern func HeapAlloc(size: int) -> ptr;
-    extern func HeapFree(ptr: ptr) -> int;
+    extern func HeapInit();
+    extern func HeapAlloc(size_words: int) -> ptr;   ; size in words (16-bit)
+    extern func HeapFree(ptr: ptr);                  ; no return value
     
     public load_ham6_picture;
     
@@ -207,8 +208,10 @@ code loader:
         var picture_ptr: ptr;
         var result: int;
         
-        // Allocate memory for HAM6 bitmap (61,440 bytes)
-        picture_ptr = HeapAlloc(61440);
+        HeapInit();  ; initialize heap once before allocations
+        
+        // Allocate memory for HAM6 bitmap (61,440 bytes = 30,720 words)
+        picture_ptr = HeapAlloc(30720);
         if (picture_ptr == null) {
             return -1;  // Out of memory
         }

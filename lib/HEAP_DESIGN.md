@@ -2,7 +2,7 @@
 
 ## Executive Summary
 
-Created a **custom heap memory allocator** for Amiga 68000 targets rather than using Kickstart system routines. This provides better control, portability, and educational value for the High Assembler project.
+Created a **custom heap memory allocator** for Amiga 68000 targets rather than using Kickstart system routines. This provides better control, portability, and educational value for the High Assembler project. The current implementation is a compact first-fit scanner over a fixed internal heap buffer with 4-byte headers and no external dependencies.
 
 ## Design Decision: Custom vs. Kickstart
 
@@ -26,140 +26,115 @@ Created a **custom heap memory allocator** for Amiga 68000 targets rather than u
 5. **Transparency**: Users can understand every operation
 6. **Customizable**: Easy to modify for specific needs
 
-## Algorithm: First-Fit with Coalescing
+## Algorithm: First-Fit Scan with Coalescing
 
 ### Allocation Strategy
 
 ```
-Search free list from head:
-  - Find first block >= requested size
-  - If block too large, split it
-  - Mark portion as allocated, remove from free list
-  - Return address + 12-byte header
+Walk heap from start:
+  - Skip occupied blocks
+  - Take first free block with enough words
+  - Split if the remainder can still hold a header (4 bytes) and payload
+  - Return payload pointer (header + 4)
 ```
 
 **Why First-Fit?**
-- Simple to implement
-- Fast average case
-- Good fragmentation behavior
-- Suitable for this project scope
+- Simple, small, predictable
+- Works well for the project’s allocation patterns
 
 ### Deallocation Strategy
 
 ```
-Mark block as free:
-  1. Check if adjacent block (after) is free -> coalesce
-  2. Search for adjacent predecessor -> coalesce
-  3. If not found, insert into free list
+Mark block free:
+  - Coalesce forward with following free blocks
+  - Find predecessor by scanning from heap_start, then coalesce backward
 ```
 
 **Coalescing Benefits:**
 - Reduces fragmentation
-- Enables larger allocations over time
-- Prevents memory exhaustion
+- Restores larger blocks when neighbors free
 
-## Data Structure: Doubly-Linked Free List
+## Data Structure: Linear Blocks
 
-### Block Metadata (12 bytes per block)
+### Block Metadata (4 bytes per block)
 
-```c
-struct BlockHeader {
-    uint32_t size;        // Size with bit 31 = free flag
-    uint32_t next;        // Next free block (NULL if allocated)
-    uint32_t prev;        // Prev free block (for coalescing)
-};
+```
+Word0 (high): length in words (payload only)
+Word0 (low) : status (0 = free, 1 = occupied)
+
+Payload follows immediately
+End marker: header with length=0 marks heap end
 ```
 
-### Why Doubly-Linked?
+### Why So Small?
 
-1. **Forward coalescing**: Check next block by address arithmetic
-2. **Backward coalescing**: Need prev pointer to find predecessor efficiently
-3. **Removal from list**: Need both links for O(1) removal
+1. Keeps allocator compact (no pointers in headers)
+2. Works with fixed internal buffer and sequential scan
+3. Simplifies splitting/coalescing logic
 
 ### Memory Overhead
 
 | Component | Bytes | Notes |
 |-----------|-------|-------|
-| Per block header | 12 | Fixed overhead |
-| Min allocation | 16 | Minimum block size |
-| Min overhead % | 43% | For 16-byte allocation |
-| Overhead % | 2.3% | For 500-byte allocation |
-
-**Acceptable tradeoff** for simplicity and reliability.
+| Per block header | 4 | Fixed overhead |
+| Min allocation | 4 payload bytes (2 words) when split allows |
+| Overhead % | ~2% for 256-byte alloc |
 
 ## Fragmentation Management
 
 ### Block Splitting Example
 
 ```
-Before: [Free: 512]
-Request: 256 bytes
+Before: [Free: 512 words]
+Request: 200 words (400 bytes)
 
 After split:
-[Allocated: 256 + 12-byte header] [Free: 244]
-         (no split if remainder < 16 bytes)
+[Alloc: 200w + 4-byte header] [Free: 312w]
+(split only if tail can hold header + >=1 word payload)
 ```
 
 ### Coalescing Example
 
 ```
-State 1: [Alloc: 256] [Alloc: 512] [Alloc: 128]
+State: [Alloc 128w][Free 64w][Free 32w]
 
-Free first and last:
-[Free: 256] [Alloc: 512] [Free: 128]
-
-On free(first):
-  - Inserts into free list
-
-On free(last):
-  - Checks if next block free (none after) - skip
-  - Searches free list, coalesces with predecessor [Alloc: 512]
-
-State 2: [Free: 256] [Alloc: 512] [Free: 128 coalesced into 256]
+Free(alloc block) → mark free, forward-coalesce to 96w, then
+scan from heap_start to find predecessor and merge if adjacent.
 ```
 
 ## API Design
 
 ### Minimal Core (3 functions)
 
-1. **malloc(d0: size) → d0: address**
-   - Most common operation
-   - Returns NULL on failure
-   - Simplest signature for assembly
+1. **HeapInit() → void**
+  - One-time setup; uses internal heap buffer
 
-2. **free(a0: address) → void**
-   - Reclaims memory
-   - Safe with NULL pointer
-   - Address must be from malloc()
+2. **HeapAlloc(d0: size_words) → d0: address**
+  - Size is in words (16-bit units)
+  - Returns 0 on failure
 
-3. **heap_init(a0: start, d0: size) → void**
-   - One-time setup
-   - Called before any malloc/free
-
-### Bonus Function
-
-4. **heap_stat() → (d0: free, d1: used)**
-   - Debugging and monitoring
-   - No performance critical path
+3. **HeapFree(a0: address) → void**
+  - Safe with NULL/0
+  - Address must come from HeapAlloc
 
 ### Convention Choices
 
 - **Parameters in d0/a0**: Standard 68000 conventions
 - **Return in d0**: Primary results in d0
 - **Preserve registers**: All routines save d1-d7/a0-a6
-- **No exceptions**: Return NULL on failure (simple error handling)
+- **No exceptions**: Return 0 on failure (simple error handling)
 
 ## Performance Characteristics
 
 ### Time Complexity
 
-| Operation | Best | Average | Worst |
-|-----------|------|---------|-------|
-| malloc()  | O(1) | O(n)    | O(n)  |
-| free()    | O(1) | O(n)    | O(n)  |
-| coalesce  | O(1) | O(n)    | O(n)  |
+| Operation  | Best | Average | Worst |
+|------------|------|---------|-------|
+| HeapAlloc  | O(1) | O(n)    | O(n)  |
+| HeapFree   | O(1) | O(n)    | O(n)  |
+| Coalesce   | O(1) | O(n)    | O(n)  |
 
-Where n = number of free blocks
+Where n = number of blocks scanned (free + used)
 
 ### Typical Behavior
 
@@ -169,26 +144,26 @@ Where n = number of free blocks
 
 ### Space Complexity
 
-- **Allocated blocks**: O(n) + 12 bytes header per block
-- **Free list metadata**: Embedded in free blocks (no separate structure)
-- **Total overhead**: 12n bytes (where n = number of blocks)
+- **Allocated blocks**: O(n) + 4 bytes header per block
+- **Free/used blocks**: Same header format; no extra pointers
+- **Total overhead**: 4n bytes (where n = number of blocks)
 
 ## Implementation Highlights
 
 ### Key Features
 
 1. **In-band metadata**: Headers stored in heap, not separate
-2. **Implicit free list**: Linked through free blocks themselves
-3. **Bit-packed size**: Uses bit 31 as free flag
-4. **Double-linked list**: Enables efficient coalescing
+2. **Bit-packed header**: High word = length in words; low word = status
+3. **Sequential scan**: No explicit free list
+4. **End marker**: Zero-length header terminates heap walk
 
 ### Edge Cases Handled
 
-- ✅ NULL pointer to free() - silently ignored
-- ✅ Allocation smaller than minimum - rounded up
-- ✅ Allocation larger than available - returns NULL
-- ✅ Multiple adjacent free blocks - coalesced together
-- ✅ Empty heap - initialized as single free block
+- ✅ NULL pointer to HeapFree - silently ignored
+- ✅ Allocation smaller than minimum - rounded up to words
+- ✅ Allocation larger than available - returns 0
+- ✅ Multiple adjacent free blocks - coalesced forward/backward
+- ✅ Empty heap - initialized as single free block + end marker
 
 ## Testing Strategy
 
@@ -198,7 +173,7 @@ Where n = number of free blocks
 2. **Multiple allocations**: Several blocks of different sizes
 3. **Fragmentation**: Allocate/free pattern creating holes
 4. **Coalescing**: Verify free blocks merge correctly
-5. **Statistics**: Verify heap_stat() accuracy
+- **Statistics**: (not present) users can add scanners if needed
 6. **Edge cases**: Min size, NULL pointer, allocation failure
 
 ### Test Framework (heap_test.has)
@@ -223,15 +198,19 @@ vlink -Bvlink myprogram.o -o myprogram.exe
 ### Usage in .has Files
 
 ```has
+extern func HeapInit();
+extern func HeapAlloc(size_words: long) -> ptr;
+extern func HeapFree(ptr: ptr);
+
 code myapp:
-    proc main() -> int {
-        var buffer:int = 0;
-        
-        ; Allocate 256 bytes
-        asm "move.l #256,d0; jsr malloc; move.l d0,buffer_addr";
-        
-        return 0;
+  proc main() -> int {
+    HeapInit();
+    var buffer: ptr = HeapAlloc(128);   ; 256 bytes
+    if (buffer != 0) {
+      HeapFree(buffer);
     }
+    return 0;
+  }
 ```
 
 ## Future Enhancements
@@ -240,7 +219,7 @@ code myapp:
 
 1. **realloc()**: Resize existing allocations
 2. **calloc()**: Allocate and zero-fill
-3. **Alignment support**: 16/32-byte boundaries for DMA
+3. **Alignment options**: Wider-than-word alignment if needed
 
 ### Medium Term
 

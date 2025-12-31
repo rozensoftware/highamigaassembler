@@ -2,11 +2,11 @@
 
 ## What's Included
 
-Complete, production-ready heap memory manager for 68000/Amiga systems:
+Complete, production-ready heap memory manager for 68000/Amiga systems (current implementation in `lib/heap.s`):
 
 ```
 lib/
-├── heap.s                  # Core implementation (348 lines)
+├── heap.s                  # Core implementation (current, ~330–530 lines)
 ├── heap_interface.has      # High Assembler wrapper example
 ├── HEAP_QUICKSTART.md      # 👈 Start here!
 ├── HEAP_README.md          # Complete API reference
@@ -35,101 +35,70 @@ lib/
 
 ## Architecture at a Glance
 
-### Simple First-Fit Algorithm
+### Simple First-Fit Scan (no free list)
 
 ```
-Allocate(size):
-  1. Search free list for first block >= size
-  2. If block too large, split it
-  3. Remove from free list
-  4. Mark as allocated
-  5. Return address + 12-byte header
-```
+Allocate(words):
+  1. Walk blocks from heap_start
+  2. Skip occupied blocks
+  3. If first free block fits, split if tail can hold a header; else take whole
+  4. Return payload pointer (header + 4)
 
-### Automatic Block Coalescing
-
-```
-Free(address):
-  1. Mark block as free
-  2. Check if next block is free → merge
-  3. Search free list for previous block → merge
-  4. Insert into free list
+Free(ptr):
+  1. Mark block free
+  2. Forward-coalesce with following free blocks
+  3. Backward-coalesce by scanning from heap_start to find predecessor
 ```
 
 ### Memory Layout
 
 ```
-Block with 12-byte header:
+[HEADER][PAYLOAD] [HEADER][PAYLOAD] ... [HEADER=0] ; end marker
 
-[SIZE|NEXT|PREV] [User Data...]
- 4b   4b   4b     N bytes
+Header (4 bytes):
+  High word: length in words (payload only)
+  Low  word: status (0=free, 1=occupied)
+Payload pointer = header + 4
 ```
 
-## API (4 Functions)
+## API (current `heap.s`)
 
-### 1. Initialize Heap
+1) `HeapInit()` — initialize internal fixed heap (no args)
 
-```asm
-lea heap_buffer,a0          ; Start address
-move.l #65536,d0            ; Size (64KB)
-jsr heap_init
-```
+2) `HeapAlloc(size_words)` — size in words (16-bit units); returns payload ptr or 0
 
-### 2. Allocate Memory
-
-```asm
-move.l #256,d0              ; Request 256 bytes
-jsr malloc
-; d0 = address (or 0=NULL if failed)
-```
-
-### 3. Free Memory
-
-```asm
-move.l ptr,a0
-jsr free                    ; Frees and coalesces
-```
-
-### 4. Get Statistics
-
-```asm
-jsr heap_stat
-; d0 = free bytes
-; d1 = used bytes
-```
+3) `HeapFree(ptr)` — frees if non-null; coalesces forward and backward
 
 ## Key Features
 
 | Feature | Status | Details |
 |---------|--------|---------|
-| First-fit allocation | ✅ | O(n) average case |
-| Block coalescing | ✅ | Automatic merging |
-| Split large blocks | ✅ | Minimizes fragmentation |
-| Doubly-linked free list | ✅ | Efficient removal |
-| Statistics tracking | ✅ | heap_stat() |
-| NULL safety | ✅ | Safe free(NULL) |
-| Edge case handling | ✅ | All cases covered |
+| First-fit scan | ✅ | Linear walk, first free that fits |
+| Block coalescing | ✅ | Forward + backward merge |
+| Split large blocks | ✅ | If tail can hold a header/end marker |
+| Free list | ❌ | Not used; sequential scan |
+| Stats call | ❌ | Not present in current heap.s |
+| NULL safety | ✅ | `HeapFree(0)` no-op |
+| Edge cases | ✅ | Bounds/status checks on free |
 
 ## Performance
 
 | Operation | Time | Notes |
 |-----------|------|-------|
-| malloc() | O(n) | Linear search, typically fast |
-| free() | O(n) | Includes coalescing search |
-| coalesce | O(1) | If adjacent blocks found |
-| stat() | O(n) | Iterates free list |
+| HeapAlloc | O(n) | Linear scan of blocks |
+| HeapFree  | O(n) | Forward + backward coalesce (scan for prev) |
 
-**n = number of free blocks (typically small)**
+**n = number of blocks (free+used) in heap order**
 
 ## File Sizes
 
 ```
-heap.s                348 lines      Compact, efficient
-HEAP_README.md        298 lines      Complete reference
-HEAP_DESIGN.md        274 lines      Detailed architecture
-HEAP_SUMMARY.md       260 lines      This overview
-HEAP_QUICKSTART.md    180 lines      Getting started
-heap_interface.has     35 lines      Example usage
+heap.s                current core impl
+HEAP_README.md        API reference
+HEAP_DESIGN.md        Architecture notes
+HEAP_SUMMARY.md       Overview
+HEAP_QUICKSTART.md    Getting started
+heap_interface.has     Example usage
 ```
 
 ## Quick Start (3 Steps)
@@ -137,42 +106,33 @@ heap_interface.has     35 lines      Example usage
 ### Step 1: Include in Your Project
 
 ```bash
-# When assembling:
 vasm68000_mot your_program.s lib/heap.s -o output.o
 ```
 
 ### Step 2: Initialize Heap
 
 ```asm
-; In startup code:
-lea heap_mem,a0
-move.l #65536,d0
-jsr heap_init
+jsr HeapInit           ; uses internal BSS heap
 ```
 
-### Step 3: Use malloc/free
+### Step 3: Allocate / Free
 
 ```asm
-; Allocate
-move.l #256,d0
-jsr malloc
-move.l d0,my_ptr
-
-; Use memory...
-
-; Free
-move.l my_ptr,a0
-jsr free
+move.l #256,d0         ; request 256 words (512 bytes)
+jsr HeapAlloc
+tst.l d0
+beq alloc_failed
+; ... use d0 ...
+jsr HeapFree           ; free the pointer in d0 (or move to a0 then free)
 ```
 
 ## Common Use Cases
 
-### Dynamic Arrays
+### Dynamic Arrays (word-sized requests)
 ```asm
-; Allocate 100 integers
-move.l #400,d0           ; 100 * 4 bytes
-jsr malloc
-; Now array accessible at d0
+; Allocate 100 ints (4 bytes each) => 400 bytes => 200 words
+move.l #200,d0
+jsr HeapAlloc
 ```
 
 ### Linked Lists
@@ -185,21 +145,20 @@ move.l d0,node_ptr
 
 ### String Buffers
 ```asm
-; Allocate 256-byte string buffer
-move.l #256,d0
-jsr malloc
+; Allocate 256-byte buffer => 128 words
+move.l #128,d0
+jsr HeapAlloc
 move.l d0,str_ptr
 ```
 
 ### Temporary Scratch Space
 ```asm
-; Allocate work buffer
-move.l #1024,d0
-jsr malloc
+move.l #512,d0          ; 512 words = 1024 bytes
+jsr HeapAlloc
 move.l d0,work_buffer
 ; ... use it ...
 move.l work_buffer,a0
-jsr free
+jsr HeapFree
 ```
 
 ## Integration with High Assembler
@@ -215,15 +174,19 @@ vlink myprogram.o -o myprogram.exe
 ### In .has Code
 
 ```has
+extern func HeapInit();
+extern func HeapAlloc(size_words: long) -> ptr;
+extern func HeapFree(ptr: ptr);
+
 code myapp:
-    proc test_malloc() -> int {
-        var ptr:int = 0;
-        
-        ; Inline assembly to use malloc
-        asm "move.l #256,d0; jsr malloc; move.l d0,ptr_addr";
-        
-        return ptr;
+  proc test_alloc() -> ptr {
+    HeapInit();
+    var p: ptr = HeapAlloc(128);   ; 256 bytes
+    if (p != 0) {
+      HeapFree(p);
     }
+    return p;
+  }
 ```
 
 ## Documentation Navigation
