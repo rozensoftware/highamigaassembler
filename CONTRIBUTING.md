@@ -45,7 +45,7 @@ For feature requests:
 ```bash
 # Clone the repository
 git clone [repository-url]
-cd highamigassembler
+cd highamigaassembler
 
 # Create virtual environment
 python -m venv venv
