@@ -1,0 +1,27 @@
+code main:
+proc test_addr() -> int {
+    var x: int = 42;
+    var ptr: long* = &x;
+    return 0;
+}
+
+proc test_addr_param(p: long*) -> int {
+    var address_of_p: long* = &p;
+    return 0;
+}
+
+proc test_mixed_ops() -> int {
+    var x: int = 100;
+    var y: int;
+    
+    // Get address of x and store in pointer
+    var ptr: long* = &x;
+    
+    // Read from pointer
+    y = *ptr;
+    
+    // Write through pointer
+    *ptr = 200;
+    
+    return y;
+}

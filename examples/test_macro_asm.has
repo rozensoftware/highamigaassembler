@@ -1,0 +1,40 @@
+// Test macro with asm blocks
+
+macro NOP3() {
+    asm {
+        nop
+        nop
+        nop
+    }
+}
+
+macro SAVE_D0() {
+    asm {
+        move.l d0,-(a7)
+    }
+}
+
+macro RESTORE_D0() {
+    asm {
+        move.l (a7)+,d0
+    }
+}
+
+code test:
+    proc test_asm_macro() -> int {
+        var x: int = 42;
+        
+        // Insert 3 NOPs
+        NOP3();
+        
+        // Save d0, do work, restore d0
+        SAVE_D0();
+        x = 100;
+        RESTORE_D0();
+        
+        return x;
+    }
+    
+    proc main() -> int {
+        return test_asm_macro();
+    }

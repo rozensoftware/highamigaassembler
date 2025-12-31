@@ -1,0 +1,18 @@
+// Test arithmetic expressions
+
+code main:
+    proc test_math() -> int {
+        var a: int;
+        var b: int;
+        var c: int;
+        
+        a = 10;
+        b = 20;
+        c = a + b;           // 30
+        c = a + b * 2;       // 50 (multiplication first)
+        c = (a + b) * 2;     // 60 (parentheses)
+        c = a - b;           // -10
+        c = b - a * 2;       // 0
+        
+        return c;
+    }

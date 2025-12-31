@@ -1,0 +1,58 @@
+// Visual test: draws random pixels each frame to exercise Rnd/RndMax and graphics
+
+code main:
+    // Graphics helpers (stack-based calling convention)
+    extern func SetGraphicsMode(mode: int) -> int;
+    extern func ClearScreen() -> int;
+    extern func SetPixel(x: int, y: int, color: int) -> int;
+    extern func SwapScreen() -> int;
+    extern func UpdateCopperList() -> int;
+    extern func WaitVBlank() -> int;
+    extern func SetColor(id:int, col:int) -> int;
+
+    // Random helpers
+    extern func SeedRnd(seed: int) -> void;
+    extern func Rnd() -> int;
+    extern func RndMax(max: int) -> int;
+    extern func RndMaxAMOS(max: int) -> int;
+
+    public main;
+
+    asm {
+        jsr TakeSystem  ;sets register a5 with CUSTOM chip address
+        jsr main
+        jmp ReleaseSystem
+    }
+
+    proc main() -> int {
+        var frame: int;
+        var i: int;
+        var x: int;
+        var y: int;
+        var color: int;
+
+        call SetGraphicsMode(0);   // 320x256x32
+        call ClearScreen();
+        call SeedRnd(439041101);   // deterministic seed for reproducibility
+
+        call SetColor(1, 0xfff);      // Black
+
+        // Draw random pixels for several frames
+        for frame = 0 to 199 {
+            call WaitVBlank();
+            call UpdateCopperList();
+            call SwapScreen();
+            call ClearScreen();
+
+            call SetPixel(100, 100, 1);
+
+            for i = 0 to 999 {
+                x = RndMaxAMOS(320/2);
+                y = RndMaxAMOS(256/2);
+                call SetPixel(x, y, 1);
+            }
+
+        }
+
+        return 0;
+    }

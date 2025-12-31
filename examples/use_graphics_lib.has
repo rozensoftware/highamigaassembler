@@ -1,0 +1,44 @@
+// Example using external graphics library (written in pure VASM)
+// Demonstrates calling external assembly functions from HAS code
+
+code main:
+    // Declare external functions from graphics_lib.s
+    extern func draw_pixel(__reg(d0) x: int, __reg(d1) y: int, __reg(d2) color: int) -> void;
+    extern func clear_screen(__reg(d0) color: int) -> void;
+    
+    // Declare external variable
+    extern var screen_buffer: ptr;
+    
+    // Export our main function
+    public game_init;
+    public game_loop;
+    
+    proc game_init() -> void {
+        // Clear screen to black (color 0)
+        call clear_screen(0);
+    }
+    
+    proc game_loop() -> void {
+        var x: int = 160;
+        var y: int = 128;
+        var color: int = 15;  // White
+        
+        // Draw a pixel in the center
+        call draw_pixel(x, y, color);
+        
+        // Draw some more pixels
+        for x = 0 to 319 {
+            call draw_pixel(x, 0, 15);
+            call draw_pixel(x, 255, 15);
+        }
+    }
+    
+    // Entry point that can be called from pure assembly
+    public start;
+    
+    asm {
+start:
+    jsr game_init
+    jsr game_loop
+    rts
+    }

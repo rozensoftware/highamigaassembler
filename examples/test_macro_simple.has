@@ -1,0 +1,15 @@
+// Simple macro test
+
+macro SET_TO_ZERO(x) {
+    x = 0;
+}
+
+code test:
+    proc main() -> int {
+        var result: int = 42;
+        
+        // This should expand to: result = 0;
+        SET_TO_ZERO(result);
+        
+        return result;  // Should return 0
+    }

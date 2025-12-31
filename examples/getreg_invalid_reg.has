@@ -1,0 +1,9 @@
+// Test invalid registers for GetReg and SetReg
+
+code invalid:
+
+proc bad_reg_test() -> long {
+    // This should fail - a4 is not allowed
+    var x: long = GetReg("a4");
+    return x;
+}

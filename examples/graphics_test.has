@@ -1,0 +1,77 @@
+// Example: Calling graphics.s functions from HAS
+// This demonstrates how to interface with the graphics.s library
+
+code main:
+    // Declare external functions from graphics.s
+    // These use stack-based calling convention (arguments at 8(a6), 12(a6), etc.)
+    
+    extern func SetGraphicsMode(mode: int) -> int;
+    extern func ClearScreen() -> int;
+    extern func SetPixel(x: int, y: int, color: int) -> int;
+    extern func Text(x: int, y: int, msg: int, color: int) -> int;  // msg is pointer
+    extern func Print(msg: int, color: int) -> int;                  // msg is pointer
+    extern func SwapScreen() -> int;
+    extern func UpdateCopperList() -> int;
+    
+    public main;
+    
+    proc main() -> int {
+        var result: int;
+        var x: int;
+        var y: int;
+        
+        // Initialize 320x256x32 graphics mode (mode 0)
+        result = SetGraphicsMode(0);
+        
+        // Clear the screen
+        call ClearScreen();
+        
+        // Draw some pixels
+        x = 0;
+        for x = 0 to 100 {
+            call SetPixel(x, 50, 31);     // White line at y=50
+            call SetPixel(x, 100, 2);     // Red line at y=100
+        }
+        
+        // Note: To print text, you would need to pass string addresses
+        // This requires either:
+        // 1. Assembly blocks with string data
+        // 2. Data section with string definitions
+        // 3. Address-of operator for string literals (future feature)
+        
+        call UpdateCopperList();
+        call SwapScreen();
+        
+        return 0;
+    }
+
+// Alternative: Pure assembly approach
+code assembly_version:
+    asm {
+    ; Declare string in data section
+my_string:
+        dc.b "Hello Amiga!",0
+        even
+
+main_asm:
+        ; Call SetGraphicsMode(0)
+        move.l #0,-(a7)
+        jsr SetGraphicsMode
+        addq.l #4,a7
+        
+        ; Call ClearScreen()
+        jsr ClearScreen
+        
+        ; Call Print with string pointer and color
+        move.l #31,-(a7)        ; color = white (31)
+        lea my_string,a0
+        move.l a0,-(a7)         ; string pointer
+        jsr Print
+        addq.l #8,a7            ; clean up 2 arguments
+        
+        ; Update display
+        jsr UpdateCopperList
+        jsr SwapScreen
+        
+        rts
+    }

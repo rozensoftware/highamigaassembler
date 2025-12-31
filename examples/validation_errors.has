@@ -1,0 +1,14 @@
+code main:
+proc test_errors() -> int {
+    var x: int = 42;
+    var y: word = undefined_var + 10;  // Error: undefined_var not declared
+    
+    z = x + y;  // Error: z not declared
+    
+    return;  // Warning: empty return in non-void function
+}
+
+proc test_void() -> void {
+    var x: int = 10;
+    return x;  // Warning: return with value in void function
+}

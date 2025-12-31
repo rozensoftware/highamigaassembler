@@ -1,0 +1,56 @@
+// Test for loops and repeat loops
+
+code main:
+    // Test repeat loop - simple repetition
+    proc test_repeat() -> int {
+        var counter: int = 0;
+        
+        // Repeat 5 times
+        repeat 5 {
+            counter = counter + 1;
+        }
+        
+        return counter;  // Should be 5
+    }
+
+    // Test for loop - iterate with counter
+    proc test_for() -> int {
+        var sum: int = 0;
+        
+        // for i = 0 to 9
+        for i = 0 to 9 {
+            sum = sum + i;
+        }
+        
+        return sum;  // Should be 45 (0+1+2+...+9)
+    }
+
+    // Test for loop with custom step
+    proc test_for_step() -> int {
+        var sum: int = 0;
+        
+        // for i = 0 to 10 by 2 (even numbers)
+        for i = 0 to 10 by 2 {
+            sum = sum + i;
+        }
+        
+        return sum;  // Should be 30 (0+2+4+6+8+10)
+    }
+
+    // Test nested loops
+    proc test_nested() -> int {
+        var total: int = 0;
+        
+        for i = 1 to 3 {
+            for j = 1 to 3 {
+                total = total + 1;  // Count iterations
+            }
+        }
+        
+        return total;  // Should be 9 (3x3)
+    }
+
+    // Entry point
+    asm {
+        jsr test_repeat
+    }

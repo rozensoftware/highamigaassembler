@@ -1,0 +1,59 @@
+// Test array access (indexing) operations
+
+data my_data:
+    // 1D array of longs (initialized)
+    numbers[5] = {10, 20, 30, 40, 50}
+    
+    // 2D array (3x4 = 12 elements)
+    matrix[3][4] = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12}
+
+code main:
+    // Test 1D array access
+    proc test_1d_array() -> int {
+        var index: int = 2;
+        var value: int;
+        
+        // Read from array: value = numbers[2] (should be 30)
+        value = numbers[index];
+        
+        return value;
+    }
+
+    // Test 2D array access
+    proc test_2d_array() -> int {
+        var row: int = 1;
+        var col: int = 2;
+        var value: int;
+        
+        // Read from 2D array: value = matrix[1][2] (should be 7)
+        value = matrix[row][col];
+        
+        return value;
+    }
+
+    // Test constant indexing
+    proc test_const_index() -> int {
+        var sum: int = 0;
+        
+        // Access with constant indices
+        sum = numbers[0] + numbers[4];  // 10 + 50 = 60
+        
+        return sum;
+    }
+
+    // Test array access in expressions
+    proc test_array_expr() -> int {
+        var result: int;
+        
+        // Use array access in complex expression
+        result = numbers[1] * 2 + numbers[3];  // 20*2 + 40 = 80
+        
+        return result;
+    }
+
+    asm {
+        jsr test_1d_array
+        jsr test_2d_array
+        jsr test_const_index
+        jsr test_array_expr
+    }

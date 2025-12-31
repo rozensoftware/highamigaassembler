@@ -1,0 +1,111 @@
+// Bit shift operators example - demonstrates << (left shift) and >> (right shift)
+// Useful for: multiplying/dividing by powers of 2, extracting bits, array indexing
+
+code main:
+    
+    // Left shift: multiply by powers of 2
+    proc multiply_by_shift() -> void {
+        var x: int = 5;
+        var result: int;
+        
+        result = x << 1;    // 5 * 2 = 10
+        result = x << 2;    // 5 * 4 = 20
+        result = x << 3;    // 5 * 8 = 40
+        result = x << 4;    // 5 * 16 = 80
+    }
+    
+    // Right shift: divide by powers of 2
+    proc divide_by_shift() -> void {
+        var x: int = 128;
+        var result: int;
+        
+        result = x >> 1;    // 128 / 2 = 64
+        result = x >> 2;    // 128 / 4 = 32
+        result = x >> 3;    // 128 / 8 = 16
+        result = x >> 4;    // 128 / 16 = 8
+    }
+    
+    // Extract bits using shift and mask
+    proc extract_nibble() -> byte {
+        var value: int = 0xABCD;
+        var nibble: byte;
+        
+        // Extract high nibble of low byte: 0xCD >> 4 = 0x0D
+        nibble = (value >> 4) & 0x0F;
+        
+        return nibble;
+    }
+    
+    // Fast array indexing using shift instead of multiply
+    proc array_index_shift(base: int, index: int) -> int {
+        var result: int;
+        
+        // For array of longs (4 bytes), index << 2 = index * 4
+        // This is faster than index * 4
+        result = base + (index << 2);
+        
+        return result;
+    }
+    
+    // Bit manipulation: set flags with shifts
+    proc bit_flags() -> int {
+        var flags: int = 0;
+        var bit_position: int = 3;
+        
+        // Set bit at position using shift: 1 << 3 = 0x08
+        flags = flags | (1 << bit_position);
+        
+        // Test bit at position
+        var is_set: int = (flags >> bit_position) & 1;
+        
+        return is_set;
+    }
+    
+    // Combine shifts in complex expression
+    proc pixel_offset() -> int {
+        var x: int = 100;
+        var y: int = 50;
+        var width: int = 320;
+        
+        // Calculate pixel offset: y * width + x
+        // width is 320 = 0x140, which is 5 bits shifted left from 10
+        // More efficient: (y << 8) + (y << 6) + x = y*256 + y*64 + x = y*320 + x
+        var offset: int = (y << 8) + (y << 6) + x;
+        
+        return offset;
+    }
+    
+    // Variable bit shift amounts
+    proc variable_shift(value: int, shift_amount: int) -> int {
+        var result: int;
+        
+        // Shift amount can be in a variable
+        result = value << shift_amount;
+        
+        return result;
+    }
+    
+    // Rotate/position color value
+    proc color_channel_shift() -> int {
+        var r: int = 0x1F;    // 5-bit red
+        var g: int = 0x3F;    // 6-bit green
+        var b: int = 0x1F;    // 5-bit blue
+        var rgb565: int;
+        
+        // Construct RGB565: RRRRRGGG GGGBBBBB
+        rgb565 = (r << 11) | (g << 5) | b;
+        
+        return rgb565;
+    }
+    
+    proc main() -> void {
+        call multiply_by_shift();
+        call divide_by_shift();
+        
+        var nibble: byte = extract_nibble();
+        var addr: int = array_index_shift(0x1000, 5);  // 0x1000 + 5*4 = 0x1014
+        var flags: int = bit_flags();
+        var offset: int = pixel_offset();
+        var shifted: int = variable_shift(7, 3);      // 7 << 3 = 56
+        var color: int = color_channel_shift();
+    }

@@ -1,0 +1,37 @@
+// Comprehensive hex and binary literal test
+
+data test_data:
+    // Hex literals with 0x prefix
+    hex1.l = 0x0
+    hex2.l = 0xF
+    hex3.l = 0xFF
+    hex4.l = 0x1234
+    hex5.l = 0xDEADBEEF
+    
+    // Hex literals with $ prefix (Motorola style)
+    dollar1.l = $0
+    dollar2.l = $F
+    dollar3.l = $FF
+    dollar4.l = $ABCD
+    
+    // Binary literals with % prefix
+    bin1.l = %0
+    bin2.l = %1
+    bin3.l = %11110000
+    bin4.l = %10101010
+    bin5.l = %11111111
+    
+    // Decimal (unchanged)
+    dec1.l = 0
+    dec2.l = 255
+    dec3.l = 1000
+
+code test:
+    proc hex_binary_test() -> int {
+        var h1:int = 0xFF;
+        var h2:int = $CAFE;
+        var b1:int = %1111;
+        var b2:int = %1010;
+        
+        return h1 + h2 + b1 + b2;
+    }

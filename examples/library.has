@@ -1,0 +1,32 @@
+// External module example - library.has
+// This module provides utility functions for use by other modules
+
+code library:
+    // Mark functions as public so they can be called from other modules
+    public add_numbers;
+    public multiply;
+    
+    proc add_numbers(__reg(d0) a: int, __reg(d1) b: int) -> int {
+        return a + b;
+    }
+    
+    proc multiply(__reg(d0) a: int, __reg(d1) b: int) -> int {
+        var result: int = 0;
+        var i: int = 0;
+        
+        // Simple multiplication using addition
+        for i = 0 to b {
+            result = result + a;
+        }
+        
+        return result;
+    }
+    
+    // Internal helper function (not exported)
+    proc internal_helper() -> int {
+        return 42;
+    }
+
+data library_data:
+    lib_version = 100
+

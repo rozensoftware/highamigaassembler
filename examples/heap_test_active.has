@@ -1,0 +1,138 @@
+bss heap_bss:
+    heap_buf: 4096
+
+code heap_test:
+    extern func heap_init(heap_start:int, size:int) -> void;
+    extern func heap_malloc(size:int) -> int;
+    extern func heap_free(ptr:int) -> void;
+
+    proc test_single_allocation() -> int {
+        var ptr:int;
+        var size:int = 256;
+        
+        call heap_init(&heap_buf, 4096);
+        
+        ptr = heap_malloc(256);
+        
+        if (ptr == 0) {
+            return 0;
+        }
+        
+        call heap_free(&ptr);
+        
+        return 1;
+    }
+    
+    proc test_multiple_allocations() -> int {
+        var ptr1:int;
+        var ptr2:int;
+        var ptr3:int;
+        
+        call heap_init(&heap_buf, 4096);
+        
+        ptr1 = heap_malloc(256);
+        if (ptr1 == 0) { return 0; }
+        
+        ptr2 = heap_malloc(512);
+        if (ptr2 == 0) { return 0; }
+        
+        ptr3 = heap_malloc(128);
+        if (ptr3 == 0) { return 0; }
+        
+        call heap_free(&ptr3);
+        call heap_free(&ptr2);
+        call heap_free(&ptr1);
+        
+        return 1;
+    }
+    
+    proc test_allocation_and_reuse() -> int {
+        var p1:int;
+        var p2:int;
+        
+        call heap_init(&heap_buf, 4096);
+        
+        p1 = heap_malloc(256);
+        if (p1 == 0) { return 0; }
+        
+        call heap_free(&p1);
+        
+        p2 = heap_malloc(256);
+        if (p2 == 0) { return 0; }
+        
+        call heap_free(&p2);
+        
+        return 1;
+    }
+    
+    proc test_small_allocation() -> int {
+        var ptr:int;
+        
+        call heap_init(&heap_buf, 4096);
+        
+        ptr = heap_malloc(4);
+        if (ptr == 0) { return 0; }
+        
+        call heap_free(&ptr);
+        
+        return 1;
+    }
+    
+    proc test_zero_allocation() -> int {
+        var ptr:int;
+        
+        call heap_init(&heap_buf, 4096);
+        
+        ptr = heap_malloc(0);
+        
+        if (ptr != 0) {
+            call heap_free(&ptr);
+        }
+        
+        return 1;
+    }
+    
+    proc run_all_tests() -> int {
+        var result:int = 0;
+        var passed:int = 0;
+        var failed:int = 0;
+        
+        call heap_init(&heap_buf, 4096);
+        
+        result = test_single_allocation();
+        if (result == 1) {
+            passed = passed + 1;
+        } else {
+            failed = failed + 1;
+        }
+        
+        result = test_multiple_allocations();
+        if (result == 1) {
+            passed = passed + 1;
+        } else {
+            failed = failed + 1;
+        }
+        
+        result = test_allocation_and_reuse();
+        if (result == 1) {
+            passed = passed + 1;
+        } else {
+            failed = failed + 1;
+        }
+        
+        result = test_small_allocation();
+        if (result == 1) {
+            passed = passed + 1;
+        } else {
+            failed = failed + 1;
+        }
+        
+        result = test_zero_allocation();
+        if (result == 1) {
+            passed = passed + 1;
+        } else {
+            failed = failed + 1;
+        }
+        
+        return passed;
+    }

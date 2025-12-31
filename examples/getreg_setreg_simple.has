@@ -1,0 +1,15 @@
+// Simple test for GetReg and SetReg
+
+code simple:
+
+proc demo() -> long {
+    var myvar: long = 123;
+    
+    // Store value in d4
+    SetReg("d4", myvar);
+    
+    // Read value from d4
+    var result: long = GetReg("d4");
+    
+    return result;
+}

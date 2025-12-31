@@ -1,0 +1,49 @@
+// Comprehensive bitwise operators test
+
+code main:
+    proc test_all_bitwise() -> void {
+        var x: long = 12;     // 1100
+        var y: long = 10;     // 1010
+        var result: long;
+        
+        // Bitwise AND: 1100 & 1010 = 1000 (8)
+        result = x & y;
+        
+        // Bitwise OR: 1100 | 1010 = 1110 (14)
+        result = x | y;
+        
+        // Bitwise XOR: 1100 ^ 1010 = 0110 (6)
+        result = x ^ y;
+        
+        // Bitwise NOT: ~12
+        result = ~x;
+        
+        // Complex expressions
+        result = (x & y) | (x ^ y);  // (8) | (6) = 14
+        result = (x | y) & ~0;        // (~0 = all 1s, so result = 14)
+        result = (x ^ y) & (x | y);   // (6) & (14) = 6
+    }
+    
+    proc mask_operations() -> void {
+        var status: long = 0;
+        var ENABLE_FLAG: long = 1;
+        var DEBUG_FLAG: long = 2;
+        var ERROR_FLAG: long = 4;
+        
+        // Set flags
+        status = status | ENABLE_FLAG;
+        status = status | DEBUG_FLAG;
+        
+        // Check flags
+        var is_enabled: long = status & ENABLE_FLAG;
+        var is_debug: long = status & DEBUG_FLAG;
+        var is_error: long = status & ERROR_FLAG;
+        
+        // Clear debug flag
+        status = status & ~DEBUG_FLAG;
+    }
+    
+    proc main() -> void {
+        call test_all_bitwise();
+        call mask_operations();
+    }

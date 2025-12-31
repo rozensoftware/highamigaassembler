@@ -1,0 +1,24 @@
+// Test PUSH and POP functionality
+
+code main:
+    proc test_push_pop() -> int {
+        var x: int = 10;
+        var y: int = 20;
+        
+        // Use PUSH to save registers before using them
+        PUSH(d3, d4, a2);
+        
+        asm {
+            move.l #100,d3
+            move.l #200,d4
+            move.l #40000,a2
+            move.l d3,(a2)
+        }
+        
+        // Restore registers with POP
+        POP();
+        
+        return x + y;
+    }
+    
+    call test_push_pop();

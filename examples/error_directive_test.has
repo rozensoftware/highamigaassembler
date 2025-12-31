@@ -1,0 +1,8 @@
+// Test #error directive
+
+#error "This file should not compile";
+
+code main:
+    proc main() -> int {
+        return 0;
+    }

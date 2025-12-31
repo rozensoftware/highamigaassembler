@@ -1,0 +1,196 @@
+// Struct demonstration - shows how to use structs in data/bss sections
+// and how to access fields, arrays of structs, and heap allocation
+
+#pragma lockreg(a5);
+
+const MAX_ENTITIES = 10;
+
+data game_data:
+    // Single struct with initializers
+    struct player { x.w, y.w, hp.b, score.l } = {100, 50, 255, 0}
+    
+    // Array of structs (zero-initialized)
+    struct enemies[3] { x.w, y.w, hp.b, active.b }
+    
+    // Another initialized struct
+    struct config { width.w, height.w, fps.b } = {320, 256, 50}
+
+bss game_bss:
+    // BSS struct (uninitialized, allocated at runtime)
+    struct temp_entity { x.w, y.w, vx.w, vy.w, flags.l }
+    
+    // Array of structs in BSS
+    struct bullets[MAX_ENTITIES] { x.w, y.w, active.b }
+    
+    // Temporary buffer
+    buffer: 1024
+
+code main:
+    extern func heap_malloc(size: int) -> ptr;
+    extern func heap_free(ptr: ptr) -> int;
+    
+    proc InitPlayer() -> void {
+        // Access struct fields using generated equates
+        asm {
+            ; player_x is at player+0
+            ; player_y is at player+2
+            ; player_hp is at player+4
+            ; player_score is at player+5
+            
+            ; Read player position
+            move.w player_x,d0
+            move.w player_y,d1
+            
+            ; Update player HP
+            move.b #200,player_hp
+            
+            ; Update score
+            move.l #1000,player_score
+        }
+    }
+    
+    proc InitEnemies() -> void {
+        asm {
+            ; enemies__size contains struct size (6 bytes: w+w+b+b)
+            ; enemies__stride contains stride for array access
+            ; Access first enemy: enemies + 0*enemies__stride
+            ; Access second enemy: enemies + 1*enemies__stride
+            
+            ; Initialize first enemy (index 0)
+            move.w #50,enemies_x      ; field offset for element 0
+            move.w #30,enemies_y
+            move.b #100,d0
+            lea enemies,a0
+            move.b d0,4(a0)           ; hp at offset 4
+            move.b #1,5(a0)           ; active at offset 5
+            
+            ; Initialize second enemy (index 1) using stride
+            move.w enemies__stride,d2  ; d2 = stride (6 bytes)
+            lea enemies,a0
+            add.w d2,a0                ; a0 points to enemies[1]
+            move.w #100,0(a0)          ; x
+            move.w #60,2(a0)           ; y
+            move.b #80,4(a0)           ; hp
+            move.b #1,5(a0)            ; active
+        }
+    }
+    
+    proc AllocateEntityOnHeap() -> ptr {
+        var entity_ptr: ptr;
+        
+        asm {
+            ; Allocate memory for one temp_entity struct
+            ; temp_entity__size contains the struct size
+            move.l temp_entity__size,d0
+            move.l d0,-(a7)
+            jsr heap_malloc
+            addq.l #4,a7
+            
+            ; d0 now contains pointer to allocated struct
+            move.l d0,entity_ptr
+            
+            ; Initialize allocated struct fields
+            move.l entity_ptr,a0
+            move.w #200,0(a0)      ; x at offset 0
+            move.w #150,2(a0)      ; y at offset 2
+            move.w #5,4(a0)        ; vx at offset 4
+            move.w #-3,6(a0)       ; vy at offset 6
+            move.l #$0001,8(a0)    ; flags at offset 8
+        }
+        
+        return entity_ptr;
+    }
+    
+    proc FreeEntity(ptr: ptr) -> void {
+        asm {
+            move.l 8(a6),-(a7)     ; push ptr parameter
+            jsr heap_free
+            addq.l #4,a7
+        }
+    }
+    
+    proc GetBulletActive(index: int) -> byte {
+        var result: byte;
+        
+        asm {
+            ; Calculate bullets[index].active
+            ; bullets + index * bullets__stride + active_offset
+            move.l 8(a6),d0        ; index parameter
+            move.w bullets__stride,d1
+            mulu.w d1,d0           ; d0 = index * stride
+            lea bullets,a0
+            add.l d0,a0            ; a0 = &bullets[index]
+            move.b 4(a0),d0        ; active is at offset 4 (w+w+b)
+            move.b d0,result
+        }
+        
+        return result;
+    }
+    
+    proc SetBulletPosition(index: int, x: int, y: int) -> void {
+        asm {
+            ; bullets[index].x = x
+            ; bullets[index].y = y
+            move.l 8(a6),d0        ; index
+            move.w bullets__stride,d1
+            mulu.w d1,d0
+            lea bullets,a0
+            add.l d0,a0
+            
+            move.l 12(a6),d0       ; x parameter
+            move.w d0,0(a0)        ; bullets[index].x
+            
+            move.l 16(a6),d0       ; y parameter
+            move.w d0,2(a0)        ; bullets[index].y
+            
+            move.b #1,4(a0)        ; set active flag
+        }
+    }
+    
+    // New: Demonstrate dotted member access for globals and arrays of structs
+    proc DottedAccessDemo() -> void {
+        var i:int = 1;
+        // Direct struct access
+        player.x = player.x + 2;
+        player.hp = 128;
+        player.score = player.score + 100;
+
+        // Array of struct access
+        enemies[i].x = 42;
+        enemies[i].y = 77;
+        enemies[i].hp = 80;
+        enemies[i].active = 1;
+
+        // BSS array of structs
+        bullets[0].x = 10;
+        bullets[0].y = 20;
+        bullets[0].active = 1;
+    }
+    
+    proc main() -> void {
+        var entity: ptr;
+        var i: int;
+        var is_active: byte;
+        
+        call InitPlayer();
+        call InitEnemies();
+        
+        // Allocate and initialize an entity on heap
+        entity = AllocateEntityOnHeap();
+        
+        // Use some bullets
+        i = 0;
+        call SetBulletPosition(i, 10, 20);
+        
+        i = 1;
+        call SetBulletPosition(i, 50, 100);
+        
+        // Check bullet status
+        is_active = GetBulletActive(0);
+        
+        // Run dotted-access demo
+        call DottedAccessDemo();
+        
+        // Free heap-allocated entity
+        call FreeEntity(entity);
+    }

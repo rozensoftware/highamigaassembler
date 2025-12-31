@@ -1,0 +1,67 @@
+// Test all operators
+
+code main:
+    proc test_arithmetic() -> long {
+        var a: long = 10;
+        var b: long = 3;
+        var result: long;
+        
+        // Basic arithmetic
+        result = a + b;   // 13
+        result = a - b;   // 7
+        result = a * b;   // 30
+        result = a / b;   // 3
+        result = a % b;   // 1
+        
+        return result;
+    }
+    
+    proc test_comparison() -> long {
+        var x: long = 10;
+        var y: long = 20;
+        var result: long;
+        
+        // Comparison operators
+        result = x == y;  // 0 (false)
+        result = x != y;  // 1 (true)
+        result = x < y;   // 1 (true)
+        result = x <= y;  // 1 (true)
+        result = x > y;   // 0 (false)
+        result = x >= y;  // 0 (false)
+        
+        return result;
+    }
+    
+    proc test_logical() -> long {
+        var a: long = 1;
+        var b: long = 0;
+        var result: long;
+        
+        // Logical operators
+        result = a && b;  // 0 (false)
+        result = a || b;  // 1 (true)
+        result = !a;      // 0 (false)
+        
+        return result;
+    }
+    
+    proc test_combined() -> long {
+        var x: long = 10;
+        var y: long = 20;
+        var z: long = 15;
+        var result: long;
+        
+        // Combined expressions
+        result = x < z && z < y;     // 1 (true)
+        result = x == 10 || y == 10; // 1 (true)
+        result = x + y > z * 2;      // 0 (false, 30 > 30 is false)
+        
+        return result;
+    }
+    
+    proc main() -> void {
+        var r1: long = test_arithmetic();
+        var r2: long = test_comparison();
+        var r3: long = test_logical();
+        var r4: long = test_combined();
+    }

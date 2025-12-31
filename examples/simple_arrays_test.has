@@ -1,0 +1,16 @@
+// Simple array test
+
+data my_data:
+    numbers[5] = {1, 2, 3, 4, 5}
+
+bss my_bss:
+    buffer[100]
+
+code main:
+    proc test() -> int {
+        return 0;
+    }
+
+    asm {
+        jsr test
+    }

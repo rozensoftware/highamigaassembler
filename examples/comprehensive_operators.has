@@ -1,0 +1,29 @@
+code test:
+    proc comprehensive_operators() -> int {
+        var x:int = 42;
+        var y:int = 10;
+        var result:int = 0;
+        
+        // Compound assignments
+        x += 8;      // x = 50
+        y -= 2;      // y = 8
+        x *= 2;      // x = 100
+        y &= 0x0F;   // y = 8 (no change)
+        y |= 0x10;   // y = 24
+        y ^= 0x0A;   // y = 30
+        
+        // Increment/decrement
+        x++;         // x = 101
+        ++y;         // y = 31
+        result = x + y;  // result = 132
+        
+        // Test in loop
+        var i:int = 0;
+        while(i < 5) {
+            result += i;
+            i++;
+        }
+        // result = 132 + (0+1+2+3+4) = 142
+        
+        return result;
+    }

@@ -1,0 +1,16 @@
+code test:
+    proc test_compound() -> int {
+        var x:int = 100;
+        var y:int = 10;
+        
+        x += 5;     // x = 105
+        x -= 10;    // x = 95
+        x *= 2;     // x = 190
+        x &= 0xAA;  // bitwise and
+        x |= 0x55;  // bitwise or
+        x ^= 0xFF;  // bitwise xor
+        
+        y += 15;    // y = 25
+        
+        return x;
+    }

@@ -1,0 +1,46 @@
+// Example: Different ways to handle return values
+
+data mydata:
+    result.l = 0
+    status.b = 0
+
+code main:
+    // Simple function returning long (stack-based parameters)
+    proc calculate(a: long, b: long) -> long {
+        return a * b + 42;
+    }
+    
+    // Function with register parameters (faster calling convention)
+    proc fast_add(__reg(d0) a: long, __reg(d1) b: long) -> long {
+        return a + b;
+    }
+
+    // Function returning word
+    proc get_status() -> word {
+        return 57005;  // 0xDEAD in decimal
+    }
+
+    // Function returning byte
+    proc get_flag() -> byte {
+        return 1;
+    }
+
+    proc main() -> void {
+        // Method 1: Direct assignment (recommended)
+        var x: long = calculate(10, 20);
+        var s: word = get_status();
+        var f: byte = get_flag();
+        
+        // Method 2: Use register-based parameters for speed
+        var fast: long = fast_add(5, 7);
+        
+        // Method 3: Return value is always in d0
+        call calculate(100, 200);
+        result = d0;  // Manual register read
+        
+        // Method 4: Nested calls (pass result to another function)
+        var doubled: long = calculate(get_flag(), 2);
+        
+        // Method 5: Use in arithmetic expressions
+        x = calculate(x, 2) + 100;
+    }

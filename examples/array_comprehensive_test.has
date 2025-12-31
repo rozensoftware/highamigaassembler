@@ -1,0 +1,102 @@
+// Comprehensive test for array access with register preservation
+
+data my_data:
+    arr1[10] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9}
+    arr2.w[5] = {100, 200, 300, 400, 500}
+    matrix[4][3] = {11, 12, 13, 21, 22, 23, 31, 32, 33, 41, 42, 43}
+    scalar = 42
+
+bss my_bss:
+    buffer[100]
+
+code main:
+    // Test nested array access in expressions
+    proc test_nested_expr() -> int {
+        var i: int = 2;
+        var j: int = 1;
+        var result: int;
+        
+        // Complex expression: arr1[i] + (matrix[i][j] * 2) - arr2[j]
+        // arr1[2] = 2, matrix[2][1] = 32, arr2[1] = 200
+        // Expected: 2 + (32 * 2) - 200 = 2 + 64 - 200 = -134
+        result = arr1[i] + matrix[i][j] * 2 - arr2[j];
+        
+        return result;
+    }
+
+    // Test array access with function calls (register preservation)
+    proc get_index() -> int {
+        return 3;
+    }
+
+    proc test_with_calls() -> int {
+        var idx: int = get_index();
+        var value: int;
+        
+        // Use function result as array index
+        value = arr1[idx];  // arr1[3] = 3
+        
+        return value;
+    }
+
+    // Test array in loop
+    proc test_array_loop() -> int {
+        var sum: int = 0;
+        var i: int;
+        
+        for i = 0 to 4 {
+            sum = sum + arr1[i];
+        }
+        
+        return sum;  // 0+1+2+3+4 = 10
+    }
+
+    // Test 2D array iteration
+    proc test_2d_loop() -> int {
+        var sum: int = 0;
+        var row: int;
+        var col: int;
+        
+        for row = 0 to 3 {
+            for col = 0 to 2 {
+                sum = sum + matrix[row][col];
+            }
+        }
+        
+        return sum;  // sum of all matrix elements
+    }
+
+    // Test register preservation with PUSH/POP
+    proc test_register_preservation() -> int {
+        var result: int;
+        
+        PUSH(d3, d4, d5);
+        
+        asm {
+            move.l #999,d3
+            move.l #888,d4
+            move.l #777,d5
+        }
+        
+        // Array access should not clobber d3-d5
+        result = arr1[5] + matrix[1][1];
+        
+        asm {
+            ; d3-d5 should still be 999, 888, 777
+            add.l d3,d0
+            add.l d4,d0
+            add.l d5,d0
+        }
+        
+        POP();
+        
+        return result;
+    }
+
+    asm {
+        jsr test_nested_expr
+        jsr test_with_calls
+        jsr test_array_loop
+        jsr test_2d_loop
+        jsr test_register_preservation
+    }

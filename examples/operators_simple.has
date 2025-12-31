@@ -1,0 +1,35 @@
+// Quick test of all operators
+
+code main:
+    proc test() -> void {
+        var x: long = 10;
+        var y: long = 20;
+        var result: long;
+        
+        // Arithmetic
+        result = x + y;      // 30
+        result = y - x;      // 10
+        result = x * 2;      // 20
+        
+        // Comparison
+        if (x < y) {         // true
+            result = 1;
+        }
+        
+        if (x == 10) {       // true
+            result = 2;
+        }
+        
+        // Logical
+        if (x > 5 && y < 30) { // true
+            result = 3;
+        }
+        
+        if (x == 5 || y == 20) { // true (second condition)
+            result = 4;
+        }
+    }
+    
+    proc main() -> void {
+        call test();
+    }

@@ -1,0 +1,54 @@
+// HAM6 Graphics Mode Test
+// Demonstrates HAM6 (Hold-And-Modify) 320x256 display mode
+// with 4096 colors from 6 bitplanes
+
+code main:
+    // Declare external graphics functions
+    extern func SetGraphicsMode(mode: int) -> int;
+    extern func ClearScreen() -> int;
+    extern func ShowPicture(picture_addr: ptr) -> int;
+    extern func SwapScreen() -> int;
+    extern func UpdateCopperList() -> int;
+    extern func WaitVBlank() -> void;
+    
+    // Declare external memory access
+    extern var ham6_pic_forest: ptr;
+    
+    public main;
+    
+    proc main() -> int {
+        var result: int;
+        var x: int;
+        var y: int;
+        var color: int;
+        
+        // Initialize HAM6 graphics mode (mode 2)
+        result = SetGraphicsMode(2);
+        if (result < 0) {
+            return -1;
+        }
+        
+        // Clear the screen
+        call ClearScreen();
+        
+        // At this point, the HAM6 screen buffer at gfx_screen1
+        // contains the image data. You can either:
+        // 1. Generate HAM6 bitplane data programmatically
+        // 2. Load pre-generated HAM6 data from disk/memory
+        // 3. Use ShowPicture() to copy data to screen
+        
+        // Example: Draw a simple HAM6 pattern
+        // HAM6 pixel format (6 bits):
+        //   - Bits 5-4: Operation (00=load palette, 01-11=modify component)
+        //   - Bits 3-0: Value (palette index or RGB component 0-15)
+        
+        call ShowPicture(ham6_pic_forest);
+        call UpdateCopperList();
+        call SwapScreen();
+        
+        // Wait a moment for display
+        call WaitVBlank();
+        call WaitVBlank();
+        
+        return 0;
+    }

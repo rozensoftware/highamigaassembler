@@ -1,0 +1,55 @@
+// Comprehensive test for all valid GetReg/SetReg registers
+
+code all_regs:
+
+proc test_all_data_regs() -> long {
+    var v: long = 100;
+    var res: long = 0;
+    
+    // Test all data registers d0-d7
+    SetReg("d0", v);
+    res = GetReg("d0");
+    
+    SetReg("d1", v + 1);
+    res = GetReg("d1");
+    
+    SetReg("d2", v + 2);
+    res = GetReg("d2");
+    
+    SetReg("d3", v + 3);
+    res = GetReg("d3");
+    
+    SetReg("d4", v + 4);
+    res = GetReg("d4");
+    
+    SetReg("d5", v + 5);
+    res = GetReg("d5");
+    
+    SetReg("d6", v + 6);
+    res = GetReg("d6");
+    
+    SetReg("d7", v + 7);
+    res = GetReg("d7");
+    
+    return res;
+}
+
+proc test_all_addr_regs() -> long {
+    var v: long = 1000;
+    var res: long = 0;
+    
+    // Test all address registers a0-a3
+    SetReg("a0", v);
+    res = GetReg("a0");
+    
+    SetReg("a1", v + 1000);
+    res = GetReg("a1");
+    
+    SetReg("a2", v + 2000);
+    res = GetReg("a2");
+    
+    SetReg("a3", v + 3000);
+    res = GetReg("a3");
+    
+    return res;
+}

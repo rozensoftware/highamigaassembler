@@ -1,0 +1,34 @@
+// Test file for new section syntax
+
+data_chip my_chip_data:
+    copper_list.w = 65534
+    sprite_ptr.l = 0
+
+data my_data:
+    counter = 100
+    flag.b = 1
+
+bss my_bss:
+    workspace: 256
+    temp_buffer: 128
+
+bss_chip audio_bss:
+    sample_buffer: 8192
+
+code main:
+    proc add(a: int, b: int) -> int {
+        return a + b;
+    }
+
+    asm {
+start:
+    jsr add
+    rts
+    }
+
+code_chip graphics:
+    asm {
+copper_init:
+    move.l #0,d0
+    rts
+    }

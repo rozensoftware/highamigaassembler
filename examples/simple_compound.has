@@ -1,0 +1,6 @@
+code test:
+    proc simple_compound() -> int {
+        var x:int = 10;
+        x += 5;
+        return x;
+    }

@@ -1,0 +1,331 @@
+# HAM6 Support in HAS Compiler
+
+## Overview
+
+HAM6 (Hold-And-Modify mode 6) is an Amiga graphics mode that uses 6 bitplanes to display up to **4096 colors** on a single screen, compared to the standard 32-color palette mode (5 bitplanes).
+
+This document describes the HAM6 implementation in the HAS compiler, including:
+- Mode setup and graphics functions
+- IFF ILBM HAM6 image import
+- Displaying HAM6 pictures from memory
+- Programming examples
+
+## Graphics Mode 2: HAM6
+
+### SetGraphicsMode(mode: int) -> int
+
+HAM6 is now available as **mode 2** in `SetGraphicsMode()`:
+
+```has
+extern func SetGraphicsMode(mode: int) -> int;
+
+proc main() -> int {
+    // Initialize HAM6 mode
+    call SetGraphicsMode(2);  // 320x256, 4096 colors, 6 bitplanes
+    return 0;
+}
+```
+
+**Mode parameters:**
+- Mode 0: 320x256 resolution, 32 colors (5 bitplanes)
+- Mode 1: 640x256 resolution (hires), 16 colors (4 bitplanes)
+- Mode 2: 320x256 resolution, 4096 colors (6 bitplanes, HAM6)
+
+### Technical Details
+
+**Display Configuration:**
+- Resolution: 320x256 pixels
+- Bitplanes: 6
+- Colors: 4096 (via Hold-And-Modify mechanism)
+- BPLCON0 register: 0x6800 (6 planes + HAM mode bit)
+- Screen buffer size: 320 × 256 ÷ 8 × 6 = 61,440 bytes
+
+**Hardware:**
+- Custom chip access: Standard Amiga display window
+- DMA: Requires bitplane DMA for 6 planes
+- Copper list: Manages bitplane pointers and sprite display
+
+## HAM6 Color Encoding
+
+Each HAM6 pixel is encoded as a 6-bit value:
+
+```
+Bits 5-4: Operation mode
+  00 = Load palette color
+  01 = Modify blue component
+  10 = Modify red component
+  11 = Modify green component
+
+Bits 3-0: Value
+  For mode 00: palette index (0-15)
+  For modes 01-11: RGB component value (0-15)
+```
+
+### How HAM6 Works
+
+HAM6 maintains a color **register** that tracks the current RGB values. As you scan pixels left-to-right:
+
+1. **Mode 00 (Load palette):** Fetch a 16-color palette entry and load it into the color register
+   - Bits 3-0 specify which palette color (0-15)
+
+2. **Mode 01 (Modify blue):** Modify only the blue component
+   - Red and green stay from previous pixel
+   - Bits 3-0 = new blue value (0-15)
+
+3. **Mode 10 (Modify red):** Modify only the red component
+   - Green and blue stay from previous pixel
+   - Bits 3-0 = new red value (0-15)
+
+4. **Mode 11 (Modify green):** Modify only the green component
+   - Red and blue stay from previous pixel
+   - Bits 3-0 = new green value (0-15)
+
+### Example: Creating 4096 Colors
+
+Starting with the 16-color palette:
+- Load a palette color: 16 options
+- Modify red: ×16 variations
+- Modify green: ×16 variations
+- Modify blue: ×16 variations
+
+Result: 16 × 16 × 16 × 16 = 65,536 theoretical colors, but practical usage achieves ~4096 per scanline.
+
+## Displaying HAM6 Pictures
+
+### ShowPicture Function
+
+```has
+extern func ShowPicture(picture_addr: ptr) -> int;
+```
+
+Copy HAM6 picture data from memory to the current display:
+
+```has
+proc main() -> int {
+    // Assume ham6_data points to 61,440 bytes of HAM6 bitmap data
+    extern var ham6_data: ptr;
+    
+    call SetGraphicsMode(2);      // Initialize HAM6 mode
+    call ClearScreen();            // Clear to black
+    call ShowPicture(&ham6_data);  // Copy picture to screen
+    call UpdateCopperList();        // Update display list
+    call SwapScreen();              // Enable double buffering
+    
+    return 0;
+}
+```
+
+**Parameters:**
+- `picture_addr`: Pointer to HAM6 bitmap data (61,440 bytes for 320×256)
+
+**Returns:**
+- 0: Success
+- -1: Error (null pointer, no screen selected, or invalid mode)
+
+## IFF ILBM HAM6 Import
+
+The `iff_importer.py` tool now supports reading and importing HAM6 IFF files:
+
+```bash
+python tools/iff_importer.py image.iff --label-prefix bob
+```
+
+### Features
+
+1. **CAMG Chunk Detection:** Reads viewport mode flags to detect HAM6 mode
+2. **HAM6 Decoding:** Converts HAM6 bitplane data to indexed palette colors
+3. **Palette Preservation:** Extracts color palette from CMAP chunk
+4. **Assembly Output:** Generates `.s` files ready for inclusion in HAS projects
+
+### HAM6 Detection
+
+The importer detects HAM6 by reading the **CAMG** (Commodore Amiga Viewport Mode) chunk:
+
+```python
+if camg_mode & 0x800:  # Bit 11 = HOLDNMODIFY
+    image.is_ham6 = True
+```
+
+### Conversion Strategy
+
+When importing HAM6 images:
+1. Detect HAM6 mode from CAMG chunk
+2. Decode HAM6 bitplanes using the color register state machine
+3. Approximate colors to nearest indexed palette entry (lossy conversion)
+4. Output assembly with 6 bitplanes instead of standard 5/4
+
+## Programming Examples
+
+### Basic HAM6 Display
+
+```has
+code main:
+    extern func SetGraphicsMode(mode: int) -> int;
+    extern func ClearScreen() -> int;
+    extern func ShowPicture(picture_addr: ptr) -> int;
+    extern func SwapScreen() -> int;
+    extern func UpdateCopperList() -> int;
+    extern func WaitVBlank() -> void;
+    
+    public main;
+    
+    // Pre-generated HAM6 bitmap (61,440 bytes)
+    asm {
+    ham6_pattern:
+        ; HAM6 bitplane data goes here
+        ; Generated by tools/ham6_gen.py
+    }
+    
+    proc main() -> int {
+        var result: int;
+        
+        result = SetGraphicsMode(2);
+        if result < 0 {
+            return -1;
+        }
+        
+        call ShowPicture(&ham6_pattern);
+        call UpdateCopperList();
+        call SwapScreen();
+        
+        return 0;
+    }
+```
+
+### Loading HAM6 from Disk
+
+```has
+code loader:
+    extern func SetGraphicsMode(mode: int) -> int;
+    extern func ShowPicture(picture_addr: ptr) -> int;
+    extern func HeapAlloc(size: int) -> ptr;
+    extern func HeapFree(ptr: ptr) -> int;
+    
+    public load_ham6_picture;
+    
+    proc load_ham6_picture(filename: ptr) -> int {
+        var picture_ptr: ptr;
+        var result: int;
+        
+        // Allocate memory for HAM6 bitmap (61,440 bytes)
+        picture_ptr = HeapAlloc(61440);
+        if picture_ptr == null {
+            return -1;  // Out of memory
+        }
+        
+        // TODO: Load file from disk into picture_ptr
+        
+        // Setup and display
+        result = SetGraphicsMode(2);
+        if result < 0 {
+            call HeapFree(picture_ptr);
+            return -1;
+        }
+        
+        call ShowPicture(picture_ptr);
+        
+        return 0;
+    }
+```
+
+### HAM6 Pattern Generation
+
+Use the `ham6_gen.py` utility to generate test patterns:
+
+```bash
+python tools/ham6_gen.py --width 320 --height 256 --output ham6_test.s
+```
+
+This creates:
+- `ham6_test.s`: Assembly file with HAM6 bitmap data
+- A simple gradient pattern demonstrating HAM6 capabilities
+
+Then include in your HAS project:
+
+```has
+asm {
+    include "ham6_test.s"
+}
+
+proc main() -> int {
+    call SetGraphicsMode(2);
+    call ShowPicture(&ham6_test_data);
+    call UpdateCopperList();
+    return 0;
+}
+```
+
+## Assembly Implementation Details
+
+### HAM6 Copper List
+
+Three copper lists are maintained:
+
+1. `gfx_copperlist_lores` - Mode 0 (320x256x32)
+2. `gfx_copperlist_hires` - Mode 1 (640x256x16)
+3. `gfx_copperlist_ham6` - Mode 2 (320x256 HAM6)
+
+Each manages:
+- Bitplane pointers (different count per mode)
+- Sprite pointers (8 hardware sprites)
+- Copper list terminator
+
+### Display Setup
+
+`gfx_prepare_copperlist_ham6()` updates HAM6 copper list with current screen buffer pointers:
+
+```asm
+gfx_prepare_copperlist_ham6:
+    ; Update 6 bitplane pointers
+    ; Update 8 sprite pointers
+    ; Enable copper and DMA
+```
+
+### Screen Buffers
+
+Two double-buffered screens for HAM6:
+- `gfx_screen1_ham6`: 320×256÷8×6 = 61,440 bytes
+- `gfx_screen2_ham6`: 320×256÷8×6 = 61,440 bytes
+
+## Limitations and Notes
+
+1. **No SetPixel for HAM6:** The HAM6 color register is scanline-relative, making individual pixel operations complex. Use `ShowPicture()` to display pre-prepared images instead.
+
+2. **Color Approximation:** When importing HAM6 from IFF, colors are approximated to the nearest indexed value. Lossless conversion requires keeping 6 bitplanes.
+
+3. **Performance:** HAM6 offers 4096 colors but uses more memory (6 planes vs 5) and requires careful bitplane management.
+
+4. **Sprite Support:** Hardware sprites still work in HAM6 mode using the standard palette (colors 16-31 reserved).
+
+## Related Functions
+
+- `SetGraphicsMode(2)` - Initialize HAM6 mode
+- `ClearScreen()` - Clear to palette color 0
+- `ShowPicture(addr)` - Display picture data
+- `SwapScreen()` - Toggle double buffer
+- `UpdateCopperList()` - Refresh display list
+- `SetColor(idx, value)` - Set palette color (16 colors for HAM6)
+
+## References
+
+- Amiga Hardware Reference Manual - Graphics/Display
+- IFF Specification: https://wiki.amigaos.net/wiki/ILBM_IFF_Interleaved_Bitmap
+- HAM Mode Technical Details: https://en.wikipedia.org/wiki/Hold-And-Modify
+
+## Testing
+
+Test HAM6 support:
+
+```bash
+# Compile HAM6 test program
+python -m hasc.cli examples/ham6_display_test.has -o ham6_test.s
+
+# Assemble and link (requires vasm/vlink)
+./scripts/build.sh ham6_test.s ham6_test.o ham6_test.exe
+```
+
+Load and run `ham6_test.exe` in an Amiga emulator to verify:
+- Screen initializes in HAM6 mode
+- Picture displays correctly
+- Copper list updates work
+- Double-buffering is functional

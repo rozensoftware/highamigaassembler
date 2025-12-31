@@ -1,0 +1,40 @@
+// Comprehensive address-of operator example
+
+code examples:
+    // Function that modifies a value through a pointer
+    proc increment_through_ptr(ptr: long*) -> void {
+        var current: int = *ptr;
+        *ptr = current + 1;
+    }
+    
+    // Function that swaps two values through pointers
+    proc swap(p1: long*, p2: long*) -> void {
+        var temp: int = *p1;
+        *p1 = *p2;
+        *p2 = temp;
+    }
+    
+    // Main test procedure
+    proc test_address_of() -> int {
+        // Declare some variables
+        var a: int = 10;
+        var b: int = 20;
+        var c: int = 30;
+        
+        // Get pointers to variables using address-of
+        var ptr_a: long* = &a;
+        var ptr_b: long* = &b;
+        var ptr_c: long* = &c;
+        
+        // Modify values through pointers
+        *ptr_a = 100;
+        *ptr_b = 200;
+        *ptr_c = 300;
+        
+        // Call functions with pointers
+        call increment_through_ptr(&a);
+        call swap(&b, &c);
+        
+        // Return final value of a
+        return a;
+    }

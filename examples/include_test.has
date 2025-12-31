@@ -1,0 +1,11 @@
+#include "includes/inc_defs.has";
+
+data globals:
+    counter.l = 0
+
+code main:
+    proc start() -> int {
+        var x: int = MAX_VALUE;
+        NOPX();
+        return x;
+    }

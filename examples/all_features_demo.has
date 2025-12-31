@@ -1,0 +1,41 @@
+// Complete demonstration of all three features
+
+#warning "This is an informational warning during compilation";
+
+const ARRAY_SIZE = 256;
+const MAX_ITERATIONS = 100;
+const BUFFER_SIZE = 1024;
+
+code main:
+    proc init_buffer() -> void {
+        var i: int;
+        var addr: int;
+        
+        // Use constants in loop
+        i = 0;
+        
+        // Each iteration processes ARRAY_SIZE elements
+        // Using const in arithmetic
+        addr = ARRAY_SIZE;
+        addr += BUFFER_SIZE;
+        addr -= ARRAY_SIZE;
+        
+        return;
+    }
+    
+    proc main() -> int {
+        var count: int;
+        var result: int;
+        
+        // Initialize with constant
+        count = MAX_ITERATIONS;
+        
+        // Use constant in comparison
+        if (count == MAX_ITERATIONS) {
+            result = ARRAY_SIZE;
+        }
+        
+        call init_buffer();
+        
+        return result;
+    }

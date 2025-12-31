@@ -1,0 +1,56 @@
+// Practical example: Using GetReg/SetReg for hardware register access
+
+code hardware:
+
+// Example: Accessing Amiga hardware registers
+// In real Amiga programming, you might have hardware at specific addresses
+
+proc read_hardware_register() -> long {
+    // Simulate reading from a hardware register at address 0xDFF000
+    var hw_addr: long = 0xDFF000;
+    
+    // Set up pointer in a0
+    SetReg("a0", hw_addr);
+    
+    // Read the register value
+    var reg_value: long = GetReg("a0");
+    
+    return reg_value;
+}
+
+proc write_hardware_register(value: long) -> long {
+    var hw_addr: long = 0xDFF100;
+    
+    // Set up pointer in a1
+    SetReg("a1", hw_addr);
+    
+    // Use a data register for the value
+    SetReg("d0", value);
+    
+    // Read back to verify
+    var written: long = GetReg("d0");
+    var addr: long = GetReg("a1");
+    
+    return written;
+}
+
+proc multi_register_operation() -> long {
+    // Store multiple values in different registers
+    SetReg("d0", 10);
+    SetReg("d1", 20);
+    SetReg("d2", 30);
+    SetReg("d3", 40);
+    
+    // Sum them up
+    var a: long = GetReg("d0");
+    var b: long = GetReg("d1");
+    var c: long = GetReg("d2");
+    var d: long = GetReg("d3");
+    
+    var sum: long = a + b + c + d;
+    
+    // Store result in d4
+    SetReg("d4", sum);
+    
+    return GetReg("d4");
+}

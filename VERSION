@@ -1,0 +1,40 @@
+HAS - High Assembler for Motorola 68000 (Amiga)
+Version 0.2
+
+Status: In Constant Development
+
+Release Date: December 31, 2025
+
+Major Features in This Version:
+- Complete 68000 assembly code generation
+- Macro system (Phase 2)
+- Jinja2 template integration (Phase 3)
+- @python directive support (Phase 4)
+- Include system with cyclic dependency detection
+- Forward declarations (func keyword)
+- External function imports (extern func)
+- Register allocation with spill-to-stack
+- Inline assembly support
+- Pointer arithmetic and dereferencing
+- Array access with multi-dimensional support
+- Hardware register access (getreg/setreg)
+- Amiga graphics library interface
+- HAM6 mode support
+- Comprehensive operator support (arithmetic, bitwise, shift, logical)
+- Break/continue statements
+- Constant evaluation at compile-time
+- Type system with automatic promotion
+- Struct declarations
+
+Known Limitations:
+- No floating-point support
+- Basic struct support (no nested structs)
+- Limited optimization
+- No cross-procedure inlining
+
+Future Development:
+- Enhanced optimization passes
+- Improved error messages
+- Additional standard library modules
+- Extended Amiga hardware abstractions
+- Floating-point library integration

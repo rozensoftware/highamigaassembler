@@ -1,0 +1,68 @@
+// Test break and continue statements
+
+code test:
+    proc test_break() -> int {
+        var sum:int = 0;
+        var i:int = 0;
+        
+        for i = 0 to 10
+        {
+            if (i == 5) {
+                break;
+            }
+            sum = sum + i;
+        }
+        
+        return sum;  // Should be 0+1+2+3+4 = 10
+    }
+    
+    proc test_continue() -> int {
+        var sum:int = 0;
+        var i:int = 0;
+        
+        for i = 0 to 10
+        {
+            if (i == 5) {
+                continue;
+            }
+            sum = sum + i;
+        }
+        
+        return sum;  // Should be 0+1+2+3+4+6+7+8+9 = 40
+    }
+    
+    proc test_nested_break() -> int {
+        var result:int = 0;
+        var i:int = 0;
+        var j:int = 0;
+        
+        for i = 0 to 5
+        {
+            for j = 0 to 5
+            {
+                if (j == 2) {
+                    break;
+                }
+                result = result + 1;
+            }
+        }
+        
+        return result;  // 5 iterations of outer, 2 iterations of inner = 10
+    }
+    
+    proc test_while_continue() -> int {
+        var i:int = 0;
+        var sum:int = 0;
+        
+        while (i < 10)
+        {
+            i = i + 1;
+            if (i == 5) {
+                continue;
+            }
+            sum = sum + i;
+        }
+        
+        return sum;  // 1+2+3+4+6+7+8+9+10 = 50
+    }
+

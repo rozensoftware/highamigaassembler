@@ -1,0 +1,27 @@
+// Demonstrate optimized comparison codegen
+
+code test:
+    proc compare_demo() -> int {
+        var x:int = 5;
+        var y:int = 10;
+        
+        if (x == y) {
+            return 1;
+        }
+        
+        if (x < y) {
+            return 2;
+        }
+        
+        return 0;
+    }
+    
+    proc while_demo() -> int {
+        var i:int = 0;
+        
+        while (i < 10) {
+            i = i + 1;
+        }
+        
+        return i;
+    }

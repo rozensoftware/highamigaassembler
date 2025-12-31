@@ -1,0 +1,32 @@
+// Demonstration of const declarations, #warning, and #error directives
+
+#warning "This is a compile-time warning - appears during compilation";
+
+const MAGIC_NUMBER = 42;
+const MAX_VALUE = 100;
+const MIN_VALUE = 0;
+
+code main:
+    proc main() -> int {
+        var result: int;
+        var temp: int;
+        
+        // Use const in simple assignment
+        result = MAGIC_NUMBER;
+        
+        // Use const in expressions
+        temp = MAGIC_NUMBER + 10;
+        temp = MAGIC_NUMBER * 2;
+        
+        // Use const in comparisons
+        if (result == MAGIC_NUMBER) {
+            result = MAX_VALUE;
+        }
+        
+        // Use const in compound assignments
+        temp = 5;
+        temp += MAGIC_NUMBER;
+        temp -= MIN_VALUE;
+        
+        return result;
+    }

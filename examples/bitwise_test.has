@@ -1,0 +1,43 @@
+// Test bitwise operators
+
+code main:
+    proc test_bitwise() -> void {
+        var a: long = 3855;   // 0x0F0F in decimal: 0000111100001111
+        var b: long = 61680;  // 0xF0F0 in decimal: 1111000011110000
+        var result: long;
+        
+        // Bitwise AND
+        result = a & b;        // 0x0000 = 0
+        
+        // Bitwise OR
+        result = a | b;        // 0xFFFF = 65535
+        
+        // Bitwise XOR
+        result = a ^ b;        // 0xFFFF = 65535
+        
+        // Bitwise NOT
+        result = ~a;           // ~3855
+        
+        // Combined
+        result = a & 255;      // Lower 8 bits of a
+    }
+    
+    proc test_bit_operations() -> void {
+        var flags: long = 0;
+        
+        // Set bits
+        flags = flags | 1;     // Set bit 0
+        flags = flags | 4;     // Set bit 2
+        
+        // Clear bits
+        flags = flags & ~1;    // Clear bit 0
+        
+        // Check bits
+        var bit0_set: long = flags & 1;
+        var bit2_set: long = flags & 4;
+    }
+    
+    proc main() -> void {
+        call test_bitwise();
+        call test_bit_operations();
+    }

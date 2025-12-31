@@ -1,0 +1,12 @@
+// Test global variables with different sizes
+
+my_var = 10
+byte_var.b = 255
+word_var.w = 1000
+long_var.l = 123456
+
+data nums: [1, 2, 3]
+
+proc test() -> int {
+    return 42;
+}

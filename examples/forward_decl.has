@@ -1,0 +1,20 @@
+// Example: Forward declarations with func keyword
+
+code main:
+    // Forward declarations
+    func helper(x: long) -> long;
+    func compute(a: long, b: long) -> long;
+
+    proc main() -> void {
+        var result1: long = helper(42);
+        var result2: long = compute(10, 20);
+    }
+
+    // Implementations come later
+    proc helper(x: long) -> long {
+        return x * 2;
+    }
+
+    proc compute(a: long, b: long) -> long {
+        return a + b * 3;
+    }

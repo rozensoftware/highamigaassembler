@@ -1,0 +1,24 @@
+code main:
+
+proc add(a: int, b: int) -> int {
+    return a + b;
+}
+
+proc add_reg(__reg(d0) a: int, __reg(d1) b: int) -> int {
+    var sum: int = a + b;
+    return sum;
+}
+
+proc add_mixed(__reg(d0) a: int, b: int) -> int {
+    var sum: int = a + b;
+    return sum;
+}
+
+proc caller() -> int {
+    var x: int = 1;
+    var y: int = 2;
+    var r1: int = add(x, y);
+    var r2: int = add_reg(x, y);
+    var r3: int = add_mixed(x, y);
+    return r1 + r2 + r3;
+}

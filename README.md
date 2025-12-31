@@ -1,0 +1,363 @@
+# HAS - High Assembler for Motorola 68000 (Amiga)
+
+**Version:** 0.2 (In Constant Development)
+
+**HAS (High Assembler)** is a Python-based compiler that translates a high-level assembly language targeting the Motorola 68000 processor (Amiga). It provides modern programming constructs while maintaining full control over the generated assembly code.
+
+## 🎯 What is HAS?
+
+HAS bridges the gap between high-level languages and assembly programming. It offers:
+
+- **High-level constructs**: variables, loops, conditionals, procedures
+- **Strong typing**: byte, word, long, pointers, structs
+- **Inline assembly**: embed raw 68000 assembly when needed
+- **Macro system**: reusable code patterns
+- **Python integration**: generate code dynamically at compile-time
+- **Amiga-specific support**: hardware registers, graphics libraries, copper lists
+- **Clean output**: generates standard 68000 assembly compatible with `vasm` + `vlink`
+
+## 📋 Features
+
+### Core Language Features
+- **Procedures & Functions**: Forward declarations, external imports, calling conventions
+- **Data Types**: 8/16/32-bit integers, pointers, arrays, structs
+- **Control Flow**: if/else, for, while, do-while, break, continue
+- **Operators**: Arithmetic, bitwise, logical, shift, comparison
+- **Memory Sections**: code, data, bss with automatic alignment
+- **Register Control**: `getreg()`/`setreg()` for direct register access
+- **Inline Assembly**: Full control with `asm { ... }` blocks
+
+### Advanced Features
+- **Macro System (Phase 2)**: Define reusable code patterns
+- **Template System (Phase 3)**: Jinja2-based code generation
+- **@python Directive (Phase 4)**: Execute Python code during compilation
+- **Include System**: Modular code organization with `#include`
+- **Constants**: Compile-time constant evaluation
+- **Pointer Arithmetic**: Address-of (`&`) and dereference (`*`) operators
+
+### Amiga-Specific
+- **Hardware Registers**: Direct access to Amiga chipset
+- **Graphics Library Interface**: Copper lists, HAM6 mode, sprites, blitter objects
+- **Heap Management**: Dynamic memory allocation primitives
+- **System Integration**: AmigaDOS/Exec library interfaces
+
+## 🚀 Quick Start
+
+### Installation
+
+1. **Prerequisites**:
+   - Python 3.8 or higher
+   - `vasm` and `vlink` (for assembly and linking) - optional but recommended
+
+2. **Install Python dependencies**:
+   ```bash
+   pip install -r requirements.txt
+   ```
+
+3. **Verify installation**:
+   ```bash
+   python -m hasc.cli --help
+   ```
+
+### Your First Program
+
+Create a file `hello.has`:
+
+```has
+code main:
+    proc main() -> int {
+        var result:int = 42;
+        return result;
+    }
+```
+
+**Compile to assembly**:
+```bash
+python -m hasc.cli hello.has -o hello.s
+```
+
+**Assemble and link** (requires vasm/vlink):
+```bash
+./scripts/build.sh hello.s hello.o hello.exe
+```
+
+## 📖 Documentation
+
+### Essential Guides
+- **[QUICK_START_ALL_PHASES.md](QUICK_START_ALL_PHASES.md)** - Complete tutorial for all features
+- **[COMPILER_DEVELOPERS_GUIDE.md](COMPILER_DEVELOPERS_GUIDE.md)** - Architecture and internals
+- **[DEVELOPERS_GUIDE.md](DEVELOPERS_GUIDE.md)** - Language reference and usage patterns
+- **[COMPILER_FEATURES_SUMMARY.md](COMPILER_FEATURES_SUMMARY.md)** - Feature overview
+
+### Feature-Specific Documentation
+- **[PROC_VS_FUNC_SUMMARY.md](PROC_VS_FUNC_SUMMARY.md)** - Understanding `proc` vs `func` vs `extern func`
+- **[OPERATORS.md](OPERATORS.md)** - Complete operator reference
+- **[BITWISE.md](BITWISE.md)** - Bitwise and shift operations
+- **[PYTHON_INTEGRATION.md](PYTHON_INTEGRATION.md)** - Using Python for code generation
+- **[PYTHON_GENERATION_TUTORIAL.md](PYTHON_GENERATION_TUTORIAL.md)** - Step-by-step Python integration
+- **[PHASES_2_3_4_SUMMARY.md](PHASES_2_3_4_SUMMARY.md)** - Macro, template, and @python features
+
+### Implementation Details
+- **[ARRAY_ACCESS_IMPLEMENTATION.md](ARRAY_ACCESS_IMPLEMENTATION.md)** - Array indexing details
+- **[GETREG_SETREG_IMPLEMENTATION.md](GETREG_SETREG_IMPLEMENTATION.md)** - Direct register manipulation
+- **[INCLUDE_SYSTEM_COMPLETION.md](INCLUDE_SYSTEM_COMPLETION.md)** - Module system details
+- **[GRAPHICS_LIBRARY_INTERFACE.md](GRAPHICS_LIBRARY_INTERFACE.md)** - Amiga graphics programming
+- **[HAM6_SUPPORT.md](HAM6_SUPPORT.md)** - HAM6 graphics mode implementation
+
+## 📚 Examples
+
+The `examples/` directory contains numerous demonstrations:
+
+### Basic Examples
+- `add.has` - Simple arithmetic operations
+- `vars_test.has` - Variable declarations and initialization
+- `types_demo.has` - Data type demonstrations
+- `const_demo.has` - Constant usage
+
+### Control Flow
+- `loops_test.has` - for, while, do-while loops
+- `break_continue_test.has` - Loop control statements
+- `comprehensive_operators.has` - All operator types
+
+### Arrays and Pointers
+- `arrays_test.has` - Array declarations and access
+- `array_comprehensive_test.has` - Advanced array operations
+- `pointers.has` - Pointer operations and dereferencing
+- `address_of.has` - Address-of operator examples
+
+### Advanced Features
+- `macro_example.has` - Macro system usage
+- `template_example.has` - Jinja2 templates
+- `python_directive.has` - @python directive examples
+- `asm_comprehensive_test.has` - Inline assembly
+- `include_test.has` - Module inclusion
+
+### Amiga-Specific
+- `graphics_test.has` - Graphics library usage
+- `ham6_display_test.has` - HAM6 mode graphics
+- `heap_test.has` - Memory allocation
+- `getreg_setreg_test.has` - Hardware register access
+
+### Code Generation
+- `code_generator.py` - External Python code generation (Phase 1)
+- `simple_generator.py` - Simple generation example
+
+## 🔧 Usage
+
+### Basic Compilation
+```bash
+python -m hasc.cli input.has -o output.s
+```
+
+### With External Code Generation (Phase 1)
+```bash
+python -m hasc.cli main.has --generate generator.py -o output.s
+```
+
+The generator script should print HAS code to stdout:
+```python
+#!/usr/bin/env python3
+def main():
+    print("code main:")
+    print("    proc main() -> int {")
+    print("        return 42;")
+    print("    }")
+
+if __name__ == "__main__":
+    main()
+```
+
+### Skip Validation (for testing)
+```bash
+python -m hasc.cli input.has --no-validate -o output.s
+```
+
+### Build Complete Executable
+```bash
+# Compile HAS to assembly
+python -m hasc.cli program.has -o program.s
+
+# Assemble and link (requires vasm/vlink)
+./scripts/build.sh program.s program.o program.exe
+```
+
+## 🏗️ Project Structure
+
+```
+hasc/                   # Main compiler source code
+├── __init__.py
+├── __main__.py        # Entry point
+├── cli.py             # Command-line interface
+├── parser.py          # Lark-based parser
+├── ast.py             # AST node definitions
+├── validator.py       # Semantic analysis
+├── codegen.py         # Code generation (2500+ lines)
+└── preprocessor.py    # Include and directive processing
+
+examples/              # Example programs (no games included)
+templates/             # Jinja2 templates for Phase 3
+lib/                   # Standard library modules
+scripts/               # Build and utility scripts
+docs/                  # Additional documentation
+```
+
+## 🎓 Language Basics
+
+### Variable Declaration
+```has
+var x:int = 42;
+var y:word = 0x1234;
+var ptr:ptr = null;
+```
+
+### Procedures
+```has
+proc add(a:int, b:int) -> int {
+    return a + b;
+}
+```
+
+### Forward Declarations
+```has
+func helper(x:int) -> int;  // Forward declaration
+
+proc main() -> int {
+    return helper(10);
+}
+
+proc helper(x:int) -> int {
+    return x * 2;
+}
+```
+
+### External Functions
+```has
+extern func printf(format:ptr, ...);  // Import from library
+
+code main:
+    proc main() -> int {
+        printf("Hello, Amiga!\n");
+        return 0;
+    }
+```
+
+### Arrays
+```has
+data globals:
+    table:int[10] = { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 };
+
+code main:
+    proc main() -> int {
+        var idx:int = 5;
+        var value:int = table[idx];
+        return value;
+    }
+```
+
+### Inline Assembly
+```has
+proc custom_operation() -> void {
+    asm {
+        move.l  d0,d1
+        add.l   d2,d1
+        move.l  d1,(a0)
+    }
+}
+```
+
+### Macros
+```has
+macro SWAP(a, b) {
+    var temp = a;
+    a = b;
+    b = temp;
+}
+
+code main:
+    proc main() -> int {
+        var x:int = 10;
+        var y:int = 20;
+        SWAP(x, y);
+        return x;  // Returns 20
+    }
+```
+
+## 🔍 Type System
+
+| Type | Size | Signed | Description |
+|------|------|--------|-------------|
+| byte, i8 | 1 | Yes | 8-bit signed integer |
+| u8, char | 1 | No | 8-bit unsigned integer |
+| word, i16, short | 2 | Yes | 16-bit signed integer |
+| u16 | 2 | No | 16-bit unsigned integer |
+| long, i32, int | 4 | Yes | 32-bit signed integer |
+| u32 | 4 | No | 32-bit unsigned integer |
+| ptr, APTR, T* | 4 | - | Pointer type |
+| bool | 1 | - | Boolean (0/1) |
+| void | 0 | - | No type |
+
+## 🎯 Calling Convention
+
+HAS follows Motorola 68000 standard calling convention:
+
+- **Parameter Passing**: Stack-based (can use `__reg(regname)` for register parameters)
+- **Return Values**: d0 (integers), a0 (pointers)
+- **Caller-Save**: d0-d2, a0-a1
+- **Callee-Save**: d3-d7, a2-a6
+- **Frame Pointer**: a6 (established via `link`/`unlk`)
+- **Stack Pointer**: a7 (never allocated)
+
+## 🛠️ Development Status
+
+**Version 0.2** - In Constant Development
+
+This compiler is actively being developed. Current focus areas:
+- Enhanced optimization passes
+- Improved error messages
+- Additional Amiga hardware abstractions
+- Extended standard library
+- Performance improvements
+
+## 🐛 Known Limitations
+
+- No floating-point support (68000 has no FPU; requires software library)
+- Limited optimization (focus is on correct code generation)
+- Struct support is basic (no nested structs yet)
+- No inline optimization across procedures
+- Template system requires Jinja2 installation
+
+## 📝 Contributing
+
+This is an active development project. If you encounter issues or have suggestions:
+
+1. Test with the provided examples first
+2. Check documentation for feature coverage
+3. Review generated assembly output for debugging
+4. Report issues with minimal reproducible examples
+
+## 🔗 Requirements
+
+**Python Dependencies** (see requirements.txt):
+- `lark-parser` - Parser generator
+- `jinja2` - Template system (optional, for Phase 3)
+
+**External Tools** (optional, for full build):
+- `vasm` - Motorola 68000 assembler
+- `vlink` - Linker for Amiga executables
+- Amiga emulator (e.g., FS-UAE, WinUAE) for testing
+
+## 📄 License
+
+[Check project repository for license information]
+
+## 🙏 Acknowledgments
+
+- Lark parser generator for excellent grammar-based parsing
+- Amiga development community for hardware documentation
+- vasm/vlink toolchain authors for excellent assembler/linker tools
+
+---
+
+**Happy Amiga Programming! 🖥️**
+
+For detailed documentation, see the markdown files in this directory or explore the examples folder.

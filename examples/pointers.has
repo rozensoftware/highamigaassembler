@@ -1,0 +1,24 @@
+code main:
+    // Comprehensive pointer example
+    proc pointer_example(p: long*) -> int {
+        // Read from pointer
+        var value: int = *p;
+        
+        // Write through pointer  
+        *p = value + 100;
+        
+        return value;
+    }
+    
+    proc test_pointers() -> int {
+        var ptr: long* = 50000;
+        var x: int = 42;
+        
+        // Assign through pointer
+        *ptr = x + 8;
+        
+        // Call with pointer parameter
+        var result: int = pointer_example(ptr);
+        
+        return result;
+    }

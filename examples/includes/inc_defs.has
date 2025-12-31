@@ -1,0 +1,7 @@
+// Common definitions for include testing
+const MAX_VALUE = 3;
+
+macro NOPX() {
+    asm "nop";
+    asm "nop";
+}

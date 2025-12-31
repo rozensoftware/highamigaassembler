@@ -1,0 +1,76 @@
+// Test increment, decrement, and compound assignment operators
+
+code test:
+    proc test_post_increment() -> int {
+        var i:int = 5;
+        var result:int = 0;
+        
+        result = i++;     // result = 5, i = 6
+        return result;    // should be 5
+    }
+    
+    proc test_pre_increment() -> int {
+        var i:int = 5;
+        var result:int = 0;
+        
+        result = ++i;     // i = 6, result = 6
+        return result;    // should be 6
+    }
+    
+    proc test_post_decrement() -> int {
+        var i:int = 5;
+        var result:int = 0;
+        
+        result = i--;     // result = 5, i = 4
+        return result;    // should be 5
+    }
+    
+    proc test_pre_decrement() -> int {
+        var i:int = 5;
+        var result:int = 0;
+        
+        result = --i;     // i = 4, result = 4
+        return result;    // should be 4
+    }
+    
+    proc test_compound_add() -> int {
+        var x:int = 10;
+        x += 5;           // x = 15
+        return x;
+    }
+    
+    proc test_compound_sub() -> int {
+        var x:int = 10;
+        x -= 3;           // x = 7
+        return x;
+    }
+    
+    proc test_compound_mul() -> int {
+        var x:int = 4;
+        x *= 3;           // x = 12
+        return x;
+    }
+    
+    proc test_compound_and() -> int {
+        var x:int = 0x0F;
+        x &= 0x3C;        // x = 0x0C = 12
+        return x;
+    }
+    
+    proc test_compound_or() -> int {
+        var x:int = 0x0C;
+        x |= 0xF0;        // x = 0xFC = 252
+        return x;
+    }
+    
+    proc test_loop_with_incr() -> int {
+        var i:int = 0;
+        var sum:int = 0;
+        
+        while (i < 5) {
+            sum += i;
+            i++;
+        }
+        
+        return sum;       // 0+1+2+3+4 = 10
+    }

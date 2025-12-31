@@ -1,0 +1,27 @@
+// Test example from the user request
+
+code user_example:
+
+proc f(x: int, p: ptr) -> void {
+    asm {
+        move.l d3,@x
+        lea.l @p,a0
+    }
+}
+
+proc demo_hardware_access(port_addr: ptr) -> long {
+    var value: long = 0x1234;
+    
+    asm {
+        // Set up address from parameter
+        move.l @port_addr,a1
+        
+        // Move value to d0
+        move.l @value,d0
+        
+        // Store at port (would be actual hardware write)
+        move.l d0,(a1)
+    }
+    
+    return value;
+}

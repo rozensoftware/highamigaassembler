@@ -1,0 +1,18 @@
+// Python Directive Example - Phase 4: @python Compile-Time Generation
+// Demonstrates using Python code to generate HAS code at compile time
+
+code generated:
+    proc main() -> int {
+        var result:int = 0;
+        var x:int = 5;
+        
+        // Use @python directive to generate code at compile time
+        @python "import math; result = int(127 * math.sin(x / 16.0))";
+        
+        return result;
+    }
+
+    proc lookup_sin(angle:int) -> int {
+        var result:int = 0;
+        return result;
+    }

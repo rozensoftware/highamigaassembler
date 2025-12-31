@@ -1,0 +1,19 @@
+// Test hex and binary literals
+
+data test_data:
+    hex_val.l = 0xFF
+    hex_val2.l = 0x1234
+    hex_motorola.l = $DEADBEEF
+    bin_val.b = %11110000
+    bin_val2.l = %11001100
+
+code test:
+    proc test_literals() -> int {
+        var h1:int = 0xFF;
+        var h2:int = 0x100;
+        var m1:int = $1A2B;
+        var b1:int = %1010;
+        var b2:int = %11111111;
+        
+        return h1 + h2 + m1 + b1 + b2;
+    }

@@ -1,0 +1,38 @@
+// Main module that uses external library
+// Demonstrates extern declarations and linking with external modules
+
+code main:
+    // Declare external functions from library module
+    extern func add_numbers(__reg(d0) a: int, __reg(d1) b: int) -> int;
+    extern func multiply(__reg(d0) a: int, __reg(d1) b: int) -> int;
+    
+    // Declare external variable
+    extern var lib_version: int;
+    
+    // Our main procedure
+    public main;
+    
+    proc main() -> int {
+        var sum: int;
+        var product: int;
+        var version: int;
+        
+        // Call external functions - they use register parameters
+        sum = add_numbers(10, 20);
+        product = multiply(5, 6);
+        
+        // Access external variable (in real code)
+        // version = lib_version;
+        
+        return sum + product;
+    }
+
+// Alternative: Pure assembly external calls
+code manual_extern:
+    asm {
+        ; Call external function
+        move.l #10,d0
+        move.l #20,d1
+        jsr add_numbers
+        ; Result in d0
+    }

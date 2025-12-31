@@ -1,0 +1,33 @@
+// Test array support in data and bss sections
+
+data my_data:
+    // 1D array of longs (initialized)
+    numbers[5] = {1, 2, 3, 4, 5}
+    
+    // 2D array (5x3 = 15 elements)
+    matrix[5][3] = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15}
+    
+    // 1D array of bytes
+    bytes_array.b[10] = {10, 20, 30, 40, 50, 60, 70, 80, 90, 100}
+    
+    // 1D array of words
+    words_array.w[4] = {1000, 2000, 3000, 4000}
+
+bss my_bss:
+    // Uninitialized 1D array (100 bytes)
+    buffer[100]
+    
+    // Uninitialized 2D array (10x10 = 100 elements, each 4 bytes = 400 bytes)
+    scratch[10][10]
+    
+    // Uninitialized byte array
+    temp.b[256]
+
+code main:
+    proc array_test() -> int {
+        return 0;
+    }
+
+    asm {
+        jsr array_test
+    }

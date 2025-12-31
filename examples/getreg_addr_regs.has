@@ -1,0 +1,26 @@
+// Test valid address registers a0-a3
+
+code addr_regs:
+
+proc test_a0_a3() -> long {
+    var val: long = 0x2000;
+    var result: long;
+    
+    // Test a0
+    SetReg("a0", val);
+    result = GetReg("a0");
+    
+    // Test a1
+    SetReg("a1", val + 4);
+    result = GetReg("a1");
+    
+    // Test a2
+    SetReg("a2", val + 8);
+    result = GetReg("a2");
+    
+    // Test a3
+    SetReg("a3", val + 12);
+    result = GetReg("a3");
+    
+    return result;
+}

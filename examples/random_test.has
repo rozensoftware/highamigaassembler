@@ -1,0 +1,127 @@
+// Random Function Test - Phase 3
+// Tests RndMax to verify it returns different values in range [0, max-1]
+
+code test:
+    extern func SeedRnd(seed: int) -> void;
+    extern func Rnd() -> int;
+    extern func RndMax(max: int) -> int;
+
+    // Test procedure: call RndMax multiple times
+    proc test_rndmax() -> int {
+        var i:byte;
+        var val:int;
+        var sum:int = 0;
+        
+        call SeedRnd(0x1A2B3C4D);
+        
+        // Call RndMax(100) multiple times - should return values 0-99
+        i = 0;
+        while (i < 10) {
+            val = RndMax(100);
+            
+            // val should be in [0, 99]
+            if (val < 0 || val >= 100) {
+                return -1;  // Error: out of bounds
+            }
+            
+            sum = sum + val;
+            i = i + 1;
+        }
+        
+        // Return sum of all values - if RndMax always returned same value,
+        // sum would be predictable. With randomness, it should vary.
+        return sum;
+    }
+    
+    proc test_rnd_sequence() -> int {
+        var i:byte;
+        var val1:int;
+        var val2:int;
+        var val3:int;
+        var val4:int;
+        var val5:int;
+        
+        call SeedRnd(0xDEADBEEF);
+        
+        // Get 5 random values - with same seed, should get same sequence
+        val1 = RndMax(256);
+        val2 = RndMax(256);
+        val3 = RndMax(256);
+        val4 = RndMax(256);
+        val5 = RndMax(256);
+        
+        // All should be different (statistically)
+        // If RndMax always returns the same value or 256, this would fail
+        if (val1 < 0 || val1 >= 256) {
+            return -1;
+        }
+        if (val2 < 0 || val2 >= 256) {
+            return -2;
+        }
+        if (val3 < 0 || val3 >= 256) {
+            return -3;
+        }
+        if (val4 < 0 || val4 >= 256) {
+            return -4;
+        }
+        if (val5 < 0 || val5 >= 256) {
+            return -5;
+        }
+        
+        // Return a value indicating success
+        return 0;
+    }
+    
+    proc test_small_ranges() -> int {
+        var i:byte;
+        var val:int;
+        
+        call SeedRnd(0xABCDEF00);
+        
+        // Test RndMax(2) - should return 0 or 1
+        i = 0;
+        while (i < 5) {
+            val = RndMax(2);
+            if (val > 1) {
+                return -1;  // Error: out of bounds for max=2
+            }
+            i = i + 1;
+        }
+        
+        // Test RndMax(1) - should always return 0
+        i = 0;
+        while (i < 5) {
+            val = RndMax(1);
+            if (val != 0) {
+                return -2;  // Error: should be 0 for max=1
+            }
+            i = i + 1;
+        }
+        
+        return 0;  // Success
+    }
+
+    proc main() -> int {
+        var result:int;
+        
+        // Test 1: Multiple calls to RndMax(100)
+        result = test_rndmax();
+        if (result < 0) {
+            return result;  // Error in test_rndmax
+        }
+        
+        // Test 2: Sequence of values
+        result = test_rnd_sequence();
+        if (result != 0) {
+            return result;  // Error in test_rnd_sequence
+        }
+        
+        // Test 3: Small ranges
+        result = test_small_ranges();
+        if (result != 0) {
+            return result;  // Error in test_small_ranges
+        }
+        
+        return 0;  // All tests passed
+    }
+

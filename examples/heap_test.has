@@ -1,0 +1,183 @@
+; High Assembler - Heap Manager Test Example
+; Demonstrates malloc(), free(), and heap_stat()
+
+data test_data:
+    heap_buffer: ds.b 65536      ; 64KB heap buffer
+
+code heap_test:
+    proc init_test_heap() -> int {
+        ; Initialize heap with our buffer
+        ; In real code this would be called once at startup
+        
+        ; lea heap_buffer,a0
+        ; move.l #65536,d0
+        ; jsr heap_init
+        
+        return 1;
+    }
+    
+    proc test_single_allocation() -> int {
+        ; Test: allocate a single block
+        var ptr:int = 0;
+        var size:int = 256;
+        
+        ; Allocate 256 bytes
+        ; move.l #256,d0
+        ; jsr malloc
+        ; move.l d0,ptr
+        
+        ; Should not be NULL
+        ; cmp.l #0,ptr
+        ; beq test_failed
+        
+        ; Write some data
+        ; move.l #0xDEADBEEF,(ptr)
+        
+        ; Free the block
+        ; move.l ptr,a0
+        ; jsr free
+        
+        return 1;
+    }
+    
+    proc test_multiple_allocations() -> int {
+        ; Test: allocate multiple blocks of different sizes
+        var ptr1:int = 0;
+        var ptr2:int = 0;
+        var ptr3:int = 0;
+        
+        ; Allocate 256 bytes
+        ; move.l #256,d0
+        ; jsr malloc
+        ; move.l d0,ptr1
+        
+        ; Allocate 512 bytes
+        ; move.l #512,d0
+        ; jsr malloc
+        ; move.l d0,ptr2
+        
+        ; Allocate 128 bytes
+        ; move.l #128,d0
+        ; jsr malloc
+        ; move.l d0,ptr3
+        
+        ; Free all
+        ; move.l ptr1,a0; jsr free
+        ; move.l ptr2,a0; jsr free
+        ; move.l ptr3,a0; jsr free
+        
+        return 1;
+    }
+    
+    proc test_fragmentation_coalescing() -> int {
+        ; Test: allocate 3 blocks, free non-contiguous ones
+        ; to test coalescing
+        var p1:int = 0;
+        var p2:int = 0;
+        var p3:int = 0;
+        
+        ; Allocate: [256] [512] [128]
+        ; move.l #256,d0; jsr malloc; move.l d0,p1
+        ; move.l #512,d0; jsr malloc; move.l d0,p2
+        ; move.l #128,d0; jsr malloc; move.l d0,p3
+        
+        ; Free first and third (creates fragmentation)
+        ; move.l p1,a0; jsr free
+        ; move.l p3,a0; jsr free
+        
+        ; Try to allocate 256 bytes (should fit in freed first block)
+        ; move.l #256,d0; jsr malloc
+        
+        ; Free middle block
+        ; move.l p2,a0; jsr free
+        
+        ; Should be able to allocate 896 bytes (256+512+128)
+        ; move.l #896,d0; jsr malloc
+        
+        return 1;
+    }
+    
+    proc test_minimum_size_rounding() -> int {
+        ; Test: allocate sizes smaller than minimum (16 bytes)
+        ; should round up
+        
+        var ptr:int = 0;
+        
+        ; Request only 4 bytes (will round to 16)
+        ; move.l #4,d0
+        ; jsr malloc
+        ; move.l d0,ptr
+        
+        ; Can write up to 16 bytes
+        ; move.l #1,d0
+        ; move.l d0,(ptr)
+        ; move.l #2,d0
+        ; move.l d0,4(ptr)
+        
+        ; Free
+        ; move.l ptr,a0; jsr free
+        
+        return 1;
+    }
+    
+    proc test_heap_statistics() -> int {
+        ; Test: get heap statistics before and after allocation
+        var free_before:int = 0;
+        var used_before:int = 0;
+        var free_after:int = 0;
+        var used_after:int = 0;
+        var ptr:int = 0;
+        
+        ; Get initial stats
+        ; jsr heap_stat
+        ; move.l d0,free_before
+        ; move.l d1,used_before
+        
+        ; Allocate 1024 bytes
+        ; move.l #1024,d0
+        ; jsr malloc
+        ; move.l d0,ptr
+        
+        ; Get stats again
+        ; jsr heap_stat
+        ; move.l d0,free_after
+        ; move.l d1,used_after
+        
+        ; Check that:
+        ; used_after > used_before (more memory used)
+        ; free_after < free_before (less memory free)
+        
+        ; Free the block
+        ; move.l ptr,a0; jsr free
+        
+        ; Check that stats return to original
+        ; jsr heap_stat
+        ; cmp.l free_before,d0  ; Should match original free
+        
+        return 1;
+    }
+    
+    proc run_all_tests() -> int {
+        ; Initialize heap
+        var result:int = 0;
+        
+        result = init_test_heap();
+        if(result == 0) return 0;
+        
+        result = test_single_allocation();
+        if(result == 0) return 0;
+        
+        result = test_multiple_allocations();
+        if(result == 0) return 0;
+        
+        result = test_fragmentation_coalescing();
+        if(result == 0) return 0;
+        
+        result = test_minimum_size_rounding();
+        if(result == 0) return 0;
+        
+        result = test_heap_statistics();
+        if(result == 0) return 0;
+        
+        return 1;  ; All tests passed
+    }

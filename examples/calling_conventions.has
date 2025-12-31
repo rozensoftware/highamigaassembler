@@ -1,0 +1,49 @@
+// Example: Stack vs Register parameters
+
+code main:
+    // Stack-based parameters (default - slower but unlimited params)
+    proc stack_add(a: long, b: long, c: long) -> long {
+        return a + b + c;
+    }
+    
+    // Register-based parameters (faster - limited to available registers)
+    proc reg_add(__reg(d0) a: long, __reg(d1) b: long) -> long {
+        return a + b;
+    }
+    
+    // Mixed: some in registers, some on stack
+    proc mixed_func(__reg(d0) fast: long, slow1: long, slow2: long) -> long {
+        return fast + slow1 + slow2;
+    }
+    
+    proc main() -> void {
+        // Stack-based call: all args pushed to stack
+        var sum1: long = stack_add(10, 20, 30);
+        
+        // Register-based call: args in d0, d1
+        var sum2: long = reg_add(5, 7);
+        
+        // Mixed call: d0=100, stack gets 200,300
+        var sum3: long = mixed_func(100, 200, 300);
+    }
+
+// Generated assembly comparison:
+//
+// stack_add call:
+//     move.l #30,-(a7)   ; push c
+//     move.l #20,-(a7)   ; push b
+//     move.l #10,-(a7)   ; push a
+//     jsr stack_add
+//     addq.l #12,a7      ; clean stack (3 params * 4 bytes)
+//
+// reg_add call:
+//     move.l #5,d0       ; load a into d0
+//     move.l #7,d1       ; load b into d1
+//     jsr reg_add        ; no stack cleanup needed!
+//
+// mixed_func call:
+//     move.l #300,-(a7)  ; push slow2
+//     move.l #200,-(a7)  ; push slow1
+//     move.l #100,d0     ; load fast into d0
+//     jsr mixed_func
+//     addq.l #8,a7       ; clean stack (2 params * 4 bytes)

@@ -1,0 +1,66 @@
+// Test GetReg and SetReg built-in functions
+
+code main:
+
+proc test_getreg() -> long {
+    var result: long;
+    
+    // Test GetReg - read from d0
+    result = GetReg("d0");
+    return result;
+}
+
+proc test_setreg() -> long {
+    var myval: long = 42;
+    
+    // Test SetReg - write to d3
+    SetReg("d3", myval);
+    
+    // Read back from d3
+    var result: long = GetReg("d3");
+    return result;
+}
+
+proc test_setreg_with_expr() -> long {
+    var a: long = 10;
+    var b: long = 20;
+    
+    // SetReg with expression
+    SetReg("d4", a + b);
+    
+    // Read back the value
+    var result: long = GetReg("d4");
+    return result;
+}
+
+proc test_address_regs() -> long {
+    var addr: long;
+    
+    // Test address register a0
+    var ptr_val: long = 0x1000;
+    SetReg("a0", ptr_val);
+    addr = GetReg("a0");
+    
+    return addr;
+}
+
+proc main() -> long {
+    var r1: long;
+    var r2: long;
+    var r3: long;
+    
+    // Test 1: Set d0 and read it
+    r1 = 100;
+    SetReg("d0", r1);
+    r1 = GetReg("d0");
+    
+    // Test 2: Use GetReg in assignment
+    SetReg("d1", 200);
+    r2 = GetReg("d1");
+    
+    // Test 3: Use SetReg with expression
+    SetReg("d2", r1 + r2);
+    r3 = GetReg("d2");
+    
+    return r3;
+}
