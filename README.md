@@ -82,7 +82,7 @@ code main:
     }
 ```
 
-**Note:** HAS executes from top to bottom like traditional assembly. There is no automatic \"main()\" entry point - execution starts at the first instruction in your code section. See [DEVELOPERS_GUIDE.md](DEVELOPERS_GUIDE.md) for details on execution order.
+**Note:** HAS executes from top to bottom like traditional assembly. There is no automatic "main()" entry point - execution starts at the first instruction in your code section. See [docs/DEVELOPERS_GUIDE.md](docs/DEVELOPERS_GUIDE.md) for details on execution order.
 
 **Compile to assembly**:
 ```bash
@@ -97,25 +97,27 @@ python -m hasc.cli hello.has -o hello.s
 ## 📖 Documentation
 
 ### Essential Guides
-- **[QUICK_START_ALL_PHASES.md](QUICK_START_ALL_PHASES.md)** - Complete tutorial for all features
-- **[COMPILER_DEVELOPERS_GUIDE.md](COMPILER_DEVELOPERS_GUIDE.md)** - Architecture and internals
-- **[DEVELOPERS_GUIDE.md](DEVELOPERS_GUIDE.md)** - Language reference and usage patterns
-- **[COMPILER_FEATURES_SUMMARY.md](COMPILER_FEATURES_SUMMARY.md)** - Feature overview
+- **[docs/QUICK_START_ALL_PHASES.md](docs/QUICK_START_ALL_PHASES.md)** - Complete tutorial for all features
+- **[docs/COMPILER_DEVELOPERS_GUIDE.md](docs/COMPILER_DEVELOPERS_GUIDE.md)** - Architecture and internals
+- **[docs/DEVELOPERS_GUIDE.md](docs/DEVELOPERS_GUIDE.md)** - Language reference and usage patterns
+- **[docs/COMPILER_FEATURES_SUMMARY.md](docs/COMPILER_FEATURES_SUMMARY.md)** - Feature overview
 
 ### Feature-Specific Documentation
-- **[PROC_VS_FUNC_SUMMARY.md](PROC_VS_FUNC_SUMMARY.md)** - Understanding `proc` vs `func` vs `extern func`
-- **[OPERATORS.md](OPERATORS.md)** - Complete operator reference
-- **[BITWISE.md](BITWISE.md)** - Bitwise and shift operations
-- **[PYTHON_INTEGRATION.md](PYTHON_INTEGRATION.md)** - Using Python for code generation
-- **[PYTHON_GENERATION_TUTORIAL.md](PYTHON_GENERATION_TUTORIAL.md)** - Step-by-step Python integration
-- **[PHASES_2_3_4_SUMMARY.md](PHASES_2_3_4_SUMMARY.md)** - Macro, template, and @python features
+- **[docs/PROC_VS_FUNC_SUMMARY.md](docs/PROC_VS_FUNC_SUMMARY.md)** - Understanding `proc` vs `func` vs `extern func`
+- **[docs/OPERATORS.md](docs/OPERATORS.md)** - Complete operator reference
+- **[docs/BITWISE.md](docs/BITWISE.md)** - Bitwise and shift operations
+- **[docs/SHIFT_OPERATORS.md](docs/SHIFT_OPERATORS.md)** - Shift operation details
+- **[docs/PYTHON_INTEGRATION.md](docs/PYTHON_INTEGRATION.md)** - Using Python for code generation
+- **[docs/PYTHON_GENERATION_TUTORIAL.md](docs/PYTHON_GENERATION_TUTORIAL.md)** - Step-by-step Python integration
+- **[docs/PHASES_2_3_4_SUMMARY.md](docs/PHASES_2_3_4_SUMMARY.md)** - Macro, template, and @python features
+- **[docs/TERMINOLOGY.md](docs/TERMINOLOGY.md)** - Language and architecture terminology
 
 ### Implementation Details
-- **[ARRAY_ACCESS_IMPLEMENTATION.md](ARRAY_ACCESS_IMPLEMENTATION.md)** - Array indexing details
-- **[GETREG_SETREG_IMPLEMENTATION.md](GETREG_SETREG_IMPLEMENTATION.md)** - Direct register manipulation
-- **[INCLUDE_SYSTEM_COMPLETION.md](INCLUDE_SYSTEM_COMPLETION.md)** - Module system details
-- **[GRAPHICS_LIBRARY_INTERFACE.md](GRAPHICS_LIBRARY_INTERFACE.md)** - Amiga graphics programming
-- **[HAM6_SUPPORT.md](HAM6_SUPPORT.md)** - HAM6 graphics mode implementation
+- **[docs/ARRAY_ACCESS_IMPLEMENTATION.md](docs/ARRAY_ACCESS_IMPLEMENTATION.md)** - Array indexing details
+- **[docs/GETREG_SETREG_IMPLEMENTATION.md](docs/GETREG_SETREG_IMPLEMENTATION.md)** - Direct register manipulation
+- **[docs/INCLUDE_SYSTEM_COMPLETION.md](docs/INCLUDE_SYSTEM_COMPLETION.md)** - Module system details
+- **[docs/GRAPHICS_LIBRARY_INTERFACE.md](docs/GRAPHICS_LIBRARY_INTERFACE.md)** - Amiga graphics programming
+- **[docs/HAM6_SUPPORT.md](docs/HAM6_SUPPORT.md)** - HAM6 graphics mode implementation
 
 ## 📚 Examples
 
