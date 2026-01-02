@@ -151,6 +151,18 @@ The `examples/` directory contains numerous demonstrations:
 - `heap_test.has` - Memory allocation
 - `getreg_setreg_test.has` - Hardware register access
 
+### Complete Game Examples
+- `games/launchers/` - **Launchers**: A complete space shooter game demonstrating:
+  - HAM6 background graphics
+  - Hardware sprites for player, enemies, and projectiles
+  - Blitter objects (BOBs) for explosions
+  - Sound effects via PtPlayer
+  - MOD music playback
+  - Joystick input
+  - Game state management
+  - Collision detection
+  - Full game loop with multiple screens
+
 ### Code Generation
 - `code_generator.py` - External Python code generation (Phase 1)
 - `simple_generator.py` - Simple generation example
@@ -207,10 +219,21 @@ hasc/                   # Main compiler source code
 ├── codegen.py         # Code generation (2500+ lines)
 └── preprocessor.py    # Include and directive processing
 
-examples/              # Example programs (no games included)
+examples/              # Example programs and games
+├── *.has              # Basic example programs
+└── games/             # Complete game examples
+    └── launchers/     # Space shooter game demo
+
 templates/             # Jinja2 templates for Phase 3
 lib/                   # Standard library modules
 scripts/               # Build and utility scripts
+tools/                 # Asset conversion utilities
+├── ham6_gen.py        # HAM6 image generator
+├── sprite_importer.py # Hardware sprite converter
+├── bob_importer.py    # Blitter object converter
+├── c64_font_converter.py  # C64 font importer
+├── c64_sprites_to_bobs.py # C64 sprite converter
+└── iff_importer.py    # IFF format importer
 docs/                  # Additional documentation
 ```
 
@@ -378,11 +401,25 @@ This compiler is actively being developed. Current focus areas:
 **Python Dependencies** (see requirements.txt):
 - `lark-parser` - Parser generator
 - `jinja2` - Template system (optional, for Phase 3)
+- `Pillow` (PIL) - Image processing (optional, for asset tools)
 
 **External Tools** (optional, for full build):
 - `vasm` - Motorola 68000 assembler
 - `vlink` - Linker for Amiga executables
 - Amiga emulator (e.g., FS-UAE, WinUAE) for testing
+
+## 🛠️ Asset Conversion Tools
+
+The `tools/` directory contains Python utilities for converting graphics and assets into Amiga-compatible formats:
+
+- **`ham6_gen.py`** - Generate HAM6 (Hold-And-Modify) mode images with 4096 colors
+- **`sprite_importer.py`** - Convert PNG images to Amiga hardware sprites (16-pixel wide, 4 colors)
+- **`bob_importer.py`** - Create blitter objects (BOBs) for software sprites
+- **`c64_font_converter.py`** - Import Commodore 64 fonts for Amiga use
+- **`c64_sprites_to_bobs.py`** - Convert C64 sprite data to Amiga BOBs
+- **`iff_importer.py`** - Import IFF/ILBM format images
+
+These tools generate assembly `.s` files that can be included in your HAS projects using `#include` directives. See the `examples/games/launchers/` directory for practical usage examples.
 
 ## 📄 License
 
