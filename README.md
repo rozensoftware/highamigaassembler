@@ -2,6 +2,12 @@
 
 **Version:** 0.2 (In Constant Development)
 
+> ⚠️ **NOT PRODUCTION READY** ⚠️
+>
+> This project is currently in active development and is **not ready for production use**. While many features are functional, the compiler is still evolving and may contain bugs, incomplete features, or breaking changes between versions.
+>
+> **We invite you to join the community!** If you're interested in Amiga development, compiler design, or just want to contribute to an exciting project, we'd love to have you on board. Whether you're fixing bugs, adding features, improving documentation, or testing - all contributions are welcome!
+
 **HAS (High Assembler)** is a Python-based compiler that translates a high-level assembly language targeting the Motorola 68000 processor (Amiga). It provides modern programming constructs while maintaining full control over the generated assembly code.
 
 ## 🎯 What is HAS?
@@ -335,12 +341,37 @@ This compiler is actively being developed. Current focus areas:
 
 ## 📝 Contributing
 
-This is an active development project. If you encounter issues or have suggestions:
+**We welcome contributions from the community!** This is an active development project and there's plenty of room for collaboration.
+
+### How You Can Help
+
+- **Report Bugs**: Test the compiler with your own code and report issues
+- **Add Features**: Implement new language features or improve existing ones
+- **Improve Documentation**: Help make guides clearer and more comprehensive
+- **Write Examples**: Create example programs demonstrating features
+- **Optimize Code Generation**: Enhance the output assembly quality
+- **Test on Real Hardware**: Validate generated code on actual Amiga systems
+- **Share Knowledge**: Help other users learn the language
+
+### Getting Started with Contributing
 
 1. Test with the provided examples first
 2. Check documentation for feature coverage
 3. Review generated assembly output for debugging
 4. Report issues with minimal reproducible examples
+5. Discuss major changes before implementing them
+6. Follow the existing code style and conventions
+
+### Development Areas Needing Attention
+
+- Enhanced error messages and diagnostics
+- Optimization passes for better code generation
+- Extended standard library modules
+- More comprehensive test coverage
+- Additional Amiga hardware abstractions
+- Documentation improvements and tutorials
+
+**Join us in building a modern, high-level development environment for the Amiga!** Whether you're an experienced compiler developer or just getting started, there's a place for you in this project.
 
 ## 🔗 Requirements
 
