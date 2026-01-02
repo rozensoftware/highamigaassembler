@@ -381,19 +381,14 @@ Sprite_Hide:
 
 ; Sprite_ShowAll / Sprite_HideAll - global DMA enable/disable
 Sprite_ShowAll:
-	; enable sprite DMA globally
 	; Assumes a5 = $DFF000 (custom chips base)
-	OR.W    #$8000|DMAF_SPRITE,DMACON(a5)
+    move.w #%1000000000100000,DMACON(a5)    ; Enable sprites
 	moveq #0,d0
 	rts
 
 Sprite_HideAll:
 	; clear sprite DMA bit
-	; Clear only the sprite DMA bit without touching other DMACON bits.
-	; Read current DMACON, clear the DMAF_SPRITE bit, write it back.
-	move.w DMACON(a5),d0	; read current DMACON
-	andi.w #$FFDF,d0	; clear bit $0020 (DMAF_SPRITE)
-	move.w d0,DMACON(a5)
+    move.w #%0000000000100000,DMACON(a5)    ; Disable sprites
 	moveq #0,d0
 	rts
 

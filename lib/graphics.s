@@ -22,7 +22,8 @@ GFX_FONT_PLANES      EQU 5                ; Font assets are always expanded to 5
 
 ; Exported runtime entry points (wrapper labels)
     XDEF SetGraphicsMode
-    XDEF UpdateCopperList
+    XDEF UpdateCopperList   ;deprecated, use Show
+    XDEF Show
     XDEF SwapScreen
     XDEF ClearScreen
     XDEF SetPixel
@@ -203,6 +204,7 @@ SwapScreen:
     unlk a6
     rts
 
+Show:
 UpdateCopperList:
     link a6,#0
     movem.l d7,-(sp)

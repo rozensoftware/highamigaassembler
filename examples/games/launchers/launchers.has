@@ -1,0 +1,839 @@
+//Lock register a5 to hold CUSTOM chip base address
+// HAS will not modify a5 across the code
+#pragma lockreg(a5);
+
+#include "includes/launchers_defs.has";
+
+code game_code:
+
+    // Entry point
+    asm {
+        jsr TakeSystem  ;sets register a5 with CUSTOM chip address
+        jsr main    ; call main game procedure
+        jmp ReleaseSystem   ;release system and exit
+    }
+    
+    proc peek_w(addr: int) -> int {
+        // Read a 16-bit word from memory address
+        // addr is passed in d0, result returned in d0
+        asm {
+            move.l 8(a6),a0        ; a0 = addr parameter
+            move.w (a0),d0         ; d0 = word at addr
+            ext.l d0               ; sign-extend to 32-bit
+        }
+    }
+    
+    proc InitSound() -> void {
+        asm {
+            movem.l    d0/a0/a6,-(sp)
+
+; installs a CIA-B interrupt for calling _mt_music
+            lea        $DFF000,a6
+            move.l     #0,a0                            ; vectorBase
+            moveq      #1,d0                            ; PAL clock
+            jsr        _mt_install_cia
+
+; reserves channel 0 for music.
+            lea        $DFF000,a6
+            move.b     #$01,d0
+            jsr        _mt_musicmask
+
+            movem.l    (sp)+,d0/a0/a6
+        }
+    }
+
+    proc PlaySoundEffect(sfx_id: int) -> void {
+        asm {
+; plays sound effect on channel 1
+            movem.l    a6,-(sp)
+            move.l     8(a6),d0        ; d0 = sfx_id parameter
+            clr.l d1                   ; 0 = no loop
+            jsr        play_sfx
+            movem.l    (sp)+,a6
+        }
+    }
+
+    proc PlayMusic() -> void {
+        asm {
+; plays pro-tracker music
+            movem.l a6,-(sp)
+            lea music,a0
+            lea        $DFF000,a6
+            move.l     #0,a1
+            move.b     #0,d0
+            jsr        _mt_init
+            move.b     #1,_mt_Enable
+
+; sets master volume to 8 for music
+            lea        $DFF000,a6
+            move.w     #12,d0
+            jsr        _mt_mastervol
+            movem.l (sp)+,a6
+        }
+    }
+
+    proc QuitSound() -> void {
+        asm {
+            movem.l    a6,-(sp)
+
+            lea        $DFF000,a6
+            jsr        _mt_end
+            jsr        _mt_remove_cia
+
+            movem.l    (sp)+,a6
+        }
+    }
+
+    proc DrawMissiles() -> void
+    {
+        var i:byte;
+
+        for i = 0 to MAX_BULLETS-1
+        {
+            if (bullet[i].active != 0)
+            {
+                var p: bullet*;
+                p = &bullet[i];
+                call PasteBob(bob_bullet_id, (*p).x, (*p).y, 1);                
+            }
+        }
+    }
+
+    proc DrawExplosions() -> void
+    {
+        var i:byte;
+        var frame_id:int;
+        var f:int;
+
+        for i = 0 to MAX_EXPLOSION_ANIMS-1
+        {
+            if (explosions[i].active != 0)
+            {     
+                f = explosions[i].frame_idx;           
+                frame_id = explosion_frame_id[f];
+                call PasteBob(frame_id, explosions[i].x, explosions[i].y, 1);
+                f++;
+                explosions[i].frame_idx = f;
+
+                if (f >= EXPLOSION_FRAMES)
+                {
+                    // Animation ended
+                    explosions[i].active = 0;
+                }
+            }
+        }
+    }
+
+    proc SetExplosionAnimation(x: int, y: int) -> void
+    {
+        var i:byte;
+
+        for i = 0 to MAX_EXPLOSION_ANIMS-1
+        {
+            if (explosions[i].active == 0)
+            {
+                explosions[i].active = 1;
+                explosions[i].frame_idx = 0;
+                explosions[i].x = x;
+                explosions[i].y = y;
+                return;
+            }
+        }
+    }
+
+    proc FindEnemyLauncherCollision(ex: int, ey: int) -> int
+    {
+        var i:int;
+        var lx:int;
+        var ly:int;
+        var lw:int;
+        var lh:int;
+
+        i = 0;
+        while (i < MAX_LAUNCHERS)
+        {
+            lx = launcher_x[i];
+            ly = SCREEN_HEIGHT - 32;
+            lw = GetBobWidth(bob_launcher_id);
+            lh = GetBobHeight(bob_launcher_id);
+
+            // Simple AABB collision detection
+            if (ex > lx && ex < lx + lw && ey > ly && ey < ly + lh)
+            {
+                return i; // Collision detected
+            }
+
+            i = i + 1;
+        }
+
+        return -1; // No collision
+    }
+
+    proc FindEnemyCollisionWithBullet(bx: int, by: int) -> int
+    {
+        var i:int;
+        var ex:int;
+        var ey:int;
+        var ew:int;
+        var eh:int;
+
+        i = 0;
+        while (i < MAX_ENEMIES)
+        {
+            if (Enemy[i].active != FALSE)
+            {
+                ex = Enemy[i].x;
+                ey = Enemy[i].y;
+                ew = GetBobWidth(bob_enemy1_id);
+                eh = GetBobHeight(bob_enemy1_id);
+
+                // Simple AABB collision detection
+                if (bx > ex && bx < ex + ew && by > ey && by < ey + eh)
+                {
+                    call SetExplosionAnimation(ex, ey);
+                    call PlaySoundEffect(SOUND_HIT); // Play hit sound effect
+                    return i; // Collision detected
+                }
+            }
+
+            i = i + 1;
+        }
+
+        return -1; // No collision
+    }
+
+    proc UpdateMissiles() -> void
+    {
+        var i:byte;
+        var p: bullet*;
+        var new_x: int;
+        var new_y: int;
+        var current_idx: int;
+
+        for i = 0 to MAX_BULLETS-1
+        {
+            if (bullet[i].active != 0)
+            {
+                p = &bullet[i];
+                current_idx = (*p).idx;
+                
+                // position = (base + step * idx) >> 8 to convert from fixed-point
+                new_x = ((*p).base_x + (*p).step_x * current_idx) >> 8;
+                new_y = ((*p).base_y + (*p).step_y * current_idx) >> 8;
+                bullet[i].x = new_x;
+                bullet[i].y = new_y;
+                
+                // idx += BULLET_SPEED
+                current_idx = current_idx + BULLET_SPEED;
+                bullet[i].idx = current_idx;
+
+                // Deactivate if out of screen
+                if (new_x < 0 || new_x > SCREEN_WIDTH-16 || new_y < 0)
+                {
+                    bullet[i].active = 0; continue;
+                }
+
+                current_idx = FindEnemyCollisionWithBullet(new_x, new_y);
+                if (current_idx != -1)
+                {
+                    // Collision detected
+                    bullet[i].active = 0;
+                    Enemy[current_idx].active = FALSE;
+                    score = score + 10;
+                }
+            }
+        }
+    }
+
+    proc LaunchMissile(x0: int, y0: int, xt: int, yt: int) -> void
+    {
+        var i:byte;
+        var dx: int;
+        var dy: int;
+        var steps: int;
+        var abs_dx: int;
+        var abs_dy: int;
+        var x1:int = xt - 4;
+        var y1:int = yt - 4;
+
+        for i = 0 to MAX_BULLETS-1
+        {
+            if (bullet[i].active == 0)
+            {
+                dx = x1 - x0;
+                dy = y1 - y0;
+                
+                // Calculate max(abs(dx), abs(dy))
+                abs_dx = dx;
+                abs_dy = dy;
+                if (abs_dx < 0)
+                {
+                    abs_dx = -abs_dx;
+                }
+                if (abs_dy < 0)
+                {
+                    abs_dy = -abs_dy;
+                }
+                
+                if (abs_dx > abs_dy)
+                {
+                    steps = abs_dx;
+                }
+                if (abs_dy >= abs_dx)
+                {
+                    steps = abs_dy;
+                }
+                
+                if (steps <= 0)
+                {
+                    bullet[i].active = 0;
+                    return;
+                }
+                
+                // Initialize bullet
+                bullet[i].x = x0;
+                bullet[i].y = y0;
+                bullet[i].base_x = x0 << 8;      // x * 256 for fixed-point
+                bullet[i].base_y = y0 << 8;      // y * 256 for fixed-point
+                bullet[i].step_x = (dx << 8) / steps;  // (dx * 256) / steps
+                bullet[i].step_y = (dy << 8) / steps;  // (dy * 256) / steps
+                bullet[i].idx = 0;
+                bullet[i].active = 1;
+                return;
+            }
+        }
+    }
+
+    proc FindClosestLauncher(x: int) -> int
+    {
+        var i:byte;
+        var closest_index: int = -1;
+        var closest_dist: int = 0x7FFFFFFF; // Large initial value
+
+        for i = 0 to MAX_LAUNCHERS-1
+        {
+            var dist: int;
+            dist = launcher_x[i];
+            if(dist < 0)
+            {
+                continue;
+            }
+            dist = dist - x;
+            if (dist < 0)
+            {
+                dist = -dist; // Absolute value
+            }
+
+            if (dist < closest_dist)
+            {
+                closest_dist = dist;
+                closest_index = i;
+            }
+        }
+
+        return closest_index;
+    }
+
+    proc MovePointer() -> void
+    {
+        // Manual add because compound assignment on globals is not emitted
+        pos_x = pos_x + GetMouseDX();
+        pos_y = pos_y + GetMouseDY();
+
+        if(pos_x < 0)
+        {
+            pos_x = 0;
+        }
+
+        if (pos_y < 0)
+        {
+            pos_y = 0;
+        }
+
+        if (pos_x > 312)
+        {
+            pos_x = 312;
+        }
+
+        if (pos_y > 256-16)
+        {
+            pos_y = 256-16;
+        }
+
+        if (GetMouseLBtn() != 0)
+        {
+            if(button_clicked == FALSE)
+            {
+                var launcher_index:int;
+                var launcher_pos_x:int;
+                var w:int = GetBobWidth(bob_bullet_id);
+
+                button_clicked = TRUE;
+                if(pos_y < SCREEN_HEIGHT - 32)
+                {
+                    launcher_index = FindClosestLauncher(pos_x);
+                    if(launcher_index == -1)
+                    {
+                        return;
+                    }
+
+                    launcher_pos_x = launcher_x[launcher_index];
+
+                    call PlaySoundEffect(SOUND_LASER);
+                    call LaunchMissile(launcher_pos_x + w/2, SCREEN_HEIGHT-32, pos_x + 8, pos_y + 8);
+                }
+            }
+        }
+        else
+        {
+            button_clicked = FALSE;
+        }
+
+        call SetSpritePosition(SPRITE_POINTER_ID, pos_x, pos_y);
+    }
+
+    proc DrawLaunchers() -> void
+    {
+        var i:byte;
+
+        for i = 0 to MAX_LAUNCHERS-1
+        {
+            if(launcher_x[i] < 0)
+            {
+                continue;
+            }   
+            call PasteBob(bob_launcher_id, launcher_x[i], SCREEN_HEIGHT-32, 1);
+        }
+    }
+
+    // Set Enemy[i] = {x, y, active, speed, dir}
+    proc SetEnemy(i: int, x: int, y: int, active: byte) -> void {
+        Enemy[i].x = x;
+        Enemy[i].y = y;
+        Enemy[i].active = active;
+        Enemy[i].speed = RndMaxAMOS(2) + 1; // Speed between 1 and 2
+
+        if(Rnd() & 1 == 1)
+        {
+            Enemy[i].dir = 1;
+        }
+        else
+        {
+            Enemy[i].dir = 0;
+        }
+    }
+
+    // Randomize first N enemies
+    proc RandomizeEnemies(count: int) -> void {
+        var i:int = 0;
+        while (i < count) {
+            // Random x position within screen width minus enemy width (Use AMOS-like Random function)
+            var rx:int =  RndMaxAMOS(SCREEN_WIDTH - 32);
+            call SetEnemy(i, rx, 0, TRUE);
+            i = i + 1;
+        }
+    }
+
+    proc FindInactiveEnemy() -> int
+    {
+        var i:int;
+        var active:byte;
+
+        i = 0;
+        while (i < 10)
+        {
+            active = Enemy[i].active;
+            if (active == FALSE)
+            {
+                return i;
+            }
+
+            i = i + 1;
+        }
+
+        return -1;  // No inactive enemy found
+    }
+    
+    proc CreateEnemy() -> void
+    {
+        var x:int;
+        var i:int;
+        var w:int = GetBobWidth(bob_enemy1_id);
+
+        i = FindInactiveEnemy();
+        if (i == -1)
+        {
+            return; // No inactive enemy available
+        }
+
+        x = RndMaxAMOS(SCREEN_WIDTH - w);
+
+        call SetEnemy(i, x, 0, TRUE);
+    }
+
+    proc MoveEnemies() -> void
+    {
+        var i:int;
+        var x:int;
+        var y:int;
+        var launcher_index:int;
+        var active:byte;
+
+        i = 0;
+        while (i < MAX_ENEMIES)
+        {
+            active = Enemy[i].active;
+            if (active == TRUE)
+            {
+                // Move enemy down by speed pixels
+                y = Enemy[i].y;
+                y = y + Enemy[i].speed;
+
+                // Deactivate if beyond screen
+                if (y >= SCREEN_HEIGHT-16)
+                {
+                    Enemy[i].active = FALSE;
+                    i = i + 1;
+                    continue;
+                }
+
+                x = Enemy[i].x;
+                if(Enemy[i].dir == 0)
+                {
+                    // Move left
+                    x = x - 1;
+                    if (x <= 0)
+                    {
+                        x = 0;
+                        Enemy[i].dir = 1; // Change direction
+                    }
+                }
+                else
+                {
+                    // Move right
+                    x = x + 1;
+                    if (x >= SCREEN_WIDTH - 32)
+                    {
+                        x = SCREEN_WIDTH - 32;
+                        Enemy[i].dir = 0; // Change direction
+                    }
+                }
+
+                launcher_index = FindEnemyLauncherCollision(x, y);
+                if(launcher_index != -1)
+                {
+                    // Collision with launcher
+                    Enemy[i].active = FALSE;
+                    launcher_x[launcher_index] = -100; // Remove launcher
+                    call SetExplosionAnimation(x, y);
+                    call PlaySoundEffect(SOUND_EXPLOSION);
+                    i = i + 1;
+                    continue;
+                }
+
+                Enemy[i].x = x;
+                Enemy[i].y = y;
+
+                call PasteBob(bob_enemy1_id, x, y, 1);
+            }
+
+            i = i + 1;
+        }
+    }
+
+    proc IsGameOver() -> byte
+    {
+        var i:byte;
+
+        for i = 0 to MAX_LAUNCHERS-1
+        {
+            if (launcher_x[i] >= 0)
+            {
+                return FALSE;
+            }
+        }
+
+        return TRUE;
+    }
+
+    // Show game over screen with a simple text and wait for click to restart
+    proc GameOverScreen() -> void
+    {
+        call SwapScreen();
+        call Show();
+        call ClearScreen();
+
+        call Text(4, 12, &gameover_txt, 2);
+        call HideSprites();
+
+        while(GetMouseLBtn() == 0)
+        {
+            call ReadMouse();
+        }
+
+        score = 0;
+
+        call ShowSprites();
+        call InitLaunchers();
+        call InitBullets();
+        call RandomizeEnemies(10);
+    }
+
+    // Main game loop
+    proc GameLoop() -> void
+    {
+        var run:byte = TRUE;
+        var key:byte;
+        var numstr:int;
+        var label:int;
+
+        call PlayMusic();
+
+        while (run == TRUE)
+        {
+            call SwapScreen();  // Switch to back buffer
+            call ClearScreen(); // Clear back buffer
+
+            // This is only an example of using string utilities
+            // It allocates and frees memory each frame, which is inefficient
+            // In a real game, use a fixed buffer for score display
+            numstr = ItoaAlloc(score);  // Convert score to string
+            label = StrConcatAlloc(&score_txt, numstr); // Concatenate "Score: " + number
+            call Text(5, 5, label, 2); // Draw score at (5,5) with color 2
+            call HeapFree(numstr);  // Free number string
+            call HeapFree(label); // Free concatenated string
+            
+            call PasteBob(bobx_mountains_id, 0, SCREEN_HEIGHT-77, 0);
+
+            call DrawLaunchers();            
+            call ReadMouse();
+            call MovePointer();
+            call MoveEnemies();
+            call CreateEnemy();
+            call UpdateMissiles();
+            call DrawMissiles();
+            call DrawExplosions();
+            
+            key = GetKey();  // Read the return value into variable
+            
+            // Example: exit loop if ESC key (code 69) is pressed
+            if (key == 0x45)
+            {
+                run = FALSE;
+            }
+
+            if(IsGameOver() != FALSE)
+            {
+                call GameOverScreen();
+            }
+
+            call WaitVBlank();  // Wait for vertical blanking interval
+            call Show();        // Display the back buffer
+        }
+
+        call QuitSound();  // Stop all sounds and clean up
+    }
+    
+    proc InitBullets() -> void
+    {
+        var i:byte;
+
+        for i = 0 to MAX_BULLETS-1
+        {
+            bullet[i].active = 0;
+        }
+
+        for i = 0 to MAX_EXPLOSION_ANIMS-1
+        {
+            explosions[i].active = 0;
+        }
+    }
+
+    proc InitLaunchers() -> void
+    {
+        var i:byte;
+
+        for i = 0 to MAX_LAUNCHERS-1
+        {
+            launcher_x[i] = SCREEN_WIDTH / MAX_LAUNCHERS * i + 10;
+        }
+    }
+
+    proc LoadAnims() -> int
+    {
+        var i:int;
+
+        i = CreateBob(&bob_expl1, 0);
+        if(i == -1)
+        {
+            return -1;
+        }        
+        explosion_frame_id[0] = i;
+
+        i = CreateBob(&bob_expl2, 0);
+        if(i == -1)
+        {
+            return -1;
+        }        
+        explosion_frame_id[1] = i;
+
+        i = CreateBob(&bob_expl3, 0);
+        if(i == -1)
+        {
+            return -1;
+        }        
+        explosion_frame_id[2] = i;
+
+        i = CreateBob(&bob_expl4, 0);
+        if(i == -1)
+        {
+            return -1;
+        }        
+        explosion_frame_id[3] = i;
+
+        i = CreateBob(&bob_expl5, 0);
+        if(i == -1)
+        {
+            return -1;
+        }        
+        explosion_frame_id[4] = i;
+
+        i = CreateBob(&bob_expl6, 0);
+        if(i == -1)
+        {
+            return -1;
+        }        
+        explosion_frame_id[5] = i;
+
+        return 0;
+    }
+
+    proc Init() -> int
+    {
+        var pal:int;
+        var color_count:int;
+        var i:int;
+
+        call HeapInit();
+        call InitSound();
+
+        sprite_handle = CreateSprite(SPRITE_POINTER_ID, &sprite_pointer);
+        if (sprite_handle == -1)
+        {
+            return -1;
+        }
+
+        bob_launcher_id = CreateBob(&bob_launcher, 1);
+        if(bob_launcher_id == -1)
+        {
+            return -1;
+        }
+        
+        bob_enemy1_id = CreateBob(&bob_enemy1, 0);
+        if(bob_enemy1_id == -1)
+        {
+            return -1;
+        }
+
+        bob_bullet_id = CreateBob(&bob_bullet, 0);
+        if(bob_bullet_id == -1)
+        {
+            return -1;
+        }
+
+        bobx_mountains_id = CreateBob(&bobx_mountains, 0);
+        if(bobx_mountains_id == -1)
+        {
+            return -1;
+        }
+
+        // Load explosion animation frames
+        if(LoadAnims() == -1)
+        {
+            return -1;
+        }
+
+        pal = GetBobPalette(bob_launcher_id);
+    
+        color_count = 32;
+        i = 0;
+        
+        while (i < color_count)
+        {
+            call SetColor(i, peek_w(pal + (i<<1)));
+            i = i + 1;       
+        }
+
+        call ApplySpritePalette(SPRITE_POINTER_ID);
+        call ShowSprite(SPRITE_POINTER_ID);
+        // Load default font from library
+        call SetFont(&fonts);
+        call InitKeyboard();
+        call InitLaunchers();
+        call InitBullets();
+        call RandomizeEnemies(10);
+
+        call SetColor(0, 0x12f); // Set background color
+        return 0;
+    }
+
+    // Show front page with HAM6 picture
+    proc ShowFrontPage() -> void
+    {
+        call SetGraphicsMode(2);
+        call ClearScreen();
+        
+        // Load HAM6 base palette (16 colors)
+        call LoadPalette(&pic_jpg_ham6_palette, 16);
+                
+        // Copy picture to screen - pass address of picture data
+        call ShowPicture(&pic_jpg_ham6);
+        
+        // Prepare and enable display
+        call UpdateCopperList();
+
+        // Don't swap - picture is already on screen1_ham6 which is currently active
+        
+        while(GetMouseLBtn() == 0)
+        {
+            call ReadMouse();
+        }
+    }
+
+    proc main() -> void
+    {
+        call ShowFrontPage();
+        
+        if(SetGraphicsMode(0) == -1)
+        {                
+            return;
+        }
+
+        if(Init() == 0)
+        {
+            call GameLoop();
+        }
+    }
+
+data game_data:
+
+    // Use longs to avoid 16-bit wrap when adding mouse deltas
+    pos_x.l = 0
+    pos_y.l = 0
+    button_clicked.b = 0
+    score_txt.b = "Score: ",0
+    gameover_txt.b = "Game Over! Click to restart.",0
+    score.l = 0
+
+bss game_bss:
+
+    sprite_handle.l: 1
+    bob_launcher_id.l: 1
+    bob_enemy1_id.l: 1
+    bob_bullet_id.l: 1
+    bobx_mountains_id.l: 1
+    launcher_x.l[MAX_LAUNCHERS]
+    explosion_frame_id.l[EXPLOSION_FRAMES]
+    struct explosions[MAX_EXPLOSION_ANIMS] {active.b, frame_idx.b, x.l, y.l}
+    struct bullet[MAX_BULLETS] {x.l,y.l,active.b,base_x.l,base_y.l,step_x.l,step_y.l,idx.l}
+    struct Enemy[MAX_ENEMIES] {x.l,y.l,active.b,dir.b,speed.b}

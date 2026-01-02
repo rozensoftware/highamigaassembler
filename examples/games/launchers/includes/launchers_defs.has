@@ -1,0 +1,96 @@
+const TRUE = 1;
+const FALSE = 0;
+
+const SPRITE_POINTER_ID = 0;
+const MAX_LAUNCHERS = 6;
+const SCREEN_WIDTH = 320;
+const SCREEN_HEIGHT = 256;
+const MAX_BULLETS = 3;
+const EXPLOSION_FRAMES = 6;
+const MAX_EXPLOSION_ANIMS = 3;
+const MAX_ENEMIES = 10;
+const BULLET_SPEED = 3;
+
+const SOUND_LASER = 0;
+const SOUND_EXPLOSION = 1;
+const SOUND_HIT = 2;
+
+extern func SetGraphicsMode(mode: int) -> int;
+extern func ClearScreen() -> int;
+extern func SetPixel(x: int, y: int, color: int) -> int;
+extern func SetColor(id:int, col:int) -> int;
+extern func LoadPalette(palette_ptr: ptr, num_colors: int) -> int;
+extern func ShowPicture(picture_addr: ptr) -> int;
+extern func Text(x: int, y: int, msg: int, color: int) -> int;  // msg is pointer
+extern func Print(msg: int, color: int) -> int;                  // msg is pointer
+// String utilities from lib/str.s
+extern func StrLen(s: int) -> int;
+extern func StrCmp(a: int, b: int) -> int;
+extern func StrFind(hay: int, needle: int) -> int;
+extern func StrConcatAlloc(a: int, b: int) -> int;
+extern func Atoi(s: int) -> int;
+extern func ItoaAlloc(value: int) -> int;
+extern func HeapFree(ptr: int) -> void;
+extern func SwapScreen() -> int;
+extern func UpdateCopperList() -> int;
+extern func TakeSystem() -> void;
+extern func ReleaseSystem() -> void;
+extern func SetFont(ptr: int) -> int;
+extern func WaitVBlank() -> void;
+extern func InitKeyboard() -> void;
+extern func GetKey() -> byte;
+extern func CreateSprite(id:int,ptr:int) -> int;
+extern func SetSpritePosition(id:int, x:int, y:int) -> int;
+extern func ApplySpritePalette(id:int) -> void;
+extern func UpdateSpritePointers() -> void;
+extern func Show() -> void;
+extern func ShowSprite(id:int) -> int;
+extern func ShowSprites() -> int;
+extern func HideSprite(id:int) -> int;
+extern func HideSprites() -> int;
+extern func ReadMouse() -> void;
+extern func GetMouseDX() -> int;
+extern func GetMouseDY() -> int;
+extern func GetMouseLBtn() -> int;
+extern func CreateBob(descriptor_ptr: int, b: int) -> int;
+extern func DestroyBob(handle: int) -> void;
+extern func PasteBob(handle: int, x: int, y: int, mode: int) -> void;
+extern func GetBobBackground(handle: int, x: int, y: int) -> void;
+extern func PasteBackground(handle: int, x: int, y: int) -> void;
+extern func GetBobPalette(handle: int) -> int;
+extern func SetBobPalette(handle: int, palette_ptr: int) -> int;
+extern func GetBobWidth(handle: int) -> int;
+extern func GetBobHeight(handle: int) -> int;
+extern func SeedRnd(seed: int) -> void;
+extern func Rnd() -> int;
+extern func RndMaxAMOS(max: int) -> int;    
+extern func HeapAlloc(words: int) -> int;
+extern func HeapFree(p: int) -> void;
+extern func HeapInit() -> void;
+
+// Q16.16 fixed-point helpers
+extern func Q16FromInt(val: int) -> int;
+extern func Q16Add(a: int, b: int) -> int;
+extern func Q16Sub(a: int, b: int) -> int;
+extern func Q16Mul(a: int, b: int) -> int;
+extern func Q16Div(a: int, b: int) -> int;
+extern func Q16Eq(a: int, b: int) -> int;
+extern func Q16Gt(a: int, b: int) -> int;
+extern func Q16Lt(a: int, b: int) -> int;
+extern func Q16Ge(a: int, b: int) -> int;
+extern func Q16Le(a: int, b: int) -> int;
+
+extern var sprite_pointer: int;
+extern var bob_launcher: int;
+extern var bob_enemy1: int;
+extern var bob_bullet: int;
+extern var bob_expl1: int;
+extern var bob_expl2: int;
+extern var bob_expl3: int;
+extern var bob_expl4: int;
+extern var bob_expl5: int;
+extern var bob_expl6: int;
+extern var pic_jpg_ham6: int;
+extern var pic_jpg_ham6_palette: int;
+extern var bobx_mountains: int;
+extern var fonts: int;
