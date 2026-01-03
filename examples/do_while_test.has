@@ -1,0 +1,86 @@
+// do-while loop test
+// Tests that the body executes at least once and condition is checked after each iteration
+
+code do_while:
+    proc main() -> long {
+        var test1: long = 0;
+        var test2: long = 0;
+        var test3: long = 0;
+        var test4: long = 0;
+        var test5: long = 0;
+        
+        test1 = test_basic_do_while();
+        test2 = test_do_while_false_condition();
+        test3 = test_do_while_with_break();
+        test4 = test_do_while_with_continue();
+        test5 = test_nested_do_while();
+        
+        return test1;  // Return first test result for quick validation
+    }
+
+    proc test_basic_do_while() -> long {
+        var count: long = 0;
+        
+        do {
+            count = count + 1;
+        } while (count < 5);
+        
+        return count;  // Returns 5
+    }
+    
+    proc test_do_while_false_condition() -> long {
+        var x: long = 0;
+        
+        do {
+            x = x + 1;
+        } while (x < 0);  // Condition is false initially but body runs once
+        
+        return x;  // Returns 1
+    }
+    
+    proc test_do_while_with_break() -> long {
+        var i: long = 0;
+        var sum: long = 0;
+        
+        do {
+            sum = sum + i;
+            i = i + 1;
+            if (i > 3) {
+                break;
+            }
+        } while (i < 10);
+        
+        return sum;  // sum = 0 + 1 + 2 + 3 = 6
+    }
+    
+    proc test_do_while_with_continue() -> long {
+        var i: long = 0;
+        var sum: long = 0;
+        
+        do {
+            i = i + 1;
+            if (i == 2) {
+                continue;  // Skip adding 2 to sum
+            }
+            sum = sum + i;
+        } while (i < 4);
+        
+        return sum;  // sum = 1 + 3 + 4 = 8
+    }
+    
+    proc test_nested_do_while() -> long {
+        var i: long = 0;
+        var j: long = 0;
+        var result: long = 0;
+        
+        do {
+            j = 0;
+            do {
+                result = result + 1;
+                j = j + 1;
+            } while (j < 2);
+            i = i + 1;
+        } while (i < 3);
+        
+        return result;  // result = 2 * 3 = 6
+    }

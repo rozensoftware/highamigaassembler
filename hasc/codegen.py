@@ -299,6 +299,10 @@ class CodeGen:
             stmt.cond = self._substitute_in_expr(stmt.cond, substitutions)
             stmt.body = [self._substitute_in_stmt(s, substitutions) for s in stmt.body]
             
+        elif isinstance(stmt, ast.DoWhile):
+            stmt.cond = self._substitute_in_expr(stmt.cond, substitutions)
+            stmt.body = [self._substitute_in_stmt(s, substitutions) for s in stmt.body]
+            
         elif isinstance(stmt, ast.ForLoop):
             stmt.start = self._substitute_in_expr(stmt.start, substitutions)
             stmt.end = self._substitute_in_expr(stmt.end, substitutions)
@@ -429,6 +433,9 @@ class CodeGen:
                     # Recursively collect locals in loop body
                     collect_locals(stmt.body)
                 elif isinstance(stmt, ast.While):
+                    # Recursively collect locals in loop body
+                    collect_locals(stmt.body)
+                elif isinstance(stmt, ast.DoWhile):
                     # Recursively collect locals in loop body
                     collect_locals(stmt.body)
                 elif isinstance(stmt, ast.RepeatLoop):
@@ -2323,6 +2330,47 @@ class CodeGen:
                 self._emit_stmt(s, params, locals_info, proc, indent, is_void, frame_reg=frame_reg)
             
             self.emit(indent + f"bra {start_label}")
+            self.emit(f"{end_label}:")
+            
+            # Pop loop context
+            self.loop_stack.pop()
+        elif isinstance(stmt, ast.DoWhile):
+            # do-while: execute body at least once, then check condition
+            start_label = self._next_label("dowhile")
+            cont_label = self._next_label("dowhilecont")
+            end_label = self._next_label("enddo")
+            
+            # Push loop context for break/continue
+            # Continue should jump to the condition check
+            self.loop_stack.append((cont_label, end_label))
+            
+            self.emit(f"{start_label}:")
+            
+            # Emit loop body
+            for s in stmt.body:
+                self._emit_stmt(s, params, locals_info, proc, indent, is_void, frame_reg=frame_reg)
+            
+            # Continue target: check condition
+            self.emit(f"{cont_label}:")
+            
+            # Try optimized comparison branch
+            opt_code = self._emit_comparison_branch(stmt.cond, params, locals_info, start_label, indent, frame_reg=frame_reg)
+            
+            if opt_code:
+                # Optimized: direct branch comparison (jump back to start if condition is true)
+                for l in opt_code:
+                    for sub in str(l).splitlines():
+                        self.emit(sub if sub.startswith(indent) else indent + sub)
+            else:
+                # Fallback: evaluate and test
+                code = self._emit_expr(stmt.cond, params, locals_info, "d0", frame_reg=frame_reg)
+                for l in code:
+                    for sub in str(l).splitlines():
+                        self.emit(sub if sub.startswith(indent) else indent + sub)
+                
+                self.emit(indent + "tst.l d0")
+                self.emit(indent + f"bne {start_label}")
+            
             self.emit(f"{end_label}:")
             
             # Pop loop context

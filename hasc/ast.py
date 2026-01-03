@@ -186,6 +186,13 @@ class While:
 
 
 @dataclass
+class DoWhile:
+    """Do-while loop: execute body first, then check condition"""
+    body: List[Any]
+    cond: Any
+
+
+@dataclass
 class ForLoop:
     """C-style for loop: for var = start to end by step { body }"""
     var: str

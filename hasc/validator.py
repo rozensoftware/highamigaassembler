@@ -256,6 +256,8 @@ class Validator:
                     collect_symbols(stmt.body)
                 elif isinstance(stmt, ast.While):
                     collect_symbols(stmt.body)
+                elif isinstance(stmt, ast.DoWhile):
+                    collect_symbols(stmt.body)
                 elif isinstance(stmt, ast.RepeatLoop):
                     collect_symbols(stmt.body)
                 elif isinstance(stmt, ast.If):
@@ -311,6 +313,10 @@ class Validator:
             if isinstance(stmt, ast.While):
                 self._validate_expr(stmt.cond, symbols, proc)
                 self._validate_stmts(stmt.body, symbols, proc, push_stack.copy())
+                continue
+            if isinstance(stmt, ast.DoWhile):
+                self._validate_stmts(stmt.body, symbols, proc, push_stack.copy())
+                self._validate_expr(stmt.cond, symbols, proc)
                 continue
             if isinstance(stmt, ast.ForLoop):
                 self._validate_expr(stmt.start, symbols, proc)
@@ -400,6 +406,11 @@ class Validator:
             self._validate_expr(stmt.cond, symbols, proc)
             for s in stmt.body:
                 self._validate_stmt(s, symbols, proc)
+        
+        elif isinstance(stmt, ast.DoWhile):
+            for s in stmt.body:
+                self._validate_stmt(s, symbols, proc)
+            self._validate_expr(stmt.cond, symbols, proc)
         
         elif isinstance(stmt, ast.ExprStmt):
             self._validate_expr(stmt.expr, symbols, proc)

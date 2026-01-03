@@ -1251,7 +1251,3 @@ gfx_screen2_hires:
 gfx_screen1_ham6:
     ds.b 320*256/8*6
     even
-
-gfx_screen2_ham6:
-    ds.b 320*256/8*6
-    even

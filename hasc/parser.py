@@ -71,7 +71,7 @@ asm_stmt: "asm" STRING [";"]
 
 ASMBLOCK: /\{BLOCK_\d+\}/
 
-?stmt: push_stmt | pop_stmt | var_decl | compound_assign_stmt | assign_stmt | return_stmt | if_stmt | while_stmt | for_stmt | repeat_stmt | expr_stmt | call_stmt | asm_stmt | break_stmt | continue_stmt | macro_call_stmt | template_stmt | python_stmt
+?stmt: push_stmt | pop_stmt | var_decl | compound_assign_stmt | assign_stmt | return_stmt | if_stmt | while_stmt | do_while_stmt | for_stmt | repeat_stmt | expr_stmt | call_stmt | asm_stmt | break_stmt | continue_stmt | macro_call_stmt | template_stmt | python_stmt
 call_stmt: "call" CNAME "(" [arglist] ")" ";"
 macro_call_stmt: CNAME "(" [arglist] ")" ";"
 template_stmt: "@template" STRING STRING ";"
@@ -92,6 +92,7 @@ break_stmt: "break" ";"
 continue_stmt: "continue" ";"
 if_stmt: "if" "(" expr ")" stmt_or_block ["else" stmt_or_block]
 while_stmt: "while" "(" expr ")" stmt_or_block
+do_while_stmt: "do" stmt_or_block "while" "(" expr ")" ";"
 for_stmt: "for" CNAME "=" expr "to" expr ["by" expr] stmt_or_block
 repeat_stmt: "repeat" expr stmt_or_block
 stmt_or_block: stmt_block | stmt
@@ -259,7 +260,7 @@ class ASTBuilder(Transformer):
         # Gather body statements (all remaining ast nodes)
         body = []
         for it in items[idx:]:
-            if isinstance(it, (ast.VarDecl, ast.Assign, ast.CompoundAssign, ast.Return, ast.If, ast.While, ast.ForLoop, ast.RepeatLoop, ast.ExprStmt, ast.AsmBlock, ast.CallStmt, ast.PushRegs, ast.PopRegs, ast.Break, ast.Continue, ast.MacroCall, ast.TemplateStmt, ast.PythonStmt)):
+            if isinstance(it, (ast.VarDecl, ast.Assign, ast.CompoundAssign, ast.Return, ast.If, ast.While, ast.DoWhile, ast.ForLoop, ast.RepeatLoop, ast.ExprStmt, ast.AsmBlock, ast.CallStmt, ast.PushRegs, ast.PopRegs, ast.Break, ast.Continue, ast.MacroCall, ast.TemplateStmt, ast.PythonStmt)):
                 body.append(it)
         
         return ast.Proc(name=name, params=params, rettype=rettype, body=body)
@@ -772,6 +773,11 @@ class ASTBuilder(Transformer):
         cond = items[0]
         body = items[1] if len(items) > 1 else []
         return ast.While(cond=cond, body=body)
+
+    def do_while_stmt(self, items):
+        body = items[0] if len(items) > 0 else []
+        cond = items[1] if len(items) > 1 else []
+        return ast.DoWhile(body=body, cond=cond)
 
     def expr_stmt(self, items):
         return ast.ExprStmt(expr=items[0])
