@@ -1,6 +1,10 @@
 // Test bitwise operators
 
 code main:
+    asm {
+        jmp main
+    }
+    
     proc test_bitwise() -> void {
         var a: long = 3855;   // 0x0F0F in decimal: 0000111100001111
         var b: long = 61680;  // 0xF0F0 in decimal: 1111000011110000

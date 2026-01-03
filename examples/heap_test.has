@@ -5,6 +5,11 @@ data test_data:
     heap_buffer: ds.b 65536      ; 64KB heap buffer
 
 code heap_test:
+
+    asm {
+        jmp run_all_tests
+    }
+
     proc init_test_heap() -> int {
         ; Initialize heap with our buffer
         ; In real code this would be called once at startup

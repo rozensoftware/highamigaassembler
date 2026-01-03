@@ -1,6 +1,10 @@
 // Comprehensive bitwise operators test
 
 code main:
+    asm {
+        jmp main
+    }
+    
     proc test_all_bitwise() -> void {
         var x: long = 12;     // 1100
         var y: long = 10;     // 1010

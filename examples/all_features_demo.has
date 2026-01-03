@@ -7,6 +7,11 @@ const MAX_ITERATIONS = 100;
 const BUFFER_SIZE = 1024;
 
 code main:
+
+    asm {
+        jmp main
+    }
+    
     proc init_buffer() -> void {
         var i: int;
         var addr: int;

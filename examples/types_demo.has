@@ -9,6 +9,12 @@ bss my_bss:
     workspace: 256
 
 code main:
+    // Main entry point
+    proc start() -> void {
+        call init();
+        call test_types();
+    }
+
     // Void function - no return value needed
     proc init() -> void {
         asm {
@@ -38,10 +44,4 @@ code main:
         buffer_ptr = &buffer_ptr;
         
         return buffer_ptr;
-    }
-
-    // Main entry point
-    proc start() -> void {
-        call init();
-        call test_types();
     }

@@ -1,4 +1,9 @@
 code main:
+proc main() -> int {
+    var result: int = 100;
+    return result;
+}
+
 proc test_init() -> void {
     var x: int = 42;
     var y: word = x + 10;
@@ -11,9 +16,4 @@ proc test_init() -> void {
         move.w -6(a6),d1
         move.l -12(a6),d2
     }
-}
-
-proc main() -> int {
-    var result: int = 100;
-    return result;
 }

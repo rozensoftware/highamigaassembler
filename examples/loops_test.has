@@ -1,6 +1,12 @@
 // Test for loops and repeat loops
 
 code main:
+
+    // Entry point
+    asm {
+        jmp test_repeat
+    }
+
     // Test repeat loop - simple repetition
     proc test_repeat() -> int {
         var counter: int = 0;
@@ -48,9 +54,4 @@ code main:
         }
         
         return total;  // Should be 9 (3x3)
-    }
-
-    // Entry point
-    asm {
-        jsr test_repeat
     }

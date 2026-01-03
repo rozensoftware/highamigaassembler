@@ -1,6 +1,10 @@
 // Example: Stack vs Register parameters
 
 code main:
+    asm {
+        jmp main
+    }
+    
     // Stack-based parameters (default - slower but unlimited params)
     proc stack_add(a: long, b: long, c: long) -> long {
         return a + b + c;

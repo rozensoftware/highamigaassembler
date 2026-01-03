@@ -24,10 +24,10 @@ bss my_bss:
     temp.b[256]
 
 code main:
-    proc array_test() -> int {
-        return 0;
+    asm {
+        jmp array_test
     }
 
-    asm {
-        jsr array_test
+    proc array_test() -> int {
+        return 0;
     }

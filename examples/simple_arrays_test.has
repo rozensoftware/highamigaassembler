@@ -7,10 +7,10 @@ bss my_bss:
     buffer[100]
 
 code main:
-    proc test() -> int {
-        return 0;
+    asm {
+        jmp test
     }
 
-    asm {
-        jsr test
+    proc test() -> int {
+        return 0;
     }

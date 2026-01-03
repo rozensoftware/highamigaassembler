@@ -8,6 +8,14 @@ data my_data:
     matrix[3][4] = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12}
 
 code main:
+
+    asm {
+        jsr test_1d_array
+        jsr test_2d_array
+        jsr test_const_index
+        jmp test_array_expr
+    }
+
     // Test 1D array access
     proc test_1d_array() -> int {
         var index: int = 2;
@@ -49,11 +57,4 @@ code main:
         result = numbers[1] * 2 + numbers[3];  // 20*2 + 40 = 80
         
         return result;
-    }
-
-    asm {
-        jsr test_1d_array
-        jsr test_2d_array
-        jsr test_const_index
-        jsr test_array_expr
     }

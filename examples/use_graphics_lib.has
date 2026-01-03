@@ -13,6 +13,16 @@ code main:
     public game_init;
     public game_loop;
     
+    // Entry point that can be called from pure assembly
+    public start;
+    
+    asm {
+start:
+    jsr game_init
+    jsr game_loop
+    rts
+    }
+
     proc game_init() -> void {
         // Clear screen to black (color 0)
         call clear_screen(0);
@@ -31,14 +41,4 @@ code main:
             call draw_pixel(x, 0, 15);
             call draw_pixel(x, 255, 15);
         }
-    }
-    
-    // Entry point that can be called from pure assembly
-    public start;
-    
-    asm {
-start:
-    jsr game_init
-    jsr game_loop
-    rts
     }

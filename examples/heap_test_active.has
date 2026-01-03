@@ -6,6 +6,10 @@ code heap_test:
     extern func heap_malloc(size:int) -> int;
     extern func heap_free(ptr:int) -> void;
 
+    asm {
+        jmp heap_test
+    }
+    
     proc test_single_allocation() -> int {
         var ptr:int;
         var size:int = 256;

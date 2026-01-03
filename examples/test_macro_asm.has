@@ -21,6 +21,10 @@ macro RESTORE_D0() {
 }
 
 code test:
+    proc main() -> int {
+        return test_asm_macro();
+    }
+
     proc test_asm_macro() -> int {
         var x: int = 42;
         
@@ -33,8 +37,4 @@ code test:
         RESTORE_D0();
         
         return x;
-    }
-    
-    proc main() -> int {
-        return test_asm_macro();
     }

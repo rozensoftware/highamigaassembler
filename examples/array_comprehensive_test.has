@@ -10,6 +10,14 @@ bss my_bss:
     buffer[100]
 
 code main:
+    asm {
+        jsr test_nested_expr
+        jsr test_with_calls
+        jsr test_array_loop
+        jsr test_2d_loop
+        jmp test_register_preservation
+    }
+
     // Test nested array access in expressions
     proc test_nested_expr() -> int {
         var i: int = 2;
@@ -91,12 +99,4 @@ code main:
         POP();
         
         return result;
-    }
-
-    asm {
-        jsr test_nested_expr
-        jsr test_with_calls
-        jsr test_array_loop
-        jsr test_2d_loop
-        jsr test_register_preservation
     }

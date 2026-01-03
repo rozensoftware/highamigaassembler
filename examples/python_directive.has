@@ -7,12 +7,8 @@ code generated:
         var x:int = 5;
         
         // Use @python directive to generate code at compile time
-        @python "import math; result = int(127 * math.sin(x / 16.0))";
+        // Python code should set 'generated_code' variable with HAS code as string
+        @python "import math; x_value = 5; calculated = int(127 * math.sin(x_value / 16.0)); generated_code = f'result = {calculated};'";
         
-        return result;
-    }
-
-    proc lookup_sin(angle:int) -> int {
-        var result:int = 0;
         return result;
     }

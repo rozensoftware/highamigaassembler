@@ -16,15 +16,16 @@ bss_chip audio_bss:
     sample_buffer: 8192
 
 code main:
-    proc add(a: int, b: int) -> int {
-        return a + b;
-    }
-
     asm {
 start:
     jsr add
     rts
     }
+
+    proc add(a: int, b: int) -> int {
+        return a + b;
+    }
+
 
 code_chip graphics:
     asm {

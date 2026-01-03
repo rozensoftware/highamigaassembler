@@ -6,6 +6,10 @@ code test:
     extern func Rnd() -> int;
     extern func RndMax(max: int) -> int;
 
+    asm {
+        jmp main
+    }
+    
     // Test procedure: call RndMax multiple times
     proc test_rndmax() -> int {
         var i:byte;

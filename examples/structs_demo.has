@@ -29,6 +29,10 @@ code main:
     extern func heap_malloc(size: int) -> ptr;
     extern func heap_free(ptr: ptr) -> int;
     
+    asm {
+        jmp main
+    }
+    
     proc InitPlayer() -> void {
         // Access struct fields using generated equates
         asm {
