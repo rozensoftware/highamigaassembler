@@ -221,6 +221,15 @@ hasc/                   # Main compiler source code
 ├── codegen.py         # Code generation (2500+ lines)
 └── preprocessor.py    # Include and directive processing
 
+vscode-highamigassembler/  # VS Code extension
+├── package.json       # Extension manifest
+├── extension.js       # Extension entry point
+├── language-configuration.json  # Language configuration
+├── syntaxes/          # Syntax highlighting grammar
+├── themes/            # Color themes
+├── icon.png           # Extension marketplace icon
+└── README.md          # Extension documentation
+
 examples/              # Example programs and games
 ├── *.has              # Basic example programs
 └── games/             # Complete game examples
@@ -240,6 +249,27 @@ docs/                  # Additional documentation
 ```
 
 ## 🎓 Language Basics
+
+### VS Code Extension
+
+The project includes a **VS Code extension** for enhanced development experience:
+
+**Features:**
+- **Syntax Highlighting** - Colorized HAS code with proper keywords, registers, and literals
+- **Code Navigation** - Jump to procedure definitions (Ctrl+Click, F12)
+- **Find References** - Locate all usages of procedures (Shift+F12)
+- **Hover Information** - View procedure signatures on hover
+- **Cross-File Navigation** - Navigate between `.has` files and `.s` assembly files
+
+**Installation:**
+1. Visit the [VS Code Marketplace](https://marketplace.visualstudio.com/search?term=highamigassembler)
+2. Search for "High Amiga Assembler"
+3. Click Install
+
+**Development:**
+See [vscode-highamigassembler/README.md](vscode-highamigassembler/README.md) for extension development details.
+
+### Language Basics
 
 ### Variable Declaration
 ```has
