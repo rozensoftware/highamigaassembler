@@ -1,0 +1,59 @@
+{
+  "$schema": "vscode://schemas/color-theme",
+  "name": "High Amiga Assembler Colors",
+  "type": "light",
+  "colors": {},
+  "tokenColors": [
+    {
+      "scope": [
+        "entity.name.function.highamigassembler"
+      ],
+      "settings": {
+        "foreground": "#FFD700" 
+      }
+    },
+    {
+      "scope": [
+        "keyword.directive.highamigassembler"
+      ],
+      "settings": {
+        "foreground": "#007ACC"
+      }
+    },
+    {
+      "scope": [
+        "keyword.other.instruction.highamigassembler"
+      ],
+      "settings": {
+        "foreground": "#008000"
+      }
+    },
+    {
+      "scope": [
+        "keyword.declaration.proc.highamigassembler"
+      ],
+      "settings": {
+        "foreground": "#D35400",
+        "fontStyle": "bold"
+      }
+    },
+    {
+      "scope": [
+        "keyword.declaration.func.highamigassembler"
+      ],
+      "settings": {
+        "foreground": "#009688",
+        "fontStyle": "bold"
+      }
+    },
+    {
+      "scope": [
+        "storage.type.highamigassembler"
+      ],
+      "settings": {
+        "foreground": "#B000B5",
+        "fontStyle": "bold"
+      }
+    }
+  ]
+}

@@ -1,0 +1,72 @@
+{
+  "name": "vscode-highamigassembler",
+  "displayName": "High Amiga Assembler",
+  "description": "Syntax highlighting and navigation for the High Amiga Assembler (.has).",
+  "version": "0.1.0",
+  "publisher": "highamigassembler",
+  "license": "MIT",
+  "icon": "icon.png",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "main": "./extension.js",
+  "categories": [
+    "Programming Languages"
+  ],
+  "activationEvents": [
+    "onLanguage:highamigassembler"
+  ],
+  "contributes": {
+    "commands": [
+      {
+        "command": "highamigassembler.goToDefinition",
+        "title": "Go to Definition",
+        "category": "HAS"
+      },
+      {
+        "command": "highamigassembler.findReferences",
+        "title": "Find All References",
+        "category": "HAS"
+      }
+    ],
+    "keybindings": [
+      {
+        "command": "highamigassembler.goToDefinition",
+        "key": "ctrl+click",
+        "when": "editorTextFocus && editorLangId == highamigassembler"
+      },
+      {
+        "command": "highamigassembler.goToDefinition",
+        "key": "F12",
+        "when": "editorTextFocus && editorLangId == highamigassembler"
+      },
+      {
+        "command": "highamigassembler.findReferences",
+        "key": "shift+F12",
+        "when": "editorTextFocus && editorLangId == highamigassembler"
+      }
+    ],
+    "themes": [
+      {
+        "label": "High Amiga Assembler Colors",
+        "uiTheme": "vs",
+        "path": "./themes/highamigassembler-color-theme.json"
+      }
+    ],
+    "languages": [
+      {
+        "id": "highamigassembler",
+        "aliases": ["High Amiga Assembler", "highamigassembler"],
+        "extensions": [".has"],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "highamigassembler",
+        "scopeName": "source.highamigassembler",
+        "path": "./syntaxes/highamigassembler.tmLanguage.json"
+      }
+    ]
+  }
+}

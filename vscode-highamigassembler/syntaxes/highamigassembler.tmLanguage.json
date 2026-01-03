@@ -1,0 +1,203 @@
+{
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "name": "High Amiga Assembler",
+  "scopeName": "source.highamigassembler",
+  "fileTypes": ["has"],
+  "patterns": [
+    { "include": "#comments" },
+    { "include": "#include-directive" },
+    { "include": "#strings" },
+    { "include": "#directives" },
+    { "include": "#function-definitions" },
+    { "include": "#sections" },
+    { "include": "#keywords" },
+    { "include": "#types" },
+    { "include": "#instructions" },
+    { "include": "#registers" },
+    { "include": "#numbers" },
+    { "include": "#operators" },
+    { "include": "#suffixes" }
+  ],
+  "repository": {
+    "comments": {
+      "patterns": [
+        {
+          "name": "comment.line.double-slash.highamigassembler",
+          "match": "//.*$"
+        }
+      ]
+    },
+    "strings": {
+      "patterns": [
+        {
+          "name": "string.quoted.double.highamigassembler",
+          "begin": "\"",
+          "end": "\"",
+          "patterns": [
+            {
+              "name": "constant.character.escape.highamigassembler",
+              "match": "\\\\."
+            }
+          ]
+        }
+      ]
+    },
+    "directives": {
+      "patterns": [
+        {
+          "name": "keyword.directive.highamigassembler",
+          "match": "#(?:warning|error|pragma)\\b"
+        }
+      ]
+    },
+    "include-directive": {
+      "patterns": [
+        {
+          "begin": "^\\s*(#include)\\s+(<)",
+          "beginCaptures": {
+            "1": { "name": "keyword.directive.include.highamigassembler" },
+            "2": { "name": "punctuation.definition.string.begin.highamigassembler" }
+          },
+          "end": ">",
+          "endCaptures": {
+            "0": { "name": "punctuation.definition.string.end.highamigassembler" }
+          },
+          "name": "meta.preprocessor.include.highamigassembler",
+          "contentName": "string.quoted.double.highamigassembler"
+        },
+        {
+          "begin": "^\\s*(#include)\\s+(\")",
+          "beginCaptures": {
+            "1": { "name": "keyword.directive.include.highamigassembler" },
+            "2": { "name": "punctuation.definition.string.begin.highamigassembler" }
+          },
+          "end": "\"",
+          "endCaptures": {
+            "0": { "name": "punctuation.definition.string.end.highamigassembler" }
+          },
+          "name": "meta.preprocessor.include.highamigassembler",
+          "contentName": "string.quoted.double.highamigassembler"
+        }
+      ]
+    },
+    "function-definitions": {
+      "patterns": [
+        {
+          "name": "meta.function.highamigassembler",
+          "match": "\\b(?:func|proc)\\s+([A-Za-z_][A-Za-z0-9_]*)",
+          "captures": {
+            "1": { "name": "entity.name.function.highamigassembler" }
+          }
+        }
+      ]
+    },
+    "sections": {
+      "patterns": [
+        {
+          "name": "keyword.control.section.highamigassembler",
+          "match": "\\b(?:data_chip|data|bss_chip|bss|code_chip|code)\\b"
+        }
+      ]
+    },
+    "keywords": {
+      "patterns": [
+        {
+          "name": "keyword.declaration.proc.highamigassembler",
+          "match": "\\bproc\\b"
+        },
+        {
+          "name": "keyword.declaration.func.highamigassembler",
+          "match": "\\bfunc\\b"
+        },
+        {
+          "name": "keyword.control.highamigassembler",
+          "match": "\\b(?:extern|public|macro|const|var|return|if|else|while|for|repeat|to|by|break|continue|call|asm|PUSH|POP)\\b"
+        },
+        {
+          "name": "keyword.other.decorator.highamigassembler",
+          "match": "@(?:template|python)"
+        },
+        {
+          "name": "keyword.other.register.highamigassembler",
+          "match": "__reg"
+        }
+      ]
+    },
+    "types": {
+      "patterns": [
+        {
+          "name": "storage.type.highamigassembler",
+          "match": "\\b(?:int|word|long|void|byte)\\b"
+        }
+      ]
+    },
+    "instructions": {
+      "patterns": [
+        {
+          "name": "keyword.other.instruction.highamigassembler",
+          "match": "\\b(?:MOVE|ADD|SUB|MUL|DIV|AND|OR|EOR|NOT|CLR|LEA|JSR|JMP|RTS|BRA|BSR|CMP|TST|SWAP|EXT|NEG|NOP|BCC|BNE|BEQ|BGE|BGT|BLE|BLT|DBRA|DBF|SCC|SNE|SEQ|SGE|SGT|SLE|SLT)\\b"
+        }
+      ]
+    },
+    "registers": {
+      "patterns": [
+        {
+          "name": "variable.language.register.highamigassembler",
+          "match": "\\b(?:d[0-7]|a[0-7])\\b"
+        }
+      ]
+    },
+    "numbers": {
+      "patterns": [
+        {
+          "name": "constant.numeric.hex.highamigassembler",
+          "match": "\\b(?:0x[0-9A-Fa-f]+|\\$[0-9A-Fa-f]+)\\b"
+        },
+        {
+          "name": "constant.numeric.binary.highamigassembler",
+          "match": "\\b%[01]+\\b"
+        },
+        {
+          "name": "constant.numeric.decimal.highamigassembler",
+          "match": "\\b[0-9]+\\b"
+        }
+      ]
+    },
+    "operators": {
+      "patterns": [
+        {
+          "name": "keyword.operator.assignment.compound.highamigassembler",
+          "match": "\\+=|-=|\\*=|/=|%=|&=|\\|=|\\^="
+        },
+        {
+          "name": "keyword.operator.comparison.highamigassembler",
+          "match": "==|!=|<=|>=|<<|>>"
+        },
+        {
+          "name": "keyword.operator.logical.highamigassembler",
+          "match": "&&|\\|\\|"
+        },
+        {
+          "name": "keyword.operator.arithmetic.highamigassembler",
+          "match": "[+\\-*/%]"
+        },
+        {
+          "name": "keyword.operator.bitwise.highamigassembler",
+          "match": "[&\\|^~]"
+        },
+        {
+          "name": "keyword.operator.other.highamigassembler",
+          "match": "!|->"
+        }
+      ]
+    },
+    "suffixes": {
+      "patterns": [
+        {
+          "name": "storage.modifier.size-suffix.highamigassembler",
+          "match": "\\.[bwl]\\b"
+        }
+      ]
+    }
+  }
+}
