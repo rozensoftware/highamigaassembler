@@ -218,7 +218,10 @@ hasc/                   # Main compiler source code
 ├── parser.py          # Lark-based parser
 ├── ast.py             # AST node definitions
 ├── validator.py       # Semantic analysis
-├── codegen.py         # Code generation (2500+ lines)
+├── codegen.py         # Code generation orchestration (~2900 lines)
+├── register_allocator.py  # 68000 register allocation with spilling (~160 lines)
+├── codegen_utils.py   # Code generation utilities (~310 lines)
+├── peepholeopt.py     # Peephole optimization passes
 └── preprocessor.py    # Include and directive processing
 
 vscode-highamigassembler/  # VS Code extension
