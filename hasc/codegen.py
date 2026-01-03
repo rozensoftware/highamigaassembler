@@ -2768,6 +2768,8 @@ class CodeGen:
         elif isinstance(stmt, ast.PythonStmt):
             # Python directive: execute Python code at compile time
             try:
+                import math
+                
                 # Create execution context with safe builtins
                 sandbox_globals = {
                     '__builtins__': {
@@ -2783,7 +2785,13 @@ class CodeGen:
                         'sum': sum,
                         'max': max,
                         'min': min,
-                    }
+                        'abs': abs,
+                        'round': round,
+                        'pow': pow,
+                        '__import__': __import__,  # Allow imports
+                    },
+                    # Provide commonly-used safe modules directly
+                    'math': math,
                 }
                 
                 # Execute the Python code
@@ -2793,9 +2801,11 @@ class CodeGen:
                 if 'generated_code' in sandbox_globals:
                     generated = sandbox_globals['generated_code']
                     if isinstance(generated, str):
-                        # Parse generated code
+                        # Parse generated code as statements within a procedure
                         from . import parser
-                        gen_ast = parser.parse(f"code gen:\n{generated}")
+                        # Wrap in minimal proc structure for parsing
+                        wrapper = f"code gen:\n    proc temp() -> int {{\n        {generated}\n    }}"
+                        gen_ast = parser.parse(wrapper)
                         if isinstance(gen_ast, ast.Module):
                             for item in gen_ast.items:
                                 if isinstance(item, ast.CodeSection):
@@ -2807,9 +2817,10 @@ class CodeGen:
                         # List of HAS statements
                         for gen_stmt in generated:
                             if isinstance(gen_stmt, str):
-                                # Parse as HAS code
+                                # Parse as HAS statement within procedure wrapper
                                 from . import parser
-                                gen_ast = parser.parse(f"code gen:\n{gen_stmt}")
+                                wrapper = f"code gen:\n    proc temp() -> int {{\n        {gen_stmt}\n    }}"
+                                gen_ast = parser.parse(wrapper)
                                 if isinstance(gen_ast, ast.Module):
                                     for item in gen_ast.items:
                                         if isinstance(item, ast.CodeSection):
