@@ -2,6 +2,17 @@
 
 VS Code syntax highlighting and code navigation for the High Assembler (HAS) language targeting Motorola 68000 (Amiga).
 
+This extension provides a complete development environment for HAS language, including syntax highlighting, intelligent code navigation, and hover information for cross-file procedure lookups.
+
+## About This Extension
+
+**Publisher:** highamigassembler  
+**Language:** High Amiga Assembler (HAS)  
+**Platform:** VS Code 1.85.0+  
+**License:** MIT  
+
+The extension enables developers to work efficiently with HAS source files by offering features like cross-file navigation, definition lookup, and reference finding—essential for managing large assembly projects with multiple modules.
+
 ## Features
 
 ### Syntax Highlighting
@@ -86,6 +97,13 @@ TakeSystem:
 
 ## Installation
 
+### From VS Code Marketplace
+1. Open VS Code
+2. Go to **Extensions** (Ctrl+Shift+X)
+3. Search for "High Amiga Assembler"
+4. Click **Install**
+5. Reload VS Code if prompted
+
 ### From Source
 1. Install `vsce`: `npm install -g @vscode/vsce`
 2. Package: `vsce package` (produces `.vsix`)
@@ -125,9 +143,19 @@ TakeSystem:
 - Definition provider (Ctrl+Click, F12)
 - Hover information (signatures)
 - Reference provider (Shift+F12)
+- VS Code Marketplace icon
 
 ### 0.0.1
 - Syntax highlighting only
+
+## Contributing
+
+Issues, feature requests, and contributions are welcome! Please refer to the main project repository for contribution guidelines.
+
+## Related Resources
+
+- [High Amiga Assembler Main Project](https://github.com/highamiga/highamigassembler)
+- [Amiga Motorola 68000 Documentation](https://en.wikipedia.org/wiki/Amiga)
 
 ## License
 
