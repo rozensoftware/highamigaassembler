@@ -6,7 +6,7 @@ This extension provides a complete development environment for HAS language, inc
 
 ## About This Extension
 
-**Publisher:** highamigassembler  
+**Publisher:** Piotr Rozentreter  
 **Language:** High Amiga Assembler (HAS)  
 **Platform:** VS Code 1.85.0+  
 **License:** MIT  

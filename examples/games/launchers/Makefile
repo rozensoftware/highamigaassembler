@@ -14,17 +14,17 @@ else
 	IS_WINDOWS := 0
 endif
 
-# Get the project root directory (four levels up from this directory - highamigassembler/)
-PROJ_ROOT := ../../../../
-# Publish directory (three levels up - highamigassembler/publish/)
-PUBLISH_ROOT := ../../../
+# Get the project root directory (three levels up from this directory - highamigaassembler/)
+PROJ_ROOT := ../../..
+# Use current directory for build outputs
+BUILD_ROOT := .
 
 
 
 # --- Python detection ---
 ifeq ($(OS),Windows_NT)
 	PYTHON := $(CURDIR)/../../../../venv/Scripts/python.exe
-	PYTHONPATH := $(CURDIR)/../../../../src
+	PYTHONPATH := $(CURDIR)/../../../../
 	SLASH := \\
 	VASM := vasmm68k_mot.exe
 	VLINK := vlink.exe
@@ -36,7 +36,7 @@ else
 	else
 		 PYTHON := python3
 	endif
-	PYTHONPATH := $(PROJ_ROOT)src
+	PYTHONPATH := $(PROJ_ROOT)
 	SLASH := /
 	VASM := vasmm68k_mot
 	VLINK := vlink
@@ -45,8 +45,8 @@ endif
 HASC := $(PYTHON) -m hasc.cli
 
 # Directories
-LIB_DIR := $(PUBLISH_ROOT)/lib
-BUILD_DIR := $(PUBLISH_ROOT)/build
+LIB_DIR := $(PROJ_ROOT)/lib
+BUILD_DIR := $(BUILD_ROOT)/build
 SRC_DIR := .
 CURRENT_DIR := $(notdir $(PWD))
 PNG_DIR := .
@@ -244,17 +244,17 @@ assets: $(ASSET_INCLUDES)
 # Sprite importer rule (pointer.png -> sprite_pointer.s)
 
 $(GEN_DIR)/sprite_%.s: $(PNG_DIR)/%.png | $(GEN_DIR)
-	$(PYTHON) $(PUBLISH_ROOT)/tools/sprite_importer.py $< --label-prefix sprite --outdir $(GEN_DIR)
+	$(PYTHON) $(PROJ_ROOT)/tools/sprite_importer.py $< --label-prefix sprite --outdir $(GEN_DIR)
 
 # BOB importer rule (all other PNGs -> bob_*.s)
 
 $(GEN_DIR)/bob_%.s: $(PNG_DIR)/%.png | $(GEN_DIR)
-	$(PYTHON) $(PUBLISH_ROOT)/tools/bob_importer.py $< 5 --label-prefix bob --add-word --outdir $(GEN_DIR)
+	$(PYTHON) $(PROJ_ROOT)/tools/bob_importer.py $< 5 --label-prefix bob --add-word --outdir $(GEN_DIR)
 
 # BOB without --add-word (bobx_*.s)
 
 $(GEN_DIR)/bobx_%.s: $(PNG_DIR)/%.png | $(GEN_DIR)
-	$(PYTHON) $(PUBLISH_ROOT)/tools/bob_importer.py $< 5 --label-prefix bobx --outdir $(GEN_DIR)
+	$(PYTHON) $(PROJ_ROOT)/tools/bob_importer.py $< 5 --label-prefix bobx --outdir $(GEN_DIR)
 
 # Assemble generated assets
 

@@ -3,7 +3,7 @@
   "displayName": "High Amiga Assembler",
   "description": "Syntax highlighting and navigation for the High Amiga Assembler (.has).",
   "version": "0.1.0",
-  "publisher": "highamigassembler",
+  "publisher": "Piotr Rozentreter",
   "license": "MIT",
   "icon": "icon.png",
   "engines": {
