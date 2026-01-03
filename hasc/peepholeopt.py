@@ -22,6 +22,8 @@ def peephole_optimize(lines):
         optimized = _optimize_move_chains(optimized)
         optimized = _eliminate_redundant_compare(optimized)
         optimized = _optimize_branch_to_branch(optimized)
+        optimized = _fold_constant_shifts(optimized)
+        optimized = _optimize_indexed_addressing(optimized)
         
         if len(optimized) < prev_len:
             changed = True
@@ -306,6 +308,74 @@ def _extract_modified_regs(instruction):
     
     return modified
 
+def _fold_constant_shifts(lines):
+    """Fold constant shift operations: moveq #N,dX; lsl.l #M,dX -> moveq #(N<<M),dX"""
+    optimized = []
+    i = 0
+    
+    while i < len(lines):
+        if i + 1 < len(lines):
+            base1 = lines[i].split(';', 1)[0].rstrip()
+            base2 = lines[i + 1].split(';', 1)[0].rstrip()
+            comment2 = ';' + lines[i + 1].split(';', 1)[1] if ';' in lines[i + 1] else ''
+            
+            # Match: moveq #N,dX followed by lsl.l #M,dX
+            m1 = re.match(r"(\s*)moveq\s+#(-?\d+),(d\d+)$", base1)
+            if m1:
+                indent, value, reg = m1.groups()
+                # Build pattern to match shift on same register
+                m2 = re.match(rf"\s*lsl\.l\s+#(\d+),{re.escape(reg)}$", base2)
+                
+                if m2:
+                    shift = int(m2.group(1))
+                    result = int(value) << shift
+                    
+                    # If result fits in moveq range (-128 to 127), use moveq
+                    if -128 <= result <= 127:
+                        optimized.append(f"{indent}moveq #{result},{reg}{comment2}")
+                    else:
+                        # Use move.l for larger values
+                        optimized.append(f"{indent}move.l #{result},{reg}{comment2}")
+                    
+                    i += 2
+                    continue
+        
+        optimized.append(lines[i])
+        i += 1
+    
+    return optimized
+
+
+def _optimize_indexed_addressing(lines):
+    """Optimize indexed addressing with zero offset.
+    
+    Patterns optimized:
+    - move.x (aX,0.l),dY -> move.x (aX),dY
+    - move.x dY,(aX,0.l) -> move.x dY,(aX)
+    """
+    optimized = []
+    
+    for line in lines:
+        base = line.split(';', 1)[0].rstrip()
+        comment = ';' + line.split(';', 1)[1] if ';' in line else ''
+        
+        # Match: move.x (aX,0.l),dY
+        m = re.match(r"(\s*move(\.[bwl])?)\s+\((a\d+),0\.l\),(d\d+)$", base)
+        if m:
+            move_instr, suffix, areg, dreg = m.groups()
+            optimized.append(f"{move_instr} ({areg}),{dreg}{comment}")
+            continue
+        
+        # Match: move.x dY,(aX,0.l)
+        m = re.match(r"(\s*move(\.[bwl])?)\s+(d\d+),\((a\d+),0\.l\)$", base)
+        if m:
+            move_instr, suffix, dreg, areg = m.groups()
+            optimized.append(f"{move_instr} {dreg},({areg}){comment}")
+            continue
+        
+        optimized.append(line)
+    
+    return optimized
 
 def _optimize_branch_to_branch(lines):
     """

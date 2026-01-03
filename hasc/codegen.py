@@ -1014,68 +1014,109 @@ class CodeGen:
                         elem_bytes = 4
                         shift_amount = 2
                 
-                # Load base address
-                code.append(f"    lea {name},a0")
-                
-                # Evaluate index into d1
-                index_code = self._emit_expr(expr.indices[0], params, locals_info, "d1", "d2", target_type="int", frame_reg=frame_reg)
-                code.extend(index_code)
-                
-                # Scale index by element size if needed
-                if shift_amount > 0:
-                    code.append(f"    lsl.l #{shift_amount},d1  ; multiply index by {elem_bytes}")
-                
-                # Load element with correct size
-                size_suffix = ast.size_suffix(elem_bytes)
-                code.append(f"    move{size_suffix} (a0,d1.l),{reg_left}")
+                # Check if index is a constant
+                if isinstance(expr.indices[0], ast.Number):
+                    # Constant index: generate direct offset
+                    index_val = expr.indices[0].value
+                    offset = index_val * elem_bytes
+                    size_suffix = ast.size_suffix(elem_bytes)
+                    
+                    if offset == 0:
+                        code.append(f"    move{size_suffix} {name},{reg_left}")
+                    else:
+                        code.append(f"    move{size_suffix} {name}+{offset},{reg_left}")
+                else:
+                    # Variable index: generate runtime calculation
+                    code.append(f"    lea {name},a0")
+                    
+                    # Evaluate index into d1
+                    index_code = self._emit_expr(expr.indices[0], params, locals_info, "d1", "d2", target_type="int", frame_reg=frame_reg)
+                    code.extend(index_code)
+                    
+                    # Scale index by element size if needed
+                    if shift_amount > 0:
+                        code.append(f"    lsl.l #{shift_amount},d1  ; multiply index by {elem_bytes}")
+                    
+                    # Load element with correct size
+                    size_suffix = ast.size_suffix(elem_bytes)
+                    code.append(f"    move{size_suffix} (a0,d1.l),{reg_left}")
                 
             elif len(expr.indices) == 2:
                 # 2D array: matrix[row][col]
                 # Calculate: base + (row * col_count + col) * element_size
                 
-                code.append(f"    ; 2D array access: {name}")
+                # Get array dimensions and element size
+                elem_size = 'l'
+                elem_bytes = 4
+                col_count = None
                 
-                # Evaluate row index into d1
-                row_code = self._emit_expr(expr.indices[0], params, locals_info, "d1", "d2", target_type="int", frame_reg=frame_reg)
-                code.extend(row_code)
-                
-                # Save row in d2
-                code.append(f"    move.l d1,d2  ; save row")
-                
-                # Evaluate col index into d1
-                col_code = self._emit_expr(expr.indices[1], params, locals_info, "d1", "a0", target_type="int", frame_reg=frame_reg)
-                code.extend(col_code)
-                
-                # Get column count from array dimensions
                 if name in self.array_dims:
                     array_info = self.array_dims[name]
                     dims = array_info['dims']
                     elem_size = array_info.get('size', 'l')
                     
+                    if elem_size == 'b':
+                        elem_bytes = 1
+                    elif elem_size == 'w':
+                        elem_bytes = 2
+                    else:
+                        elem_bytes = 4
+                    
                     if len(dims) >= 2:
                         col_count = dims[1]
+                
+                # Check if both indices are constants
+                if isinstance(expr.indices[0], ast.Number) and isinstance(expr.indices[1], ast.Number):
+                    # Both constant: compute offset at compile time
+                    row_val = expr.indices[0].value
+                    col_val = expr.indices[1].value
+                    
+                    if col_count is None:
+                        code.append(f"    ; WARNING: could not determine column count for {name}")
+                        col_count = 10  # fallback
+                    
+                    offset = (row_val * col_count + col_val) * elem_bytes
+                    size_suffix = ast.size_suffix(elem_bytes)
+                    
+                    if offset == 0:
+                        code.append(f"    move{size_suffix} {name},{reg_left}")
+                    else:
+                        code.append(f"    move{size_suffix} {name}+{offset},{reg_left}")
+                else:
+                    # At least one variable index: generate runtime calculation
+                    code.append(f"    ; 2D array access: {name}")
+                    
+                    # Evaluate row index into d1
+                    row_code = self._emit_expr(expr.indices[0], params, locals_info, "d1", "d2", target_type="int", frame_reg=frame_reg)
+                    code.extend(row_code)
+                    
+                    # Save row in d2
+                    code.append(f"    move.l d1,d2  ; save row")
+                    
+                    # Evaluate col index into d1
+                    col_code = self._emit_expr(expr.indices[1], params, locals_info, "d1", "a0", target_type="int", frame_reg=frame_reg)
+                    code.extend(col_code)
+                    
+                    # Get column count
+                    if col_count is not None:
                         # Calculate offset: row * col_count + col
                         code.append(f"    mulu.w #{col_count},d2  ; row * col_count")
                     else:
                         code.append(f"    ; WARNING: could not determine column count for {name}")
                         code.append(f"    mulu.w #10,d2  ; placeholder col_count")
-                else:
-                    code.append(f"    ; WARNING: array {name} not found in array_dims")
-                    code.append(f"    mulu.w #10,d2  ; placeholder col_count")
-                    elem_size = 'l'
-                
-                code.append(f"    add.l d1,d2   ; + col")
-                
-                # Element size scaling based on type
-                shift_map = {'b': 0, 'w': 1, 'l': 2}
-                shift = shift_map.get(elem_size, 2)
-                if shift > 0:
-                    code.append(f"    lsl.l #{shift},d2   ; * {1 << shift} (element size)")
-                
-                # Now load base address and access element
-                move_suffix = {'b': '.b', 'w': '.w', 'l': '.l'}.get(elem_size, '.l')
-                code.append(f"    lea {name},a0")
-                code.append(f"    move{move_suffix} (a0,d2.l),{reg_left}")
+                    
+                    code.append(f"    add.l d1,d2   ; + col")
+                    
+                    # Element size scaling based on type
+                    shift_map = {'b': 0, 'w': 1, 'l': 2}
+                    shift = shift_map.get(elem_size, 2)
+                    if shift > 0:
+                        code.append(f"    lsl.l #{shift},d2   ; * {1 << shift} (element size)")
+                    
+                    # Now load base address and access element
+                    move_suffix = {'b': '.b', 'w': '.w', 'l': '.l'}.get(elem_size, '.l')
+                    code.append(f"    lea {name},a0")
+                    code.append(f"    move{move_suffix} (a0,d2.l),{reg_left}")
             else:
                 code.append(f"    ; arrays with >2 dimensions not supported")
                 code.append(f"    move.l #0,{reg_left}")
