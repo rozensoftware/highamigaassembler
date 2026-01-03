@@ -40,6 +40,7 @@ HAS bridges the gap between high-level languages and assembly programming. It of
 - **Include System**: Modular code organization with `#include`
 - **Constants**: Compile-time constant evaluation
 - **Pointer Arithmetic**: Address-of (`&`) and dereference (`*`) operators
+- **Register Locking**: `#pragma lockreg()` to protect registers from compiler allocation
 
 ### Amiga-Specific
 - **Hardware Registers**: Direct access to Amiga chipset
@@ -352,6 +353,56 @@ code main:
         return x;  // Returns 20
     }
 ```
+
+### Register Locking with #pragma
+
+The `#pragma lockreg(register)` directive prevents the compiler from using specific registers for temporary values or spilling operations. This is **critical** when interfacing with Amiga system libraries that expect certain registers to remain unchanged.
+
+**Common Use Case: CUSTOM Chip Base Address**
+
+Many Amiga libraries and system routines use register `a5` to hold the CUSTOM chip base address (`$DFF000`). When calling these libraries, you must ensure the compiler doesn't modify `a5`:
+
+```has
+// Lock register a5 to hold CUSTOM chip base address
+// HAS will not modify a5 across the code
+#pragma lockreg(a5);
+
+#include "includes/system_libs.has"
+
+code main:
+    asm {
+        jsr TakeSystem      ; Sets a5 = $DFF000 (CUSTOM base)
+        jsr main
+        jmp ReleaseSystem
+    }
+    
+    proc main() -> void {
+        // a5 remains untouched throughout execution
+        call graphics_init();  // External library uses a5
+        call sound_init();     // External library uses a5
+    }
+```
+
+**Why This Matters:**
+
+1. **System Libraries**: Amiga OS libraries often assume `a5` points to `$DFF000` (hardware registers)
+2. **Hardware Access**: Direct chipset manipulation requires a stable base pointer
+3. **External Code**: C libraries and assembly modules may rely on preserved registers
+4. **Register Allocator**: Without `lockreg`, the compiler might use `a5` for temporaries, corrupting the base pointer
+
+**Syntax:**
+```has
+#pragma lockreg(a5);        // Lock a single register
+#pragma lockreg(a5, a4);    // Lock multiple registers (comma-separated)
+```
+
+**Locked Registers Are:**
+- Never allocated for temporary values
+- Never used for register spilling
+- Never modified by compiler-generated code
+- Your responsibility to initialize and maintain
+
+**Best Practice:** Always use `#pragma lockreg(a5)` at the top of your file when calling external Amiga libraries or system routines that expect hardware register base pointers.
 
 ## 🔍 Type System
 
