@@ -1568,9 +1568,11 @@ class CodeGen:
                             return [f"    ; WARNING: unresolved variable {name}", f"    move.l #0,{reg_left}"]
             elif expr.op == '*':
                 # Dereference operator: load value from pointer
-                code += self._emit_expr(expr.operand, params, locals_info, reg_left, frame_reg=frame_reg)
-                # Dereference pointer directly from the result register
-                code.append(f"    move.l ({reg_left}),{reg_left}")
+                # Pointers must be in address registers for addressing modes
+                addr_reg = "a0" if reg_left != "a0" else "a1"
+                code += self._emit_expr(expr.operand, params, locals_info, addr_reg, frame_reg=frame_reg)
+                # Dereference pointer through address register, store result in reg_left
+                code.append(f"    move.l ({addr_reg}),{reg_left}")
             elif expr.op == '!':
                 # Logical not
                 code += self._emit_expr(expr.operand, params, locals_info, reg_left, frame_reg=frame_reg)
@@ -2073,13 +2075,21 @@ class CodeGen:
             if stmt.is_deref:
                 # Pointer dereference assignment: *ptr = value
                 # Load pointer value, then store through it
-                local_info = next((l for l in locals_info if l[0] == target), None)
                 self.emit(indent + f"; *{target} = {expr_comment}")
-                if local_info:
-                    name, vtype, offset = local_info
-                    # vtype should be something like "int*" or "long*"
-                    # Extract base type for size calculation
-                    base_type = vtype.rstrip('*') if vtype else 'long'
+                
+                # Check if target is a parameter
+                param_obj = next((p for p in params if p.name == target), None)
+                local_info = next((l for l in locals_info if l[0] == target), None)
+                
+                if param_obj or local_info:
+                    # Determine base type (for size calculation)
+                    if param_obj:
+                        ptr_type = param_obj.ptype
+                    else:
+                        name, ptr_type, offset = local_info
+                    
+                    # Extract base type from pointer type (e.g., "int*" -> "int")
+                    base_type = ptr_type.rstrip('*') if ptr_type else 'long'
                     size = ast.type_size(base_type) if base_type else 4
                     suffix = ast.size_suffix(size)
                     
@@ -2089,8 +2099,24 @@ class CodeGen:
                         for sub in str(l).splitlines():
                             self.emit(sub if sub.startswith(indent) else indent + sub)
                     
-                    # Load pointer from stack
-                    self.emit(indent + f"move.l {self._frame_offset(offset, frame_reg)},a0")
+                    # Load pointer from parameter or local
+                    if param_obj:
+                        # Load pointer from parameter (on stack)
+                        reg = param_obj.register
+                        if reg and reg != 'None':
+                            # Parameter is in a register
+                            self.emit(indent + f"move.l {reg},a0")
+                        else:
+                            # Parameter is on stack - find its offset
+                            stack_params = [p for p in params if not (p.register and p.register != 'None')]
+                            idx = stack_params.index(param_obj)
+                            off = 8 + 4 * idx
+                            self.emit(indent + f"move.l {off}(a6),a0")
+                    else:
+                        # Load pointer from local variable
+                        name, ptr_type, offset = local_info
+                        self.emit(indent + f"move.l {self._frame_offset(offset, frame_reg)},a0")
+                    
                     # Store value through pointer
                     self.emit(indent + f"move{suffix} d0,(a0)")
                 else:
