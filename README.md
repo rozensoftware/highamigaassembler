@@ -157,8 +157,8 @@ The `examples/` directory contains numerous demonstrations:
 ### Complete Game Examples
 - `games/launchers/` - **Launchers**: A complete space shooter game demonstrating:
   - HAM6 background graphics
-  - Hardware sprites for player, enemies, and projectiles
-  - Blitter objects (BOBs) for explosions
+  - Hardware sprites for player targeting pointer
+  - Blitter objects (BOBs) for ships, projectiles, launchers, background and explosions
   - Sound effects via PtPlayer
   - MOD music playback
   - Joystick input
@@ -266,9 +266,9 @@ The project includes a **VS Code extension** for enhanced development experience
 - **Cross-File Navigation** - Navigate between `.has` files and `.s` assembly files
 
 **Installation:**
-1. Visit the [VS Code Marketplace](https://marketplace.visualstudio.com/search?term=highamigassembler)
-2. Search for "High Amiga Assembler"
-3. Click Install
+1. Navigate to the vscode-highamigassembler folder
+2. Press SHIFT-CTRL-P and select: "Developer: Install extension from Location.."
+3. Browse to the folder mentioned in step 1
 
 **Development:**
 See [vscode-highamigassembler/README.md](vscode-highamigassembler/README.md) for extension development details.
