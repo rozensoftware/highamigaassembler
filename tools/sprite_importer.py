@@ -1,3 +1,10 @@
+#!/usr/bin/env python3
+"""
+Sprite Importer for Amiga Hardware Sprites
+
+Converts individual PNG images to Amiga hardware sprite format (16px wide, 4 colors).
+For sprite strips with multiple frames, see sprite_strip_importer.py.
+"""
 from pathlib import Path
 from typing import Optional
 try:

@@ -1,3 +1,10 @@
+#!/usr/bin/env python3
+"""
+BOB Importer for Amiga Blitter Objects (Software Sprites)
+
+Converts individual PNG images to Amiga BOB format (any width, up to 5 bitplanes/32 colors).
+For BOB strips with multiple frames, see bob_strip_importer.py.
+"""
 from pathlib import Path
 import os
 from typing import Optional

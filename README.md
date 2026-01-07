@@ -245,7 +245,9 @@ scripts/               # Build and utility scripts
 tools/                 # Asset conversion utilities
 ├── ham6_gen.py        # HAM6 image generator
 ├── sprite_importer.py # Hardware sprite converter
+├── sprite_strip_importer.py # Hardware sprite strip converter
 ├── bob_importer.py    # Blitter object converter
+├── bob_strip_importer.py # Blitter object strip converter
 ├── c64_font_converter.py  # C64 font importer
 ├── c64_sprites_to_bobs.py # C64 sprite converter
 └── iff_importer.py    # IFF format importer
@@ -500,7 +502,9 @@ The `tools/` directory contains Python utilities for converting graphics and ass
 
 - **`ham6_gen.py`** - Generate HAM6 (Hold-And-Modify) mode images with 4096 colors
 - **`sprite_importer.py`** - Convert PNG images to Amiga hardware sprites (16-pixel wide, 4 colors)
-- **`bob_importer.py`** - Create blitter objects (BOBs) for software sprites
+- **`sprite_strip_importer.py`** - Convert sprite strip images into multiple hardware sprites (extracts frames by width)
+- **`bob_importer.py`** - Create blitter objects (BOBs) for software sprites (any width, up to 32 colors)
+- **`bob_strip_importer.py`** - Convert BOB strip images into multiple BOBs (extracts frames by width)
 - **`c64_font_converter.py`** - Import Commodore 64 fonts for Amiga use
 - **`c64_sprites_to_bobs.py`** - Convert C64 sprite data to Amiga BOBs
 - **`iff_importer.py`** - Import IFF/ILBM format images

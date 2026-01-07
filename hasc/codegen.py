@@ -25,6 +25,28 @@ class CodeGen:
         self.reg_alloc = RegisterAllocator(locked_regs=self.locked_regs)  # Register allocation manager with locked regs
         self.loop_stack = []  # Stack of (continue_label, end_label) for nested loops
 
+    def _is_unsigned_expr(self, expr, locals_info) -> bool:
+        """Best-effort check if expr should be treated as unsigned for comparisons.
+        Uses declared local variable types (u8/u16/u32/UBYTE/UWORD/ULONG).
+        Globals lack signedness metadata, so default to signed there.
+        """
+        try:
+            from .ast import is_signed, type_size
+        except Exception:
+            return False
+        # Local variable with explicit unsigned type
+        if isinstance(expr, ast.VarRef):
+            name = expr.name
+            local_info = next((l for l in locals_info if l[0] == name), None)
+            if local_info:
+                _, vtype, _ = local_info
+                if vtype is None:
+                    return False
+                return not is_signed(vtype)
+            return False
+        # For now, other expressions default to signed behavior
+        return False
+
     def _next_label(self, prefix="L"):
         """Generate a unique label for branches."""
         self.label_counter += 1
@@ -903,17 +925,42 @@ class CodeGen:
                     size = ast.type_size(vtype) if vtype else 4
                     suffix = ast.size_suffix(size)
                     code = []
-                    # For byte/word loads, clear the register first to avoid garbage in upper bits
-                    # when the value will be shifted (e.g., for array indexing)
-                    if size < 4:
-                        code.append(f"    clr.l {reg_left}")
-                    code.append(f"    move{suffix} {-offset}({frame_reg}),{reg_left}")
-                    return code
+                    if size == 1:
+                        # 8-bit load with sign/zero extension based on type
+                        code.append(f"    move.b {-offset}({frame_reg}),{reg_left}")
+                        if vtype and ast.is_signed(vtype):
+                            code.append(f"    ext.w {reg_left}")
+                            code.append(f"    ext.l {reg_left}")
+                        else:
+                            code.append(f"    andi.l #$FF,{reg_left}")
+                        return code
+                    elif size == 2:
+                        # 16-bit load with sign/zero extension based on type
+                        code.append(f"    move.w {-offset}({frame_reg}),{reg_left}")
+                        if vtype and ast.is_signed(vtype):
+                            code.append(f"    ext.l {reg_left}")
+                        else:
+                            code.append(f"    andi.l #$FFFF,{reg_left}")
+                        return code
+                    else:
+                        code.append(f"    move.l {-offset}({frame_reg}),{reg_left}")
+                        return code
                 # Check globals
                 if name in self.globals:
                     size = self.globals.get(name, 'l')
                     suffix = {'b': '.b', 'w': '.w', 'l': '.l'}.get(size, '.l')
-                    return [f"    move{suffix} {name},{reg_left}"]
+                    if suffix == '.b':
+                        return [
+                            f"    move.b {name},{reg_left}",
+                            f"    andi.l #$FF,{reg_left}"
+                        ]
+                    elif suffix == '.w':
+                        return [
+                            f"    move.w {name},{reg_left}",
+                            f"    andi.l #$FFFF,{reg_left}"
+                        ]
+                    else:
+                        return [f"    move.l {name},{reg_left}"]
                 else:
                     return [f"    ; unknown var {name}", f"    move.l #0,{reg_left}"]
         if isinstance(expr, ast.BinOp):
@@ -948,20 +995,33 @@ class CodeGen:
                 code += self._emit_expr(expr.right, params, locals_info, reg_left, reg_right, target_type=target_type, frame_reg=frame_reg)
                 code.append(f"    cmp.l #{const_val},{reg_left}")
                 # Reverse the condition: < becomes >, <= becomes >=, etc.
-                if expr.op == '<':  # const < x => x > const => sgt
-                    code.append(f"    sgt {reg_left}  ; set byte if greater")
+                unsigned_right = self._is_unsigned_expr(expr.right, locals_info)
+                if expr.op == '<':  # const < x => x > const
+                    if unsigned_right:
+                        code.append(f"    shi {reg_left}  ; set byte if higher (unsigned)")
+                    else:
+                        code.append(f"    sgt {reg_left}  ; set byte if greater")
                     code.append(f"    andi.l #$FF,{reg_left}")
                     code.append(f"    neg.b {reg_left}")
-                elif expr.op == '<=':  # const <= x => x >= const => sge
-                    code.append(f"    sge {reg_left}  ; set byte if greater or equal")
+                elif expr.op == '<=':  # const <= x => x >= const
+                    if unsigned_right:
+                        code.append(f"    shs {reg_left}  ; set byte if same or higher (unsigned)")
+                    else:
+                        code.append(f"    sge {reg_left}  ; set byte if greater or equal")
                     code.append(f"    andi.l #$FF,{reg_left}")
                     code.append(f"    neg.b {reg_left}")
-                elif expr.op == '>':  # const > x => x < const => slt
-                    code.append(f"    slt {reg_left}  ; set byte if less")
+                elif expr.op == '>':  # const > x => x < const
+                    if unsigned_right:
+                        code.append(f"    slo {reg_left}  ; set byte if lower (unsigned)")
+                    else:
+                        code.append(f"    slt {reg_left}  ; set byte if less")
                     code.append(f"    andi.l #$FF,{reg_left}")
                     code.append(f"    neg.b {reg_left}")
-                elif expr.op == '>=':  # const >= x => x <= const => sle
-                    code.append(f"    sle {reg_left}  ; set byte if less or equal")
+                elif expr.op == '>=':  # const >= x => x <= const
+                    if unsigned_right:
+                        code.append(f"    sls {reg_left}  ; set byte if lower or same (unsigned)")
+                    else:
+                        code.append(f"    sle {reg_left}  ; set byte if less or equal")
                     code.append(f"    andi.l #$FF,{reg_left}")
                     code.append(f"    neg.b {reg_left}")
                 elif expr.op == '==':  # const == x => x == const => seq
@@ -1101,27 +1161,39 @@ class CodeGen:
                 code.append(f"    andi.l #$FF,{reg_left}")
                 code.append(f"    neg.b {reg_left}")
             elif expr.op == '<':
-                # Less than (signed)
+                # Less than (signed/unsigned)
                 code.append(f"    cmp.l {reg_right},{reg_left}")
-                code.append(f"    slt {reg_left}  ; set byte if less")
+                if self._is_unsigned_expr(expr.left, locals_info) or self._is_unsigned_expr(expr.right, locals_info):
+                    code.append(f"    slo {reg_left}  ; set byte if lower (unsigned)")
+                else:
+                    code.append(f"    slt {reg_left}  ; set byte if less")
                 code.append(f"    andi.l #$FF,{reg_left}")
                 code.append(f"    neg.b {reg_left}")
             elif expr.op == '<=':
-                # Less or equal (signed)
+                # Less or equal (signed/unsigned)
                 code.append(f"    cmp.l {reg_right},{reg_left}")
-                code.append(f"    sle {reg_left}  ; set byte if less or equal")
+                if self._is_unsigned_expr(expr.left, locals_info) or self._is_unsigned_expr(expr.right, locals_info):
+                    code.append(f"    sls {reg_left}  ; set byte if lower or same (unsigned)")
+                else:
+                    code.append(f"    sle {reg_left}  ; set byte if less or equal")
                 code.append(f"    andi.l #$FF,{reg_left}")
                 code.append(f"    neg.b {reg_left}")
             elif expr.op == '>':
-                # Greater than (signed)
+                # Greater than (signed/unsigned)
                 code.append(f"    cmp.l {reg_right},{reg_left}")
-                code.append(f"    sgt {reg_left}  ; set byte if greater")
+                if self._is_unsigned_expr(expr.left, locals_info) or self._is_unsigned_expr(expr.right, locals_info):
+                    code.append(f"    shi {reg_left}  ; set byte if higher (unsigned)")
+                else:
+                    code.append(f"    sgt {reg_left}  ; set byte if greater")
                 code.append(f"    andi.l #$FF,{reg_left}")
                 code.append(f"    neg.b {reg_left}")
             elif expr.op == '>=':
-                # Greater or equal (signed)
+                # Greater or equal (signed/unsigned)
                 code.append(f"    cmp.l {reg_right},{reg_left}")
-                code.append(f"    sge {reg_left}  ; set byte if greater or equal")
+                if self._is_unsigned_expr(expr.left, locals_info) or self._is_unsigned_expr(expr.right, locals_info):
+                    code.append(f"    shs {reg_left}  ; set byte if same or higher (unsigned)")
+                else:
+                    code.append(f"    sge {reg_left}  ; set byte if greater or equal")
                 code.append(f"    andi.l #$FF,{reg_left}")
                 code.append(f"    neg.b {reg_left}")
             elif expr.op == '&&':
@@ -1385,6 +1457,21 @@ class CodeGen:
                     code.append(f"    move{suffix} {-offset}({frame_reg}),{reg_left}")
                     # Increment at memory location
                     code.append(f"    add{suffix} #1,{-offset}({frame_reg})")
+                elif name in self.globals:
+                    # Global variable post-increment
+                    gsize = self.globals.get(name, 'l')
+                    gsuffix = { 'b': '.b', 'w': '.w', 'l': '.l' }.get(gsize, '.l')
+                    # Load current value into reg_left (zero-extend for < long)
+                    if gsuffix in ('.b', '.w'):
+                        code.append(f"    clr.l {reg_left}")
+                    code.append(f"    move{gsuffix} {name},{reg_left}")
+                    # Increment stored value
+                    code.append(f"    add{gsuffix} #1,{name}")
+                elif name in self.extern_vars:
+                    # Treat extern vars as long-sized memory for ++/--
+                    # Load current value and then increment
+                    code.append(f"    move.l {name},{reg_left}")
+                    code.append(f"    add.l #1,{name}")
                 else:
                     code.append(f"    ; post-incr unknown var {name}")
                     code.append(f"    move.l #0,{reg_left}")
@@ -1403,6 +1490,20 @@ class CodeGen:
                     code.append(f"    move{suffix} {-offset}({frame_reg}),{reg_left}")
                     # Decrement at memory location
                     code.append(f"    sub{suffix} #1,{-offset}({frame_reg})")
+                elif name in self.globals:
+                    # Global variable post-decrement
+                    gsize = self.globals.get(name, 'l')
+                    gsuffix = { 'b': '.b', 'w': '.w', 'l': '.l' }.get(gsize, '.l')
+                    # Load current value into reg_left (zero-extend for < long)
+                    if gsuffix in ('.b', '.w'):
+                        code.append(f"    clr.l {reg_left}")
+                    code.append(f"    move{gsuffix} {name},{reg_left}")
+                    # Decrement stored value
+                    code.append(f"    sub{gsuffix} #1,{name}")
+                elif name in self.extern_vars:
+                    # Treat extern vars as long-sized memory for ++/--
+                    code.append(f"    move.l {name},{reg_left}")
+                    code.append(f"    sub.l #1,{name}")
                 else:
                     code.append(f"    ; post-decr unknown var {name}")
                     code.append(f"    move.l #0,{reg_left}")
@@ -1421,6 +1522,18 @@ class CodeGen:
                     code.append(f"    add{suffix} #1,{-offset}({frame_reg})")
                     # Load new value into reg_left (result)
                     code.append(f"    move{suffix} {-offset}({frame_reg}),{reg_left}")
+                elif name in self.globals:
+                    # Global variable pre-increment
+                    gsize = self.globals.get(name, 'l')
+                    gsuffix = { 'b': '.b', 'w': '.w', 'l': '.l' }.get(gsize, '.l')
+                    code.append(f"    add{gsuffix} #1,{name}")
+                    # Load new value into reg_left (zero-extend for < long)
+                    if gsuffix in ('.b', '.w'):
+                        code.append(f"    clr.l {reg_left}")
+                    code.append(f"    move{gsuffix} {name},{reg_left}")
+                elif name in self.extern_vars:
+                    code.append(f"    add.l #1,{name}")
+                    code.append(f"    move.l {name},{reg_left}")
                 else:
                     code.append(f"    ; pre-incr unknown var {name}")
                     code.append(f"    move.l #0,{reg_left}")
@@ -1439,6 +1552,18 @@ class CodeGen:
                     code.append(f"    sub{suffix} #1,{-offset}({frame_reg})")
                     # Load new value into reg_left (result)
                     code.append(f"    move{suffix} {-offset}({frame_reg}),{reg_left}")
+                elif name in self.globals:
+                    # Global variable pre-decrement
+                    gsize = self.globals.get(name, 'l')
+                    gsuffix = { 'b': '.b', 'w': '.w', 'l': '.l' }.get(gsize, '.l')
+                    code.append(f"    sub{gsuffix} #1,{name}")
+                    # Load new value into reg_left (zero-extend for < long)
+                    if gsuffix in ('.b', '.w'):
+                        code.append(f"    clr.l {reg_left}")
+                    code.append(f"    move{gsuffix} {name},{reg_left}")
+                elif name in self.extern_vars:
+                    code.append(f"    sub.l #1,{name}")
+                    code.append(f"    move.l {name},{reg_left}")
                 else:
                     code.append(f"    ; pre-decr unknown var {name}")
                     code.append(f"    move.l #0,{reg_left}")
