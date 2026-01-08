@@ -171,6 +171,13 @@ External functions should use register parameters for efficiency:
 extern func fast_copy(__reg(a0) src: ptr, __reg(a1) dst: ptr, __reg(d0) len: int) -> void;
 ```
 
+**Note:** Register parameters are essential for external functions because:
+- External libraries expect parameters in specific registers
+- Calling convention is fixed by the library's interface
+- Your HAS code must match the expected calling convention
+
+This is different from internal procedures where register parameters in HAS-body code provide no performance benefit (compiler saves them to stack immediately anyway).
+
 ### 2. Group Related Declarations
 ```has
 code main:

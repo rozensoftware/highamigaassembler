@@ -431,6 +431,22 @@ class CodeGen:
         locals_info = []
         offset = 0
         
+        # CRITICAL FIX: Allocate stack space for data register parameters (d0-d7)
+        # These must be saved immediately in prologue before they can be clobbered
+        saved_reg_params = {}  # Maps param name -> (register, offset)
+        for param in params:
+            reg = param.register
+            if reg and reg != 'None' and reg.startswith('d'):
+                # Data register parameter - needs stack slot to prevent clobbering
+                size = ast.type_size(param.ptype) if param.ptype else 4
+                offset += size
+                # Align offset to even boundary
+                if offset & 1:
+                    offset += 1
+                saved_reg_params[param.name] = (reg, offset)
+                # Add to locals_info so VarRef lookups find it
+                locals_info.append((param.name, param.ptype, offset))
+        
         # Collect all local variables and for loop counters
         def collect_locals(stmts):
             nonlocal offset
@@ -473,7 +489,7 @@ class CodeGen:
         
         # Round up offset to maintain alignment
         total_local_size = (offset + 3) & ~3  # Align to 4 bytes
-        return params, locals_info, total_local_size
+        return params, locals_info, total_local_size, saved_reg_params
 
     def _substitute_asm_vars(self, asm_content, params, locals_info, frame_reg="a6"):
         """Substitute @varname references in asm blocks with actual addresses/registers.
@@ -896,20 +912,49 @@ class CodeGen:
                 const_value = self.constants[name]
                 return [f"    move.l #{const_value},{reg_left}"]
             
-            # Check if it's a parameter
+            # Check if it's a local variable first (this includes saved register parameters)
+            local_info = next((l for l in locals_info if l[0] == name), None)
+            if local_info:
+                name, vtype, offset = local_info
+                size = ast.type_size(vtype) if vtype else 4
+                suffix = ast.size_suffix(size)
+                code = []
+                if size == 1:
+                    # 8-bit load with sign/zero extension based on type
+                    code.append(f"    move.b {-offset}({frame_reg}),{reg_left}")
+                    if vtype and ast.is_signed(vtype):
+                        code.append(f"    ext.w {reg_left}")
+                        code.append(f"    ext.l {reg_left}")
+                    else:
+                        code.append(f"    andi.l #$FF,{reg_left}")
+                    return code
+                elif size == 2:
+                    # 16-bit load with sign/zero extension based on type
+                    code.append(f"    move.w {-offset}({frame_reg}),{reg_left}")
+                    if vtype and ast.is_signed(vtype):
+                        code.append(f"    ext.l {reg_left}")
+                    else:
+                        code.append(f"    andi.l #$FFFF,{reg_left}")
+                    return code
+                else:
+                    code.append(f"    move.l {-offset}({frame_reg}),{reg_left}")
+                    return code
+            
+            # Check if it's a parameter (for address register parameters that aren't saved)
             param_obj = next((p for p in params if p.name == name), None)
             if param_obj:
                 reg = param_obj.register
                 if reg == 'None':
                     reg = None
                 if reg:
-                    # Parameter is in a register
+                    # Parameter is in a register (only for address registers like a0-a3)
+                    # Data register parameters are saved to locals_info and handled above
                     if reg != reg_left:
                         return [f"    move.l {reg},{reg_left}"]
                     else:
                         return []
                 else:
-                    # Parameter is on stack
+                    # Stack parameter (no register specified)
                     stack_params = [p for p in params if not (p.register and p.register != 'None')]
                     if param_obj in stack_params:
                         idx = stack_params.index(param_obj)
@@ -917,52 +962,25 @@ class CodeGen:
                         return [f"    move.l {off}(a6),{reg_left}"]
                     else:
                         return [f"    ; parameter {name} not found in stack_params", f"    move.l #0,{reg_left}"]
-            else:
-                # Check locals
-                local_info = next((l for l in locals_info if l[0] == name), None)
-                if local_info:
-                    name, vtype, offset = local_info
-                    size = ast.type_size(vtype) if vtype else 4
-                    suffix = ast.size_suffix(size)
-                    code = []
-                    if size == 1:
-                        # 8-bit load with sign/zero extension based on type
-                        code.append(f"    move.b {-offset}({frame_reg}),{reg_left}")
-                        if vtype and ast.is_signed(vtype):
-                            code.append(f"    ext.w {reg_left}")
-                            code.append(f"    ext.l {reg_left}")
-                        else:
-                            code.append(f"    andi.l #$FF,{reg_left}")
-                        return code
-                    elif size == 2:
-                        # 16-bit load with sign/zero extension based on type
-                        code.append(f"    move.w {-offset}({frame_reg}),{reg_left}")
-                        if vtype and ast.is_signed(vtype):
-                            code.append(f"    ext.l {reg_left}")
-                        else:
-                            code.append(f"    andi.l #$FFFF,{reg_left}")
-                        return code
-                    else:
-                        code.append(f"    move.l {-offset}({frame_reg}),{reg_left}")
-                        return code
-                # Check globals
-                if name in self.globals:
-                    size = self.globals.get(name, 'l')
-                    suffix = {'b': '.b', 'w': '.w', 'l': '.l'}.get(size, '.l')
-                    if suffix == '.b':
-                        return [
-                            f"    move.b {name},{reg_left}",
-                            f"    andi.l #$FF,{reg_left}"
-                        ]
-                    elif suffix == '.w':
-                        return [
-                            f"    move.w {name},{reg_left}",
-                            f"    andi.l #$FFFF,{reg_left}"
-                        ]
-                    else:
-                        return [f"    move.l {name},{reg_left}"]
+            
+            # Check globals (moved outside param_obj block so globals are checked even if not a parameter)
+            if name in self.globals:
+                size = self.globals.get(name, 'l')
+                suffix = {'b': '.b', 'w': '.w', 'l': '.l'}.get(size, '.l')
+                if suffix == '.b':
+                    return [
+                        f"    move.b {name},{reg_left}",
+                        f"    andi.l #$FF,{reg_left}"
+                    ]
+                elif suffix == '.w':
+                    return [
+                        f"    move.w {name},{reg_left}",
+                        f"    andi.l #$FFFF,{reg_left}"
+                    ]
                 else:
-                    return [f"    ; unknown var {name}", f"    move.l #0,{reg_left}"]
+                    return [f"    move.l {name},{reg_left}"]
+            else:
+                return [f"    ; unknown var {name}", f"    move.l #0,{reg_left}"]
         if isinstance(expr, ast.BinOp):
             # Ensure registers are valid
             if reg_left is None or reg_left == 'None':
@@ -1679,25 +1697,8 @@ class CodeGen:
 
         if isinstance(arg, ast.VarRef):
             name = arg.name
-            param_obj = next((p for p in params if p.name == name), None)
-            # Defensive: param_obj can be None or the string 'None'
-            if param_obj and param_obj != 'None':
-                reg = getattr(param_obj, 'register', None)
-                if reg == 'None':
-                    reg = None
-                if reg:
-                    # Parameter is in a register already.
-                    lines.append(f"{indent}move.l {reg},-(a7)")
-                    return lines
-                else:
-                    # Parameter is on stack
-                    stack_params = [p for p in params if not (getattr(p, 'register', None) and getattr(p, 'register', None) != 'None')]
-                    if param_obj in stack_params:
-                        idx = stack_params.index(param_obj)
-                        off = 8 + 4 * idx
-                        lines.append(f"{indent}move.l {off}(a6),-(a7)")
-                        return lines
-            # Not a parameter, check locals
+            
+            # Check locals first (this includes saved register parameters)
             local_info = next((l for l in locals_info if l[0] == name), None)
             if local_info:
                 _, vtype, offset = local_info
@@ -1709,6 +1710,27 @@ class CodeGen:
                     lines.append(f"{indent}; WARNING: unresolved offset for {name}")
                     lines.append(f"{indent}move.l #0,-(a7)")
                 return lines
+            
+            # Check if it's a parameter (for address register parameters that aren't saved)
+            param_obj = next((p for p in params if p.name == name), None)
+            if param_obj and param_obj != 'None':
+                reg = getattr(param_obj, 'register', None)
+                if reg == 'None':
+                    reg = None
+                if reg:
+                    # Parameter is in a register (only address registers like a0-a3)
+                    # Data register parameters are saved to locals_info and handled above
+                    lines.append(f"{indent}move.l {reg},-(a7)")
+                    return lines
+                else:
+                    # Parameter is on stack
+                    stack_params = [p for p in params if not (getattr(p, 'register', None) and getattr(p, 'register', None) != 'None')]
+                    if param_obj in stack_params:
+                        idx = stack_params.index(param_obj)
+                        off = 8 + 4 * idx
+                        lines.append(f"{indent}move.l {off}(a6),-(a7)")
+                        return lines
+            
             # Constants can be pushed directly as immediates
             if name in self.constants:
                 const_val = self.constants[name]
@@ -3111,7 +3133,7 @@ class CodeGen:
                         frame_reg = self._choose_frame_register()
                         self.emit("")
                         self.emit(f"{it.name}:")
-                        params, locals_info, localsize = self._analyze_proc(it)
+                        params, locals_info, localsize, saved_reg_params = self._analyze_proc(it)
                         
                         # If using a4 as frame register, we need extra space in the frame for saved a4
                         frame_reg = self._choose_frame_register()
@@ -3142,6 +3164,11 @@ class CodeGen:
                         # Use #0 for no locals, #-N for N bytes of locals
                         link_param = f"#0" if localsize == 0 else f"#-{localsize}"
                         self.emit(indent + f"link a6,{link_param}")
+                        
+                        # CRITICAL FIX: Save data register parameters immediately after link
+                        # to prevent them from being clobbered before use
+                        for param_name, (reg, offset) in saved_reg_params.items():
+                            self.emit(indent + f"move.l {reg},{-offset}(a6)  ; save {param_name} from {reg}")
                         
                         # If we have locals and using a4 as frame register, save a4 in allocated space
                         if len(locals_info) > 0:

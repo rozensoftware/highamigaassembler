@@ -216,6 +216,40 @@ code register_params:
     }
 ```
 
+**Important Optimization Note:**
+
+Register parameters (`__reg(d0)`, `__reg(d1)`, etc.) provide **maximum performance benefit only when used with assembly-body procedures**:
+
+```has
+proc vector_mult(__reg(a0) vec: ptr, __reg(d0) scale: long) -> void {
+    asm {
+        ; Direct register access - optimal performance
+        move.l (a0),d1
+        muls.l d0,d1
+        move.l d1,(a0)
+    }
+}
+```
+
+When used with HAS (high-level) code bodies, register parameters provide **minimal or no benefit** because:
+- The compiler saves data register parameters to stack immediately (to prevent clobbering)
+- HAS code then accesses parameters from stack locations
+- Parameter passing overhead is equivalent to stack-based calling convention
+
+```has
+proc vec_add(__reg(d0) a: long, __reg(d1) b: long) -> long {
+    ; d0 and d1 are saved to stack in prologue
+    ; Compiler loads them from stack for each use
+    ; No performance advantage over stack parameters
+    return a + b;
+}
+```
+
+**Best Practices:**
+- Use `__reg()` for **external functions** (library calls) where calling convention is fixed
+- Use `__reg()` for **assembly-only procedures** where you directly access registers
+- For **HAS-body procedures**: Register parameters provide no optimization, stick with stack parameters
+
 ---
 
 ## Variables and Constants
