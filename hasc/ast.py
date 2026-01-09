@@ -42,6 +42,19 @@ def is_pointer(typename: str) -> bool:
     return typename in {'ptr', 'APTR'} or typename.endswith('*')
 
 
+def pointer_base_type(typename: str) -> Optional[str]:
+    """Extract base type from pointer type.
+    Examples:
+        'bullet*' -> 'bullet'
+        'Enemy*' -> 'Enemy'
+        'ptr' -> None
+        'int*' -> 'int'
+    """
+    if typename and typename.endswith('*'):
+        return typename[:-1].strip()
+    return None
+
+
 def size_suffix(size_bytes: int) -> str:
     """Get assembler size suffix (.b/.w/.l) for byte size."""
     return {1: '.b', 2: '.w', 4: '.l'}.get(size_bytes, '.l')

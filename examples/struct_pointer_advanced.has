@@ -1,0 +1,132 @@
+#pragma lockreg(a5);
+
+const MAX_BULLETS = 10;
+
+bss game_bss:
+    struct bullet[MAX_BULLETS] { 
+        x.w, y.w, 
+        dir_x.b, dir_y.b,
+        frame.b, 
+        active.b, 
+        anim_delay.b 
+    }
+
+code test_code:
+    
+    asm {
+        jsr test_performance
+        jsr test_function_param
+        rts
+    }
+    
+    // Show performance improvement: old way vs new way
+    proc UpdateBullets_OldWay() -> void {
+        var i:int;
+        
+        for i = 0 to MAX_BULLETS {
+            if (bullet[i].active == 1) {
+                // Each reference recalculates bullet[i] address (6 times)
+                bullet[i].x = bullet[i].x + bullet[i].dir_x;
+                bullet[i].y = bullet[i].y + bullet[i].dir_y;
+                bullet[i].frame = (bullet[i].frame + 1) & 3;
+            }
+        }
+    }
+    
+    proc UpdateBullets_NewWay() -> void {
+        var i:int;
+        var b:bullet*;
+        
+        for i = 0 to MAX_BULLETS {
+            b = &bullet[i];
+            if ((*b).active == 1) {
+                // Address calculated once, reused (much faster!)
+                (*b).x = (*b).x + (*b).dir_x;
+                (*b).y = (*b).y + (*b).dir_y;
+                (*b).frame = ((*b).frame + 1) & 3;
+            }
+        }
+    }
+    
+    // Test passing struct pointer to function
+    proc InitBullet(__reg(a0) b_ptr:bullet*, __reg(d0) start_x:word, __reg(d1) start_y:word) -> void {
+        // Function receives struct pointer in a0, can modify the struct
+        (*b_ptr).x = start_x;
+        (*b_ptr).y = start_y;
+        (*b_ptr).dir_x = 1;
+        (*b_ptr).dir_y = -1;
+        (*b_ptr).frame = 0;
+        (*b_ptr).active = 1;
+        (*b_ptr).anim_delay = 6;
+    }
+    
+    proc test_performance() -> long {
+        var i:int;
+        
+        // Initialize test data
+        for i = 0 to MAX_BULLETS {
+            bullet[i].x = i * 10;
+            bullet[i].y = i * 20;
+            bullet[i].dir_x = 1;
+            bullet[i].dir_y = 1;
+            bullet[i].frame = 0;
+            bullet[i].active = 1;
+        }
+        
+        // Test old way
+        UpdateBullets_OldWay();
+        
+        // Verify bullet[0] was updated
+        if (bullet[0].x != 11) {  // 0 + 1
+            return -1;
+        }
+        if (bullet[0].y != 1) {   // 0 + 1
+            return -2;
+        }
+        
+        // Reset data
+        for i = 0 to MAX_BULLETS {
+            bullet[i].x = i * 10;
+            bullet[i].y = i * 20;
+        }
+        
+        // Test new way
+        UpdateBullets_NewWay();
+        
+        // Verify bullet[0] was updated
+        if (bullet[0].x != 11) {  // 0 + 1
+            return -3;
+        }
+        if (bullet[0].y != 1) {   // 0 + 1
+            return -4;
+        }
+        
+        return 0;  // Success
+    }
+    
+    proc test_function_param() -> long {
+        var p:bullet*;
+        
+        // Clear bullet[5]
+        bullet[5].active = 0;
+        
+        // Call function with pointer to bullet[5]
+        p = &bullet[5];
+        InitBullet(p, 100, 200);
+        
+        // Verify function initialized the struct
+        if (bullet[5].x != 100) {
+            return -1;
+        }
+        if (bullet[5].y != 200) {
+            return -2;
+        }
+        if (bullet[5].active != 1) {
+            return -3;
+        }
+        if (bullet[5].dir_x != 1) {
+            return -4;
+        }
+        
+        return 0;  // Success
+    }

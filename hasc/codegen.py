@@ -614,6 +614,12 @@ class CodeGen:
                         if vtype and vtype.endswith('*'):
                             struct_type = vtype.rstrip('*').strip()
                     
+                    # Check function parameters if not found in locals
+                    if not struct_type:
+                        param_obj = next((p for p in params if p.name == var_name), None)
+                        if param_obj and param_obj.ptype and param_obj.ptype.endswith('*'):
+                            struct_type = param_obj.ptype.rstrip('*').strip()
+                    
                     # Fallback: try name-based inference
                     if not struct_type:
                         for sname in self.struct_info:
@@ -1303,18 +1309,27 @@ class CodeGen:
                                 shift_amount = 2
                         
                         # Evaluate index into d1
-                        index_code = self._emit_expr(expr.operand.indices[0], params, locals_info, "d1", "d2", target_type="int", frame_reg=frame_reg)
-                        code.extend(index_code)
+                        index_expr = expr.operand.indices[0]
                         
-                        # Scale index by element size
-                        if shift_amount >= 0 and shift_amount > 0:
-                            code.append(f"    lsl.l #{shift_amount},d1  ; multiply index by {elem_bytes}")
-                        elif shift_amount < 0:
-                            # Non-power-of-2: use mulu
-                            code.append(f"    mulu.w #{elem_bytes},d1")
+                        # Check if index is constant 0 - optimize it away
+                        is_zero_index = isinstance(index_expr, ast.Number) and index_expr.value == 0
                         
-                        # Calculate address: base + scaled_index
-                        code.append(f"    add.l d1,a0")
+                        if is_zero_index:
+                            # Index is 0, no offset calculation needed
+                            pass
+                        else:
+                            index_code = self._emit_expr(index_expr, params, locals_info, "d1", "d2", target_type="int", frame_reg=frame_reg)
+                            code.extend(index_code)
+                            
+                            # Scale index by element size
+                            if shift_amount >= 0 and shift_amount > 0:
+                                code.append(f"    lsl.l #{shift_amount},d1  ; multiply index by {elem_bytes}")
+                            elif shift_amount < 0:
+                                # Non-power-of-2: use mulu
+                                code.append(f"    mulu.w #{elem_bytes},d1")
+                            
+                            # Calculate address: base + scaled_index
+                            code.append(f"    add.l d1,a0")
                         
                         # Move address to result register
                         if reg_left.startswith('d'):
@@ -2089,6 +2104,12 @@ class CodeGen:
                                 # vtype might be like "bullet*" or "Enemy*"
                                 if vtype and vtype.endswith('*'):
                                     struct_type = vtype.rstrip('*').strip()
+                            
+                            # Check function parameters if not found in locals
+                            if not struct_type:
+                                param_obj = next((p for p in params if p.name == var_name), None)
+                                if param_obj and param_obj.ptype and param_obj.ptype.endswith('*'):
+                                    struct_type = param_obj.ptype.rstrip('*').strip()
                             
                             # Fallback: try name-based inference
                             if not struct_type:

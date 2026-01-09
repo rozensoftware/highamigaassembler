@@ -84,6 +84,7 @@ assign_stmt: lvalue "=" expr ";"
 compound_assign_stmt: CNAME (PLUS_ASSIGN | MINUS_ASSIGN | MUL_ASSIGN | DIV_ASSIGN | MOD_ASSIGN | AND_ASSIGN | OR_ASSIGN | XOR_ASSIGN) expr ";"
 lvalue: CNAME
     | STAR CNAME
+    | "(" STAR CNAME ")" "." CNAME
     | CNAME ("[" expr "]")+
     | CNAME "." CNAME
     | CNAME ("[" expr "]")+ "." CNAME
@@ -688,7 +689,7 @@ class ASTBuilder(Transformer):
         return ast.CompoundAssign(target=target, op=op, expr=expr)
     
     def lvalue(self, items):
-        # lvalue can be: CNAME | "*" CNAME | CNAME[expr]+ | CNAME.field | CNAME[expr]+.field
+        # lvalue can be: CNAME | "*" CNAME | (*CNAME).field | CNAME[expr]+ | CNAME.field | CNAME[expr]+.field
         if len(items) == 1:
             obj = items[0]
             if isinstance(obj, (ast.ArrayAccess, ast.MemberAccess)):
@@ -698,6 +699,20 @@ class ASTBuilder(Transformer):
         # Pointer deref: *NAME
         if len(items) == 2 and getattr(items[0], 'type', None) == 'STAR':
             return (self._val(items[1]), True)
+        
+        # Dereferenced struct member: (*NAME).FIELD
+        # Grammar: "(" STAR CNAME ")" "." CNAME
+        # Items: [LPAREN, STAR, CNAME, RPAREN, DOT, CNAME]
+        # After transformation: [possibly STAR token, CNAME, field_str]
+        if len(items) == 3 and getattr(items[0], 'type', None) == 'STAR':
+            # items[0] = STAR token, items[1] = CNAME, items[2] = field name (str)
+            ptr_name = self._val(items[1])
+            field = self._val(items[2])
+            # Build: (*ptr).field as MemberAccess with UnaryOp base
+            ptr_ref = ast.VarRef(name=ptr_name)
+            deref = ast.UnaryOp(op='*', operand=ptr_ref)
+            member_access = ast.MemberAccess(base=deref, field=field)
+            return (member_access, False)
 
         # NAME . FIELD
         if len(items) == 2 and isinstance(items[1], str):

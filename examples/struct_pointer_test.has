@@ -1,0 +1,66 @@
+#pragma lockreg(a5);
+
+const MAX_BULLETS = 5;
+
+bss game_bss:
+    struct bullet[MAX_BULLETS] { x.w, y.w, frame.b, active.b, dir.b }
+
+code test_code:
+    
+    // Entry point
+    asm {
+        jsr test_struct_pointer
+        rts
+    }
+    
+    proc test_struct_pointer() -> long {
+        var i:int;
+        var p:bullet*;
+        var test_x:word;
+        var test_y:word;
+        
+        // Initialize first bullet using traditional method
+        bullet[0].x = 100;
+        bullet[0].y = 200;
+        bullet[0].frame = 3;
+        bullet[0].active = 1;
+        bullet[0].dir = 2;
+        
+        // Get pointer to bullet[0]
+        p = &bullet[0];
+        
+        // Read values through pointer
+        test_x = (*p).x;
+        test_y = (*p).y;
+        
+        // Modify through pointer
+        (*p).x = 150;
+        (*p).frame = 5;
+        
+        // Verify changes
+        if (bullet[0].x != 150) {
+            return -1;  // Test failed
+        }
+        if (bullet[0].frame != 5) {
+            return -2;  // Test failed
+        }
+        
+        // Test with loop
+        for i = 0 to MAX_BULLETS {
+            p = &bullet[i];
+            (*p).x = i * 10;
+            (*p).y = i * 20;
+            (*p).frame = i;
+            (*p).active = 1;
+        }
+        
+        // Verify loop results
+        if (bullet[2].x != 20) {
+            return -3;
+        }
+        if (bullet[2].y != 40) {
+            return -4;
+        }
+        
+        return 0;  // Success
+    }
