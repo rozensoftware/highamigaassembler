@@ -111,7 +111,7 @@
         },
         {
           "name": "keyword.control.highamigassembler",
-          "match": "\\b(?:extern|public|macro|const|var|return|if|else|while|for|repeat|to|by|break|continue|call|asm|PUSH|POP)\\b"
+          "match": "\\b(?:extern|public|macro|const|var|struct|return|if|else|while|for|repeat|to|by|break|continue|call|asm|PUSH|POP)\\b"
         },
         {
           "name": "keyword.other.decorator.highamigassembler",
