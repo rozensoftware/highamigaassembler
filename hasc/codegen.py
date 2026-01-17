@@ -1720,7 +1720,13 @@ class CodeGen:
                 size = ast.type_size(vtype) if vtype else 4
                 suffix = ast.size_suffix(size)
                 if offset is not None:
-                    lines.append(f"{indent}move{suffix} {-offset}({frame_reg}),-(a7)")
+                    # Always push 32-bit values on stack to match calling convention
+                    if suffix in ('.b', '.w'):
+                        lines.append(f"{indent}clr.l d0")
+                        lines.append(f"{indent}move{suffix} {-offset}({frame_reg}),d0")
+                        lines.append(f"{indent}move.l d0,-(a7)")
+                    else:
+                        lines.append(f"{indent}move.l {-offset}({frame_reg}),-(a7)")
                 else:
                     lines.append(f"{indent}; WARNING: unresolved offset for {name}")
                     lines.append(f"{indent}move.l #0,-(a7)")
@@ -2007,11 +2013,15 @@ class CodeGen:
                     name, vtype, offset = local_info
                     size = ast.type_size(vtype) if vtype else 4
                     suffix = ast.size_suffix(size)
-                    code = self._emit_expr(stmt.init_expr, params, locals_info, "d0", target_type=vtype, frame_reg=frame_reg)
-                    for l in code:
-                        for sub in str(l).splitlines():
-                            self.emit(sub if sub.startswith(indent) else indent + sub)
-                    self.emit(indent + f"move{suffix} d0,{self._frame_offset(offset, frame_reg)}")
+                    # OPTIMIZATION: For simple constants, emit size-appropriate move directly
+                    if isinstance(stmt.init_expr, ast.Number):
+                        self.emit(indent + f"move{suffix} #{stmt.init_expr.value},{self._frame_offset(offset, frame_reg)}")
+                    else:
+                        code = self._emit_expr(stmt.init_expr, params, locals_info, "d0", target_type=vtype, frame_reg=frame_reg)
+                        for l in code:
+                            for sub in str(l).splitlines():
+                                self.emit(sub if sub.startswith(indent) else indent + sub)
+                        self.emit(indent + f"move{suffix} d0,{self._frame_offset(offset, frame_reg)}")
                 else:
                     self.emit(indent + f"; warning: local variable {stmt.name} not found in locals_info")
             # VarDecl without initialization is just a declaration, already accounted for in frame
@@ -2310,21 +2320,29 @@ class CodeGen:
                         name, vtype, offset = local_info
                         size = ast.type_size(vtype) if vtype else 4
                         suffix = ast.size_suffix(size)
-                        code = self._emit_expr(stmt.expr, params, locals_info, "d0", target_type=vtype, frame_reg=frame_reg)
-                        for l in code:
-                            for sub in str(l).splitlines():
-                                self.emit(sub if sub.startswith(indent) else indent + sub)
-                        self.emit(indent + f"move{suffix} d0,{-offset}({frame_reg})")
+                        # OPTIMIZATION: For simple constants, emit size-appropriate move directly
+                        if isinstance(stmt.expr, ast.Number):
+                            self.emit(indent + f"move{suffix} #{stmt.expr.value},{-offset}({frame_reg})")
+                        else:
+                            code = self._emit_expr(stmt.expr, params, locals_info, "d0", target_type=vtype, frame_reg=frame_reg)
+                            for l in code:
+                                for sub in str(l).splitlines():
+                                    self.emit(sub if sub.startswith(indent) else indent + sub)
+                            self.emit(indent + f"move{suffix} d0,{-offset}({frame_reg})")
                     else:
                         # Global or extern variable assignment
                         if isinstance(target, str) and target in self.globals:
                             size_code = self.globals.get(target, 'l')
                             suffix = { 'b': '.b', 'w': '.w', 'l': '.l' }.get(size_code, '.l')
-                            code = self._emit_expr(stmt.expr, params, locals_info, "d0", frame_reg=frame_reg)
-                            for l in code:
-                                for sub in str(l).splitlines():
-                                    self.emit(sub if sub.startswith(indent) else indent + sub)
-                            self.emit(indent + f"move{suffix} d0,{target}")
+                            # OPTIMIZATION: For simple constants, emit size-appropriate move directly
+                            if isinstance(stmt.expr, ast.Number):
+                                self.emit(indent + f"move{suffix} #{stmt.expr.value},{target}")
+                            else:
+                                code = self._emit_expr(stmt.expr, params, locals_info, "d0", frame_reg=frame_reg)
+                                for l in code:
+                                    for sub in str(l).splitlines():
+                                        self.emit(sub if sub.startswith(indent) else indent + sub)
+                                self.emit(indent + f"move{suffix} d0,{target}")
                         elif isinstance(target, str) and target in self.extern_vars:
                             code = self._emit_expr(stmt.expr, params, locals_info, "d0", frame_reg=frame_reg)
                             for l in code:
@@ -2400,10 +2418,13 @@ class CodeGen:
                 stmt.content, params, locals_info, frame_reg=frame_reg
             )
             
-            # Emit substitution comments
+            # Emit substitution comments (deduplicate by variable name)
             if substitutions:
+                seen = set()
                 for var_name, replacement, var_type in substitutions:
-                    self.emit(f"    ; @{var_name} -> {replacement} ({var_type})")
+                    if var_name not in seen:
+                        self.emit(f"    ; @{var_name} -> {replacement} ({var_type})")
+                        seen.add(var_name)
             
             # Emit the substituted asm lines
             for line in substituted_content.splitlines():

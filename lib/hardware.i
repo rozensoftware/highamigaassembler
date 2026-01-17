@@ -45,6 +45,7 @@ BLTCON1     EQU $042
 
 
 JOY0DAT     EQU $00A
+JOY1DAT     EQU $00C
 POTINP      EQU $016
 
 ExecBase    EQU $4

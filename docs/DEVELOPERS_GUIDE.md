@@ -95,6 +95,7 @@ code types_demo:
         var b1: byte = 255;           // 8-bit unsigned
         var b2: i8 = -128;            // 8-bit signed
         var ch: char = 'A';           // Character (8-bit)
+        var flag: bool = TRUE;        // Boolean (0=false, 1=true)
         
         // 16-bit types
         var w1: word = 65535;         // 16-bit unsigned
@@ -115,6 +116,28 @@ code types_demo:
         return 0;
     }
 ```
+
+### Boolean Type
+The `bool` type is a 1-byte type optimized for boolean semantics. Values are:
+- **0** = false
+- **Non-zero** (typically 1) = true
+
+Use `bool` for explicit boolean intent. For boolean constants, define them with `const`:
+
+```has
+const TRUE = 1;
+const FALSE = 0;
+
+code bool_example:
+    proc check_flag(enabled: bool) -> long {
+        if (enabled == TRUE) {
+            return 1;
+        }
+        return 0;
+    }
+```
+
+Alternatively, use `byte` when you need a raw 8-bit value without boolean semantics.
 
 ### Amiga-Specific Types
 ```has
@@ -252,6 +275,41 @@ proc vec_add(__reg(d0) a: long, __reg(d1) b: long) -> long {
 
 ---
 
+### Calling Convention
+
+HAS uses a simple, library-friendly calling convention:
+
+- Default is **stack-based**: arguments are pushed in reverse order, then `jsr`.
+- Each argument occupies **4 bytes (long)** on the stack, regardless of source type.
+- Small types (`bool`, `byte`, `word`) are **widened to 32-bit** by the caller and pushed as longs.
+    - Current widening behavior: **zero-extension** for small types.
+- Callee accesses parameters from its frame at **`8(a6)`, `12(a6)`, `16(a6)`...**.
+- After the call, the caller performs stack cleanup via **`add.l #4*n,a7`**.
+- If a procedure declares register parameters via `__reg(...)`, the caller loads those registers before `jsr`. Data registers used for parameters are saved/restored around the call in HAS bodies.
+
+Example (conceptual):
+
+```
+; Caller (push args as longs)
+clr.l d0
+move.b move_flag,d0   ; bool → zero-extended
+move.l d0,-(a7)
+jsr DrawPlayer
+addq.l #4,a7          ; one argument → 4 bytes cleanup
+
+; Callee
+link a6,#-...
+move.l 8(a6),d0       ; first parameter as long
+cmp.l #1,d0
+...
+unlk a6
+rts
+```
+
+This convention keeps HAS-compatible with the provided `lib/*.s` libraries and typical Amiga assembly interfaces while avoiding ambiguity with narrow types.
+
+---
+
 ## Variables and Constants
 
 ### Global Variables
@@ -291,6 +349,8 @@ code locals:
 ```has
 const MAX_SIZE = 1024;
 const BUFFER_SIZE = 256;
+const TRUE = 1;      ; Boolean constants for readability
+const FALSE = 0;
 
 code with_constants:
     proc allocate() -> long {
@@ -520,11 +580,31 @@ code for_loops:
 ```
 
 ### DBRA Loop (68000 Specific)
+
+Note: The high-level DBRA loop syntax (`for i = count dbra { ... }`) is not implemented in the current compiler. Use inline 68000 assembly or a standard `while` loop instead.
+
+Inline 68000 assembly example:
 ```has
 code dbra_loop:
     proc fast_loop(count: long) -> long {
-        for i = count dbra {
-            ; Decrement and branch if not equal (native 68000)
+        var c16: word = count;        ; dbra operates on 16-bit
+        asm {
+            move.w c16,d0            ; load loop counter
+.loop:
+            ; loop body here
+            dbra d0,.loop            ; decrement and branch while d0 != -1
+        }
+        return 0;
+    }
+```
+
+High-level alternative using a while loop:
+```has
+code dbra_loop_alt:
+    proc fast_loop(count: long) -> long {
+        while (count > 0) {
+            ; loop body here
+            count = count - 1;
         }
         return 0;
     }
@@ -964,7 +1044,11 @@ code game:
 Restores hardware control to the OS:
 
 ```has
+extern func TakeSystem() -> long;
 extern func ReleaseSystem() -> long;
+
+const TRUE = 1;
+const FALSE = 0;
 
 code game:
     proc shutdown() -> long {
@@ -977,10 +1061,10 @@ code game:
         TakeSystem();
         
         // Run game loop
-        var running: long = 1;
+        var running: long = TRUE;
         while (running) {
             // Game logic here
-            running = 0;        // Exit when done
+            running = FALSE;        // Exit when done
         }
         
         ReleaseSystem();        // Always restore!
@@ -1005,11 +1089,18 @@ When you call `TakeSystem()`, you gain control of:
 extern func TakeSystem() -> long;
 extern func ReleaseSystem() -> long;
 
+const TRUE = 1;
+const FALSE = 0;
+
 data game_state:
     is_running = 1
     frame_count = 0
 
 code game:
+    ; Entry point - execution starts here
+    call main();
+    asm "rts";
+
     proc update_frame() -> long {
         // Game logic per frame
         return 0;
