@@ -248,6 +248,7 @@ tools/                 # Asset conversion utilities
 ├── sprite_strip_importer.py # Hardware sprite strip converter
 ├── bob_importer.py    # Blitter object converter
 ├── bob_strip_importer.py # Blitter object strip converter
+├── frame_merger.py    # Assembly frame file merger
 ├── c64_font_converter.py  # C64 font importer
 ├── c64_sprites_to_bobs.py # C64 sprite converter
 └── iff_importer.py    # IFF format importer
