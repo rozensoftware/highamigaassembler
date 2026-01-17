@@ -505,6 +505,7 @@ The `tools/` directory contains Python utilities for converting graphics and ass
 - **`sprite_strip_importer.py`** - Convert sprite strip images into multiple hardware sprites (extracts frames by width)
 - **`bob_importer.py`** - Create blitter objects (BOBs) for software sprites (any width, up to 32 colors)
 - **`bob_strip_importer.py`** - Convert BOB strip images into multiple BOBs (extracts frames by width)
+- **`frame_merger.py`** - Merge multiple assembly frame files (e.g., `bob_frame*.s`) into a single file for cleaner project organization
 - **`c64_font_converter.py`** - Import Commodore 64 fonts for Amiga use
 - **`c64_sprites_to_bobs.py`** - Convert C64 sprite data to Amiga BOBs
 - **`iff_importer.py`** - Import IFF/ILBM format images
