@@ -83,11 +83,13 @@ var_decl: "var" CNAME ":" type ["=" expr] ";"
 assign_stmt: lvalue "=" expr ";"
 compound_assign_stmt: CNAME (PLUS_ASSIGN | MINUS_ASSIGN | MUL_ASSIGN | DIV_ASSIGN | MOD_ASSIGN | AND_ASSIGN | OR_ASSIGN | XOR_ASSIGN) expr ";"
 lvalue: CNAME
-    | STAR CNAME
-    | "(" STAR CNAME ")" "." CNAME
-    | CNAME ("[" expr "]")+
-    | CNAME "." CNAME
-    | CNAME ("[" expr "]")+ "." CNAME
+    | STAR CNAME -> lvalue_deref
+    | "(" STAR CNAME ")" "." CNAME -> lvalue_deref_member
+    | CNAME "->" CNAME -> lvalue_arrow
+    | CNAME ("[" expr "]")+ -> lvalue_array
+    | CNAME "." CNAME -> lvalue_member
+    | CNAME ("[" expr "]")+ "." CNAME -> lvalue_array_member
+    | CNAME ("[" expr "]")+ "->" CNAME -> lvalue_array_arrow
 return_stmt: "return" [expr] ";"
 break_stmt: "break" ";"
 continue_stmt: "continue" ";"
@@ -138,6 +140,7 @@ expr_stmt: expr ";"
 ?postfix: postfix "++" -> post_incr
     | postfix "--" -> post_decr
     | postfix "." CNAME -> member_access
+    | postfix "->" CNAME -> ptr_member_access
     | atom
 ?atom: NUMBER        -> number
      | "GetReg" "(" STRING ")" -> getreg
@@ -689,49 +692,68 @@ class ASTBuilder(Transformer):
         return ast.CompoundAssign(target=target, op=op, expr=expr)
     
     def lvalue(self, items):
-        # lvalue can be: CNAME | "*" CNAME | (*CNAME).field | CNAME[expr]+ | CNAME.field | CNAME[expr]+.field
+        # Simple variable: CNAME
         if len(items) == 1:
             obj = items[0]
             if isinstance(obj, (ast.ArrayAccess, ast.MemberAccess)):
                 return (obj, False)
-            # Simple variable: CNAME
             return (self._val(obj), False)
+        # Should not reach here with named alternatives, but keep for compatibility
+        return (self._val(items[0]), False)
+    
+    def lvalue_deref(self, items):
         # Pointer deref: *NAME
-        if len(items) == 2 and getattr(items[0], 'type', None) == 'STAR':
-            return (self._val(items[1]), True)
-        
+        # items: [STAR_token, CNAME_token]
+        return (self._val(items[1]), True)  # Extract NAME from second item
+    
+    def lvalue_deref_member(self, items):
         # Dereferenced struct member: (*NAME).FIELD
-        # Grammar: "(" STAR CNAME ")" "." CNAME
-        # Items: [LPAREN, STAR, CNAME, RPAREN, DOT, CNAME]
-        # After transformation: [possibly STAR token, CNAME, field_str]
-        if len(items) == 3 and getattr(items[0], 'type', None) == 'STAR':
-            # items[0] = STAR token, items[1] = CNAME, items[2] = field name (str)
-            ptr_name = self._val(items[1])
-            field = self._val(items[2])
-            # Build: (*ptr).field as MemberAccess with UnaryOp base
-            ptr_ref = ast.VarRef(name=ptr_name)
-            deref = ast.UnaryOp(op='*', operand=ptr_ref)
-            member_access = ast.MemberAccess(base=deref, field=field)
-            return (member_access, False)
-
-        # NAME . FIELD
-        if len(items) == 2 and isinstance(items[1], str):
-            base = ast.VarRef(name=self._val(items[0]))
-            return (ast.MemberAccess(base=base, field=self._val(items[1])), False)
-
-        # NAME [expr]+ . FIELD
-        if len(items) >= 3 and isinstance(items[-1], str):
-            name = self._val(items[0])
-            field = self._val(items[-1])
-            indices = items[1:-1]
-            arr = ast.ArrayAccess(name=name, indices=indices)
-            return (ast.MemberAccess(base=arr, field=field), False)
-
-        # Fallback: NAME [expr]+
+        # items: [STAR_token, CNAME_token, CNAME_token] (Lark keeps only significant tokens)
+        ptr_name = self._val(items[1])  # The pointer name
+        field = self._val(items[2])  # The field name
+        ptr_ref = ast.VarRef(name=ptr_name)
+        deref = ast.UnaryOp(op='*', operand=ptr_ref)
+        member_access = ast.MemberAccess(base=deref, field=field)
+        return (member_access, False)
+    
+    def lvalue_arrow(self, items):
+        # Pointer member access: NAME -> FIELD
+        ptr_name = self._val(items[0])
+        field = self._val(items[1])
+        ptr_ref = ast.VarRef(name=ptr_name)
+        deref = ast.UnaryOp(op='*', operand=ptr_ref)
+        return (ast.MemberAccess(base=deref, field=field), False)
+    
+    def lvalue_array(self, items):
+        # Array access: NAME [expr]+
         name = self._val(items[0])
         indices = items[1:]
         arr = ast.ArrayAccess(name=name, indices=indices)
         return (arr, False)
+    
+    def lvalue_member(self, items):
+        # Struct member: NAME . FIELD
+        base = ast.VarRef(name=self._val(items[0]))
+        return (ast.MemberAccess(base=base, field=self._val(items[1])), False)
+    
+    def lvalue_array_member(self, items):
+        # Array element member: NAME [expr]+ . FIELD
+        name = self._val(items[0])
+        field = self._val(items[-1])
+        indices = items[1:-1]
+        arr = ast.ArrayAccess(name=name, indices=indices)
+        return (ast.MemberAccess(base=arr, field=field), False)
+    
+    def lvalue_array_arrow(self, items):
+        # Array element pointer member: NAME [expr]+ -> FIELD
+        name = self._val(items[0])
+        field = self._val(items[-1])
+        indices = items[1:-1]
+        arr = ast.ArrayAccess(name=name, indices=indices)
+        deref = ast.UnaryOp(op='*', operand=arr)
+        return (ast.MemberAccess(base=deref, field=field), False)
+
+
 
     def return_stmt(self, items):
         # items[0] is the expression, or items may be empty for void return
@@ -902,6 +924,14 @@ class ASTBuilder(Transformer):
         base = items[0]
         field = self._val(items[1])
         return ast.MemberAccess(base=base, field=field)
+
+    def ptr_member_access(self, items):
+        # postfix "->" CNAME -> ptr_member_access
+        # Equivalent to (*ptr).field
+        ptr = items[0]
+        field = self._val(items[1])
+        deref = ast.UnaryOp(op='*', operand=ptr)
+        return ast.MemberAccess(base=deref, field=field)
 
     def call(self, items):
         name = self._val(items[0])

@@ -104,8 +104,11 @@ def export_bob_asm(png_path: str, out_label: str, planes: int = 5, use_dither: b
     lines.append("")
 
     # -- Data block (row-interleaved across planes) --
+    stored_width = w + (16 if add_word else 0)
+
     lines.append(f"{data_label}:")
-    lines.append(f"\tDC.W\t{conv_w}")
+    # Store frame width (include extra 16px when add_word is requested); planar data is padded to conv_w
+    lines.append(f"\tDC.W\t{stored_width}")
     lines.append(f"\tDC.W\t{conv_h}")
     
     # Emit rows for the converted height (conv_h). For rows beyond original
@@ -130,7 +133,7 @@ def export_bob_asm(png_path: str, out_label: str, planes: int = 5, use_dither: b
 
     # -- Mask block (row-interleaved, same layout as data) --
     lines.append(f"\n{mask_label}:")
-    lines.append(f"\tDC.W\t{conv_w}")
+    lines.append(f"\tDC.W\t{stored_width}")
     lines.append(f"\tDC.W\t{conv_h}")
     
     # For each image row (mask)
@@ -319,8 +322,11 @@ def export_bob_asm_from_quantized(src_name: str, out_label: str, indices_by_row,
         lines.append(f"\tDC.W\t${amiga_color:03X}\t; color {i}")
     lines.append("")
 
+    stored_width = w + (16 if add_word else 0)
+
     lines.append(f"{data_label}:")
-    lines.append(f"\tDC.W\t{conv_w}")
+    # Store frame width (include extra 16px when add_word is requested); planar rows remain padded to conv_w
+    lines.append(f"\tDC.W\t{stored_width}")
     lines.append(f"\tDC.W\t{conv_h}")
 
     for y in range(conv_h):
@@ -337,7 +343,7 @@ def export_bob_asm_from_quantized(src_name: str, out_label: str, indices_by_row,
                 lines.append(f"\tDC.W\t%{word:016b}\t; y={y} pl={plane_idx} chunk={chunk_x//16}")
 
     lines.append(f"\n{mask_label}:")
-    lines.append(f"\tDC.W\t{conv_w}")
+    lines.append(f"\tDC.W\t{stored_width}")
     lines.append(f"\tDC.W\t{conv_h}")
 
     for y in range(conv_h):
@@ -402,6 +408,16 @@ def import_png_to_include(png_path: str, label_prefix: str = 'bob', planes: int 
     # regenerate==False because `quant` was undefined).
     quant = quantize_image(str(p), planes=planes, use_dither=use_dither)
 
+    def _round_up_16(x: int) -> int:
+        return ((x + 15) // 16) * 16
+
+    # Converted width is padded to 16-pixel chunks (plus optional add_word)
+    conv_w = max(16, _round_up_16(quant['width']))
+    if add_word:
+        conv_w += 16
+
+    stored_width = quant['width'] + (16 if add_word else 0)
+
     if regenerate or force:
         asm = export_bob_asm_from_quantized(p.name, label, quant['indices_by_row'], quant['final_palette'], quant['has_transparent'], planes=planes, add_word=add_word)
         with open(out_file, 'w', encoding='utf-8') as f:
@@ -413,7 +429,8 @@ def import_png_to_include(png_path: str, label_prefix: str = 'bob', planes: int 
     # Build metadata about the generated include
     try:
         meta = {
-            'width': quant['width'],
+            'width': stored_width,
+            'original_width': quant['width'],
             'height': quant['height'],
             'color_type': 'paletted' if quant.get('source_mode') == 'P' else 'quantized',
             'palette_imported': True if quant.get('source_mode') == 'P' else False,
@@ -421,6 +438,7 @@ def import_png_to_include(png_path: str, label_prefix: str = 'bob', planes: int 
             'has_transparent': quant.get('has_transparent', False),
             'add_word': bool(add_word),
             'planes': planes,
+            'converted_width': conv_w,
         }
     except Exception:
         meta = {}

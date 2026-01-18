@@ -155,7 +155,23 @@ def process_bob_strip(
                 out_dir=out_dir,
                 add_word=add_word
             )
-            
+
+            # Override metadata so width/height reflect the single frame, not the whole strip
+            if isinstance(result, tuple) and len(result) >= 3 and isinstance(result[2], dict):
+                rel_path, label, meta = result
+                fixed_meta = dict(meta)
+                extra = 16 if add_word else 0
+                fixed_meta['width'] = frame_img.width + extra
+                fixed_meta['height'] = frame_img.height
+                fixed_meta['frame_width'] = frame_img.width
+                fixed_meta['frame_height'] = frame_img.height
+                fixed_meta['original_width'] = frame_img.width
+                fixed_meta['converted_width'] = meta.get('converted_width')
+                fixed_meta['strip_width'] = strip_width
+                fixed_meta['strip_height'] = strip_height
+                fixed_meta['frame_index'] = frame_idx
+                result = (rel_path, label, fixed_meta)
+
             results.append(result)
             
             # Clean up temporary frame file

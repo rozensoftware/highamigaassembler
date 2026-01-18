@@ -1,0 +1,17 @@
+code test:
+    proc test_arrow() -> void
+    {
+        var p:Point*;
+        var q:Point;
+        
+        p = &q;
+        p->x = 100;
+        p->y = 200;
+        
+        var val:word;
+        val = p->x;
+        val = p->y;
+    }
+
+bss test_bss:
+    struct Point[10] { x.w, y.w }

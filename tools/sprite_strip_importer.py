@@ -155,7 +155,20 @@ def process_sprite_strip(
                 use_dither=use_dither,
                 out_dir=out_dir
             )
-            
+
+            # Override metadata so it reflects the cropped frame dimensions
+            if isinstance(result, tuple) and len(result) >= 3 and isinstance(result[2], dict):
+                rel_path, label, meta = result
+                fixed_meta = dict(meta)
+                fixed_meta['width'] = frame_img.width
+                fixed_meta['height'] = frame_img.height
+                fixed_meta['frame_width'] = frame_img.width
+                fixed_meta['frame_height'] = frame_img.height
+                fixed_meta['strip_width'] = strip_width
+                fixed_meta['strip_height'] = strip_height
+                fixed_meta['frame_index'] = frame_idx
+                result = (rel_path, label, fixed_meta)
+
             results.append(result)
             
             # Clean up temporary frame file
