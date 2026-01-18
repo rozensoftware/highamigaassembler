@@ -83,7 +83,12 @@ def main(argv=None):
             sys.exit(1)
     
     cg = codegen.CodeGen(mod)
-    asm = cg.gen()
+    try:
+        asm = cg.gen()
+    except codegen.CodeGenError as e:
+        print(f"Code generation error in {args.input}:", file=sys.stderr)
+        print(f"  {e}", file=sys.stderr)
+        sys.exit(1)
 
     with open(args.output, "w", encoding="utf-8") as f:
         f.write(asm)

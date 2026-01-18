@@ -18,6 +18,7 @@ def peephole_optimize(lines):
         optimized = _eliminate_redundant_lea(optimized)
         optimized = _eliminate_dead_stores(optimized)
         optimized = _optimize_immediate_ops(optimized)
+        optimized = _fold_immediate_to_memory(optimized)
         optimized = _eliminate_clr_move(optimized)
         optimized = _optimize_move_chains(optimized)
         optimized = _eliminate_redundant_compare(optimized)
@@ -446,4 +447,48 @@ def _optimize_branch_to_branch(lines):
         optimized.append(lines[i])
         i += 1
     
+    return optimized
+
+def _fold_immediate_to_memory(lines):
+    """Fold patterns loading an immediate into a register immediately followed by a store to memory.
+
+    Patterns:
+    - moveq #N,dX ; move.s dX,<ea>  -> move.s #N,<ea>
+    - move.l #N,dX ; move.s dX,<ea> -> move.s #N,<ea>
+
+    Safety:
+    - Only folds when the store destination is not a register (i.e., memory EA).
+    - CCR after the store is identical either way; removing the initial immediate load does not alter CCR used later.
+    """
+    optimized = []
+    i = 0
+
+    while i < len(lines):
+        if i + 1 < len(lines):
+            base1 = lines[i].split(';', 1)[0].rstrip()
+            base2 = lines[i + 1].split(';', 1)[0].rstrip()
+            comment2 = ';' + lines[i + 1].split(';', 1)[1] if ';' in lines[i + 1] else ''
+
+            # Match immediate load into data register: moveq #N,dX or move.l #N,dX
+            m1 = re.match(r"(\s*)(moveq\s+#(-?\d+)|(move\.l\s+#(-?\d+))),\s*(d\d+)$", base1)
+            if m1:
+                indent = m1.group(1)
+                # value may be in group 3 (moveq) or group 5 (move.l)
+                val = m1.group(3) if m1.group(3) is not None else m1.group(5)
+                reg = m1.group(6)
+
+                # Next line: move.s reg,<ea>
+                m2 = re.match(rf"\s*move(\.[bwl])\s+{re.escape(reg)},\s*(\S+)$", base2)
+                if m2:
+                    size = m2.group(1)
+                    dest = m2.group(2)
+                    # Ensure destination is not a register (so it's memory EA)
+                    if not re.match(r"[da]\d+$", dest):
+                        optimized.append(f"{indent}move{size} #{val},{dest}{comment2}")
+                        i += 2
+                        continue
+
+        optimized.append(lines[i])
+        i += 1
+
     return optimized

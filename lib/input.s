@@ -19,7 +19,6 @@ mouse_dx    dc.w       0                    ; difference between current and old
 mouse_dy    dc.w       0
 mouse_lbtn  dc.w       0                    ; state of left mouse button: 1 pressed, 0 not pressed
 mouse_rbtn  dc.w       0                    ; state of left right button: 1 pressed, 0 not pressed
-
             SECTION    code,CODE
 
 
@@ -28,6 +27,33 @@ mouse_rbtn  dc.w       0                    ; state of left right button: 1 pres
 ; SUBROUTINES
 ;****************************************************************
 
+
+;****************************************************************
+; Reads the joystick (0) state.
+; Returns in D0,D1
+;****************************************************************
+            xdef       ReadJoystick
+ReadJoystick:
+            move.l  JOY0DAT(a5),d0
+            and.l   #$03030303,d0
+            move.l  d0,d1
+            add.l   d1,d1
+            add.l   #$01010101,d0
+            add.l   d1,d0
+            rts
+
+;****************************************************************
+; Reads the joystick (0) fire button state.
+; Returns 1 in D0 if pressed, 0 if not pressed.
+;****************************************************************
+            xdef ReadJoystickFire
+ReadJoystickFire:
+            clr.l d0
+            btst.b #7,$bfe001
+            bne.s .no_fire
+            move.b #1,d0
+.no_fire:
+            rts
 
 ;****************************************************************
 ; Reads the mouse position.

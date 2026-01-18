@@ -6,6 +6,11 @@ from .register_allocator import RegisterAllocator
 from . import codegen_utils
 
 
+class CodeGenError(Exception):
+    """Raised when codegen encounters irrecoverable semantic issues (e.g., unknown symbols)."""
+    pass
+
+
 class CodeGen:
     def __init__(self, module: ast.Module):
         self.print_debug = False  # Set to True to enable debug printing
@@ -24,6 +29,10 @@ class CodeGen:
         self.push_stack = []  # Track PUSH/POP register lists
         self.reg_alloc = RegisterAllocator(locked_regs=self.locked_regs)  # Register allocation manager with locked regs
         self.loop_stack = []  # Stack of (continue_label, end_label) for nested loops
+
+    def _fail(self, message: str):
+        """Abort codegen with a clear, user-facing error."""
+        raise CodeGenError(message)
 
     def _is_unsigned_expr(self, expr, locals_info) -> bool:
         """Best-effort check if expr should be treated as unsigned for comparisons.
@@ -556,8 +565,7 @@ class CodeGen:
                         substitutions.insert(0, (var_name, replacement, "external variable"))
                         asm_content = asm_content[:start] + replacement + asm_content[end:]
                     else:
-                        # Unknown variable - leave as error marker
-                        asm_content = asm_content[:start] + f"???{var_name}???" + asm_content[end:]
+                        self._fail(f"Undefined symbol '{var_name}' in inline asm block")
         
         return asm_content, substitutions
 
@@ -986,7 +994,7 @@ class CodeGen:
                 else:
                     return [f"    move.l {name},{reg_left}"]
             else:
-                return [f"    ; unknown var {name}", f"    move.l #0,{reg_left}"]
+                self._fail(f"Undefined variable '{name}' in expression")
         if isinstance(expr, ast.BinOp):
             # Ensure registers are valid
             if reg_left is None or reg_left == 'None':
@@ -1506,8 +1514,7 @@ class CodeGen:
                     code.append(f"    move.l {name},{reg_left}")
                     code.append(f"    add.l #1,{name}")
                 else:
-                    code.append(f"    ; post-incr unknown var {name}")
-                    code.append(f"    move.l #0,{reg_left}")
+                    self._fail(f"Undefined variable '{name}' in post-increment expression")
             return code
         if isinstance(expr, ast.PostDecr):
             # Post-decrement: var-- (returns old value, then decrements)
@@ -1538,8 +1545,7 @@ class CodeGen:
                     code.append(f"    move.l {name},{reg_left}")
                     code.append(f"    sub.l #1,{name}")
                 else:
-                    code.append(f"    ; post-decr unknown var {name}")
-                    code.append(f"    move.l #0,{reg_left}")
+                    self._fail(f"Undefined variable '{name}' in post-decrement expression")
             return code
         if isinstance(expr, ast.PreIncr):
             # Pre-increment: ++var (increments, then returns new value)
@@ -1568,8 +1574,7 @@ class CodeGen:
                     code.append(f"    add.l #1,{name}")
                     code.append(f"    move.l {name},{reg_left}")
                 else:
-                    code.append(f"    ; pre-incr unknown var {name}")
-                    code.append(f"    move.l #0,{reg_left}")
+                    self._fail(f"Undefined variable '{name}' in pre-increment expression")
             return code
         if isinstance(expr, ast.PreDecr):
             # Pre-decrement: --var (decrements, then returns new value)
@@ -1598,8 +1603,7 @@ class CodeGen:
                     code.append(f"    sub.l #1,{name}")
                     code.append(f"    move.l {name},{reg_left}")
                 else:
-                    code.append(f"    ; pre-decr unknown var {name}")
-                    code.append(f"    move.l #0,{reg_left}")
+                    self._fail(f"Undefined variable '{name}' in pre-decrement expression")
             return code
         if isinstance(expr, ast.Call):
             # Check if callee has a known signature with register parameters
