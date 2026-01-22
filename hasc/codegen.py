@@ -684,7 +684,7 @@ class CodeGen:
                 name = base.name
                 sinfo = self.struct_info.get(name)
                 if not sinfo or field not in sinfo['fields']:
-                    return [f"    ; unknown struct member {name}.{field}", f"    move.l #0,{reg_left}"]
+                    self._fail(f"Unknown struct member '{name}.{field}'")
                 fs = sinfo['fields'][field]
                 suffix = { 'b': '.b', 'w': '.w', 'l': '.l' }.get(fs['size_suffix'], '.l')
                 # Direct absolute access using equate emitted: name_field equ name+off
@@ -2175,7 +2175,7 @@ class CodeGen:
                         name = base.name
                         sinfo = self.struct_info.get(name)
                         if not sinfo or field not in sinfo['fields']:
-                            self.emit(indent + f"; unknown struct member {name}.{field}")
+                            self._fail(f"Unknown struct member '{name}.{field}'")
                         else:
                             fs = sinfo['fields'][field]
                             suffix = { 'b': '.b', 'w': '.w', 'l': '.l' }.get(fs['size_suffix'], '.l')
