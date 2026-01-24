@@ -380,6 +380,10 @@ class ASTBuilder(Transformer):
                 value = parsed_values[0]
             else:
                 values = parsed_values
+                # Infer array dimensions from values if not explicitly specified
+                if not is_array and values is not None:
+                    is_array = True
+                    dimensions = [len(values)]
         
         return ast.GlobalVarDecl(
             name=name,

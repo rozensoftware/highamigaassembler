@@ -71,6 +71,16 @@ class Validator:
                                         self.errors.append(f"Array dimension constant '{dim_str}' not defined for '{var.name}'")
                                         resolved_dims.append(0)
                             var.dimensions = resolved_dims
+                        
+                        # Validate array length matches initializer count
+                        if isinstance(var, ast.GlobalVarDecl) and var.is_array and var.dimensions and var.values:
+                            declared_length = var.dimensions[0] if len(var.dimensions) == 1 else None
+                            actual_length = len(var.values)
+                            if declared_length is not None and declared_length != actual_length:
+                                self.errors.append(
+                                    f"Array '{var.name}' declared with length {declared_length} but has {actual_length} initializer values"
+                                )
+                        
                         self.globals.add(var.name)
                     if isinstance(var, ast.StructVarDecl):
                         # Expose struct-derived constants: name__size, name__stride

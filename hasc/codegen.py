@@ -783,10 +783,66 @@ class CodeGen:
             local_info = next((l for l in locals_info if l[0] == name), None)
             
             if local_info:
-                # Local array (not yet supported - would need to allocate on stack)
-                code.append(f"    ; local arrays not yet supported: {name}")
-                code.append(f"    move.l #0,{reg_left}")
-                return code
+                var_name, var_type, var_offset = local_info
+                
+                # Check if this is a pointer variable (not an array)
+                if var_type and var_type.endswith('*'):
+                    # Pointer indexing: ptr[index]
+                    # 1. Load the pointer value
+                    # 2. Calculate offset based on element size
+                    # 3. Load element from pointer + offset
+                    
+                    # Determine element size from pointer type (e.g., "byte*" -> 1 byte)
+                    base_type = var_type[:-1]  # Remove the '*'
+                    elem_bytes = 1  # default to byte
+                    if base_type == 'word':
+                        elem_bytes = 2
+                    elif base_type in ('long', 'int'):
+                        elem_bytes = 4
+                    
+                    shift_amount = 0
+                    if elem_bytes == 2:
+                        shift_amount = 1
+                    elif elem_bytes == 4:
+                        shift_amount = 2
+                    
+                    # Load pointer into a0
+                    code.append(f"    move.l {self._frame_offset(var_offset, frame_reg)},a0")
+                    
+                    if len(expr.indices) == 1:
+                        # Single index: ptr[index]
+                        if isinstance(expr.indices[0], ast.Number):
+                            # Constant index
+                            index_val = expr.indices[0].value
+                            offset = index_val * elem_bytes
+                            size_suffix = ast.size_suffix(elem_bytes)
+                            if offset == 0:
+                                code.append(f"    move{size_suffix} (a0),{reg_left}")
+                            else:
+                                code.append(f"    move{size_suffix} {offset}(a0),{reg_left}")
+                        else:
+                            # Variable index
+                            index_code = self._emit_expr(expr.indices[0], params, locals_info, "d1", "d2", target_type="int", frame_reg=frame_reg)
+                            code.extend(index_code)
+                            
+                            # Scale index by element size if needed
+                            if shift_amount > 0:
+                                code.append(f"    lsl.l #{shift_amount},d1  ; multiply index by {elem_bytes}")
+                            
+                            # Load element
+                            size_suffix = ast.size_suffix(elem_bytes)
+                            code.append(f"    move{size_suffix} (a0,d1.l),{reg_left}")
+                    else:
+                        # Multi-dimensional indexing through pointer (not common, but handle it)
+                        code.append(f"    ; multidimensional pointer indexing not yet supported")
+                        code.append(f"    move.l #0,{reg_left}")
+                    
+                    return code
+                else:
+                    # Local array (not yet supported - would need to allocate on stack)
+                    code.append(f"    ; local arrays not yet supported: {name}")
+                    code.append(f"    move.l #0,{reg_left}")
+                    return code
             
             # Global array access
             if len(expr.indices) == 1:
