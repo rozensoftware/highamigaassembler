@@ -8,6 +8,7 @@
     { "include": "#include-directive" },
     { "include": "#strings" },
     { "include": "#directives" },
+    { "include": "#asm-block" },
     { "include": "#function-definitions" },
     { "include": "#sections" },
     { "include": "#keywords" },
@@ -19,6 +20,25 @@
     { "include": "#suffixes" }
   ],
   "repository": {
+    "asm-block": {
+      "begin": "\\b(asm)\\s*\\{",
+      "beginCaptures": {
+        "1": { "name": "keyword.control.highamigassembler" }
+      },
+      "end": "\\}",
+      "name": "meta.asm-block.highamigassembler",
+      "patterns": [
+        {
+          "name": "comment.line.semicolon.asm.highamigassembler",
+          "match": ";.*$"
+        },
+        { "include": "#strings" },
+        { "include": "#instructions" },
+        { "include": "#registers" },
+        { "include": "#numbers" },
+        { "include": "#operators" }
+      ]
+    },
     "comments": {
       "patterns": [
         {
