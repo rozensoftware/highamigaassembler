@@ -1127,7 +1127,7 @@ def parse(text: str, base_dir: str = None) -> ast.Module:
     def _extract_python_block(m):
         inner = m.group(1)  # content between braces
         python_blocks.append(inner)
-        return f'@python "PYTHON_{len(python_blocks)-1}"'
+        return f'@python "PYTHON_{len(python_blocks)-1}";'
     
     # Match '@python' followed by '{' ... '}'
     text3 = re.sub(r"@python\s*\{(.*?)\}", _extract_python_block, text2, flags=re.S)
