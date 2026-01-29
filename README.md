@@ -37,7 +37,6 @@ HAS bridges the gap between high-level languages and assembly programming. It of
 
 ### Advanced Features
 - **Macro System (Phase 2)**: Define reusable code patterns
-- **Template System (Phase 3)**: Jinja2-based code generation
 - **@python Directive (Phase 4)**: Execute Python code during compilation
 - **Include System**: Modular code organization with `#include`
 - **Constants**: Compile-time constant evaluation
@@ -113,7 +112,6 @@ python -m hasc.cli hello.has -o hello.s
 - **[docs/SHIFT_OPERATORS.md](docs/SHIFT_OPERATORS.md)** - Shift operation details
 - **[docs/PYTHON_INTEGRATION.md](docs/PYTHON_INTEGRATION.md)** - Using Python for code generation
 - **[docs/PYTHON_GENERATION_TUTORIAL.md](docs/PYTHON_GENERATION_TUTORIAL.md)** - Step-by-step Python integration
-- **[docs/PHASES_2_3_4_SUMMARY.md](docs/PHASES_2_3_4_SUMMARY.md)** - Macro, template, and @python features
 - **[docs/TERMINOLOGY.md](docs/TERMINOLOGY.md)** - Language and architecture terminology
 
 ### Implementation Details
@@ -146,7 +144,6 @@ The `examples/` directory contains numerous demonstrations:
 
 ### Advanced Features
 - `macro_example.has` - Macro system usage
-- `template_example.has` - Jinja2 templates
 - `python_directive.has` - @python directive examples
 - `asm_comprehensive_test.has` - Inline assembly
 - `include_test.has` - Module inclusion
@@ -242,7 +239,6 @@ examples/              # Example programs and games
 └── games/             # Complete game examples
     └── launchers/     # Space shooter game demo
 
-templates/             # Jinja2 templates for Phase 3
 lib/                   # Standard library modules
 scripts/               # Build and utility scripts
 tools/                 # Asset conversion utilities
@@ -464,7 +460,6 @@ This compiler is actively being developed. Current focus areas:
 - Limited optimization (focus is on correct code generation)
 - Struct support is basic (no nested structs yet)
 - No inline optimization across procedures
-- Template system requires Jinja2 installation
 
 ## 📝 Contributing
 
@@ -504,7 +499,6 @@ This compiler is actively being developed. Current focus areas:
 
 **Python Dependencies** (see requirements.txt):
 - `lark-parser` - Parser generator
-- `jinja2` - Template system (optional, for Phase 3)
 - `Pillow` (PIL) - Image processing (optional, for asset tools)
 
 **External Tools** (optional, for full build):

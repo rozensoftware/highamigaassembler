@@ -18,7 +18,6 @@ pip install -r requirements.txt
 
 This will install:
 - `lark-parser` - For parsing HAS source files
-- `jinja2` - For template system (Phase 3 features)
 
 ### 2. Verify Installation
 

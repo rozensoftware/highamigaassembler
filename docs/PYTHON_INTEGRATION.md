@@ -219,63 +219,7 @@ if args.generate:
 
 ---
 
-## Option 4: Template System (Most Practical)
-
-**Use templating for code generation**
-
-### Syntax
-
-```has
-code math:
-    @template "simd_ops.has.j2" {
-        operations: ["add", "sub", "mul"],
-        count: 4
-    }
-```
-
-### Example Template (simd_ops.has.j2)
-
-```jinja2
-proc simd_{{ op }}_vectors() -> int {
-    var result:int = 0;
-    {% for i in range(count) %}
-        var v{{ i }}:int = 0;
-        result {{ op }}= v{{ i }};
-    {% endfor %}
-    return result;
-}
-```
-
-### Implementation
-
-```python
-# In codegen.py - Use Jinja2
-from jinja2 import Template
-
-elif isinstance(stmt, ast.TemplateStmt):
-    template = Template(self._load_template(stmt.template))
-    generated_has = template.render(stmt.context)
-    # Parse generated HAS
-    ast_nodes = parser.parse(generated_has)
-    # Emit normally
-    for node in ast_nodes:
-        self._emit_stmt(node, ...)
-```
-
-### Advantages
-- ✅ Powerful yet safe
-- ✅ Standard templating language
-- ✅ Easy to learn
-- ✅ Good separation of concerns
-
-### Disadvantages
-- ⚠️ Requires Jinja2 dependency
-- ⚠️ Template debugging harder
-- ⚠️ Less direct than Python
-
----
-
-## Option 5: Hybrid Approach (Best)
+## Option 4: Hybrid Approach (Best)
 
 **Combine best features of multiple options**
 
@@ -288,7 +232,6 @@ elif isinstance(stmt, ast.TemplateStmt):
            │
            ├─→ @python blocks     ──→ Python sandbox execution
            ├─→ @macro calls       ──→ Macro expansion
-           ├─→ @template refs     ──→ Jinja2 templating
            └─→ Regular code       ──→ Normal compilation
            │
            ↓
@@ -312,7 +255,7 @@ elif isinstance(stmt, ast.TemplateStmt):
 | Use Case | Method |
 |----------|--------|
 | Loop unrolling | `@python` or `@macro` |
-| SIMD patterns | `@template` |
+| SIMD patterns | `@python` |
 | Table generation | `@python` |
 | Simple repetition | `@macro` |
 | Complex logic | Python pre-processor |
@@ -330,16 +273,9 @@ elif isinstance(stmt, ast.TemplateStmt):
 ### Phase 2: Macro System (Foundation)
 - Add macro definitions to grammar
 - Implement macro expansion
-- Build foundation for templates
 - Perfect for repetitive patterns
 
-### Phase 3: Template Support (Most Practical)
-- Add Jinja2 for templating
-- Support `@template` directive
-- Handle context passing
-- Great for code generators
-
-### Phase 4: Python Sandbox (Advanced)
+### Phase 3: Python Sandbox (Advanced)
 - Add `@python` directive
 - Implement safe execution sandbox
 - Full compile-time code generation
@@ -519,7 +455,7 @@ for op in ['add', 'sub', 'mul']:
 - ✅ No security sandbox needed
 - ✅ Can debug generated code easily
 
-Then later add `@macro` and `@template` directives as needed.
+Then later add `@macro` directive as needed.
 
 ---
 
@@ -527,7 +463,6 @@ Then later add `@macro` and `@template` directives as needed.
 
 1. Would you like me to implement Phase 1 (`--generate` option)?
 2. Should we add `@macro` support alongside?
-3. Want template support with Jinja2?
-4. Any specific use case you have in mind?
+3. Any specific use case you have in mind?
 
 Let me know which direction interests you most!

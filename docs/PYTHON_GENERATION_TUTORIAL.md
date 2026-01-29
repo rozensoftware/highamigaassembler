@@ -429,14 +429,13 @@ with open('/tmp/debug.has', 'w') as f:
 1. Try running the example: `python3 examples/code_generator.py`
 2. Create your own generator for a specific use case
 3. Integrate into your build process
-4. Consider implementing Phase 2 (macros) or Phase 3 (templates) if needed
+4. Consider implementing Phase 2 (macros) if needed
 
 ---
 
-## What's Next: Phases 2-4
+## What's Next: Phase 2
 
 - **Phase 2**: `@macro` directives for repetitive patterns
-- **Phase 3**: `@template` with Jinja2 for complex generation
-- **Phase 4**: `@python` inline code blocks (requires sandbox)
+- **Phase 3**: `@python` inline code blocks (requires sandbox)
 
 For now, Phase 1 (external Python) gives you full power with no changes to the compiler core!

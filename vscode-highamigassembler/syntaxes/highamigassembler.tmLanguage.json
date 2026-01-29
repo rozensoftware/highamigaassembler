@@ -139,7 +139,7 @@
         },
         {
           "name": "keyword.other.decorator.highamigassembler",
-          "match": "@(?:template|python)"
+          "match": "@python"
         },
         {
           "name": "keyword.other.register.highamigassembler",

@@ -61,8 +61,7 @@ All notable changes to the HAS (High Assembler) project will be documented in th
 #### Advanced Features
 - **Phase 1**: External Python code generation via `--generate` flag
 - **Phase 2**: Macro system with parameter substitution
-- **Phase 3**: Jinja2 template integration with `@template` directive
-- **Phase 4**: Inline Python execution with `@python` directive
+- **Phase 3**: Inline Python execution with `@python` directive
 - Include system with cyclic dependency detection
 - Inline assembly support with `asm { }` blocks
 - Register manipulation with `getreg()` and `setreg()` intrinsics
@@ -129,7 +128,7 @@ All notable changes to the HAS (High Assembler) project will be documented in th
 - Basic examples (variables, types, operators)
 - Control flow demonstrations
 - Array and pointer usage
-- Advanced features (macros, templates, Python)
+- Advanced features (macros, Python)
 - Amiga-specific examples (graphics, hardware)
 - Code generation examples
 
@@ -137,7 +136,6 @@ All notable changes to the HAS (High Assembler) project will be documented in th
 - No floating-point support (68000 has no FPU)
 - Limited struct support (no nested structs)
 - No cross-procedure optimization
-- Template system requires Jinja2
 
 ### Technical Details
 - Parser: Lark-based EBNF grammar

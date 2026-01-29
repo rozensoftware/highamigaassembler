@@ -8,7 +8,6 @@ Release Date: January 29, 2026
 Major Features in This Version:
 - Complete 68000 assembly code generation
 - Macro system (Phase 2)
-- Jinja2 template integration (Phase 3)
 - @python directive support (Phase 4)
 - Include system with cyclic dependency detection
 - Forward declarations (func keyword)

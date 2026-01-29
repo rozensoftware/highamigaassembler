@@ -1,4 +1,4 @@
-// Random Function Test - Phase 3
+// Random Function Test
 // Tests RndMax to verify it returns different values in range [0, max-1]
 
 code test:

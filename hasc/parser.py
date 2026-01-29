@@ -73,10 +73,9 @@ asm_stmt: "asm" STRING [";"]
 
 ASMBLOCK: /\{BLOCK_\d+\}/
 
-?stmt: push_stmt | pop_stmt | var_decl | compound_assign_stmt | assign_stmt | return_stmt | if_stmt | while_stmt | do_while_stmt | for_stmt | repeat_stmt | expr_stmt | call_stmt | asm_stmt | break_stmt | continue_stmt | macro_call_stmt | template_stmt | python_stmt
+?stmt: push_stmt | pop_stmt | var_decl | compound_assign_stmt | assign_stmt | return_stmt | if_stmt | while_stmt | do_while_stmt | for_stmt | repeat_stmt | expr_stmt | call_stmt | asm_stmt | break_stmt | continue_stmt | macro_call_stmt | python_stmt
 call_stmt: "call" CNAME "(" [arglist] ")" ";"
 macro_call_stmt: CNAME "(" [arglist] ")" ";"
-template_stmt: "@template" STRING STRING ";"
 python_stmt: "@python" STRING ";"
 
 push_stmt: "PUSH" "(" reglist ")" ";"
@@ -266,7 +265,7 @@ class ASTBuilder(Transformer):
         # Gather body statements (all remaining ast nodes)
         body = []
         for it in items[idx:]:
-            if isinstance(it, (ast.VarDecl, ast.Assign, ast.CompoundAssign, ast.Return, ast.If, ast.While, ast.DoWhile, ast.ForLoop, ast.RepeatLoop, ast.ExprStmt, ast.AsmBlock, ast.CallStmt, ast.PushRegs, ast.PopRegs, ast.Break, ast.Continue, ast.MacroCall, ast.TemplateStmt, ast.PythonStmt)):
+            if isinstance(it, (ast.VarDecl, ast.Assign, ast.CompoundAssign, ast.Return, ast.If, ast.While, ast.DoWhile, ast.ForLoop, ast.RepeatLoop, ast.ExprStmt, ast.AsmBlock, ast.CallStmt, ast.PushRegs, ast.PopRegs, ast.Break, ast.Continue, ast.MacroCall, ast.PythonStmt)):
                 body.append(it)
         
         return ast.Proc(name=name, params=params, rettype=rettype, body=body, native=False)
@@ -291,7 +290,7 @@ class ASTBuilder(Transformer):
         # Gather body statements (all remaining ast nodes)
         body = []
         for it in items[idx:]:
-            if isinstance(it, (ast.VarDecl, ast.Assign, ast.CompoundAssign, ast.Return, ast.If, ast.While, ast.DoWhile, ast.ForLoop, ast.RepeatLoop, ast.ExprStmt, ast.AsmBlock, ast.CallStmt, ast.PushRegs, ast.PopRegs, ast.Break, ast.Continue, ast.MacroCall, ast.TemplateStmt, ast.PythonStmt)):
+            if isinstance(it, (ast.VarDecl, ast.Assign, ast.CompoundAssign, ast.Return, ast.If, ast.While, ast.DoWhile, ast.ForLoop, ast.RepeatLoop, ast.ExprStmt, ast.AsmBlock, ast.CallStmt, ast.PushRegs, ast.PopRegs, ast.Break, ast.Continue, ast.MacroCall, ast.PythonStmt)):
                 body.append(it)
         
         return ast.Proc(name=name, params=params, rettype=rettype, body=body, native=True)
@@ -642,7 +641,7 @@ class ASTBuilder(Transformer):
         return ast.PublicDecl(name=name)
 
     # ========================
-    # Macro, Template, Python
+    # Macro, Python
     # ========================
     
     def macro_def(self, items):
@@ -670,14 +669,6 @@ class ASTBuilder(Transformer):
         if len(items) > 1 and isinstance(items[1], list):
             args = items[1]
         return ast.MacroCall(name=name, args=args)
-
-    def template_stmt(self, items):
-        """template_stmt: "@template" STRING STRING ";" """
-        template_file = self._val(items[0])[1:-1]  # Remove quotes
-        context_str = self._val(items[1])[1:-1]  # Remove quotes
-        # context_str is a placeholder like "TEMPLATE_0"
-        context = {'_placeholder': context_str}
-        return ast.TemplateStmt(template_file=template_file, context=context)
 
     def python_stmt(self, items):
         """python_stmt: "@python" STRING ";" """
@@ -1141,22 +1132,10 @@ def parse(text: str, base_dir: str = None) -> ast.Module:
     # Match '@python' followed by '{' ... '}'
     text3 = re.sub(r"@python\s*\{(.*?)\}", _extract_python_block, text2, flags=re.S)
     
-    # Step 1c: Extract @template blocks
-    template_blocks = []
-    def _extract_template_block(m):
-        # m.group(1) is the template file string, m.group(2) is context
-        template_file = m.group(1)
-        context = m.group(2)
-        template_blocks.append((template_file, context))
-        return f'@template {template_file} "TEMPLATE_{len(template_blocks)-1}"'
-    
-    # Match '@template' "file.j2" followed by '{' context '}'
-    text4 = re.sub(r'@template\s+(".*?")\s*\{(.*?)\}', _extract_template_block, text3, flags=re.S)
-
     from lark.exceptions import UnexpectedToken
     parser = Lark(GRAMMAR, parser="lalr", propagate_positions=False)
     try:
-        tree = parser.parse(text4)
+           tree = parser.parse(text3)
     except UnexpectedToken as e:
         # Check if user is trying to declare variables in code section
         # The error message will contain the token value in str(e)
@@ -1197,11 +1176,6 @@ def parse(text: str, base_dir: str = None) -> ast.Module:
                 idx = int(m.group(1))
                 if 0 <= idx < len(python_blocks):
                     node.code = python_blocks[idx]
-        elif isinstance(node, ast.TemplateStmt):
-            # Template context might be stored as placeholder
-            if "TEMPLATE_" in str(node.context):
-                # Parse the template context (simplified for now)
-                pass
         elif isinstance(node, ast.If):
             # Recursively restore in if/else bodies
             for stmt in _as_list(node.then_body):

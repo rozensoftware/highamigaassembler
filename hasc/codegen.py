@@ -2765,44 +2765,6 @@ class CodeGen:
             else:
                 # Neither macro nor function - this should have been caught by validator
                 self.emit(indent + f"; ERROR: undefined macro or function '{stmt.name}'")
-        elif isinstance(stmt, ast.TemplateStmt):
-            # Template expansion: load template, render with context, parse and emit
-            try:
-                from jinja2 import Template, FileSystemLoader, Environment
-                import os
-                
-                # Look for template in templates/ directory
-                template_dir = "templates"
-                template_path = os.path.join(template_dir, stmt.template_file)
-                
-                if not os.path.exists(template_path):
-                    self.emit(indent + f"; ERROR: template '{stmt.template_file}' not found")
-                else:
-                    with open(template_path, 'r') as f:
-                        template_content = f.read()
-                    
-                    template = Template(template_content)
-                    rendered = template.render(stmt.context)
-                    
-                    # Parse rendered HAS code
-                    from . import parser
-                    rendered_ast = parser.parse(rendered)
-                    
-                    # Emit the rendered statements
-                    if isinstance(rendered_ast, ast.Module):
-                        for item in rendered_ast.items:
-                            if isinstance(item, ast.Proc):
-                                # Templates shouldn't define procs at statement level
-                                self.emit(indent + "; ERROR: template generated procedure at statement level")
-                            elif isinstance(item, ast.CodeSection):
-                                for code_item in item.items:
-                                    if isinstance(code_item, ast.Proc):
-                                        for stmt_item in code_item.body:
-                                            self._emit_stmt(stmt_item, params, locals_info, proc, indent, is_void)
-            except ImportError:
-                self.emit(indent + "; ERROR: Jinja2 not installed (required for @template)")
-            except Exception as e:
-                self.emit(indent + f"; ERROR in template rendering: {str(e)}")
         elif isinstance(stmt, ast.PythonStmt):
             # Python directive: execute Python code at compile time
             try:

@@ -775,25 +775,7 @@ code macro_demo:
     }
 ```
 
-### Templates (Phase 3)
-```has
-; Reference template file
-@template "templates/loop_unroll.has.j2" unroll_count;
-
-; Template file: templates/loop_unroll.has.j2
-; {% for i in range(unroll_count) %}
-;     process(array[{{ i }}]);
-; {% endfor %}
-
-code template_demo:
-    proc process_array() -> long {
-        var arr[8];
-        @template "simd_ops.has.j2" count;  ; Render and emit
-        return 0;
-    }
-```
-
-### Python Directives (Phase 4)
+### Python Directives (Phase 3)
 ```has
 code python_demo:
     proc computed() -> long {
@@ -1328,7 +1310,7 @@ python -m hasc.cli test_add.has -o test.s
 - [x] **Procedures** - definition, parameters, return values
 - [x] **Control Flow** - if/else, loops, break/continue
 - [x] **Operators** - arithmetic, logical, bitwise
-- [x] **Advanced** - macros, templates, @python, inline asm
+- [x] **Advanced** - macros, @python, inline asm
 - [x] **Directives** - #warning, #error, #pragma
 - [x] **External Integration** - extern func, code generation
 

@@ -361,13 +361,6 @@ class MacroCall:
 
 
 @dataclass
-class TemplateStmt:
-    """Template directive: @template "file.j2" { key: value, ... }"""
-    template_file: str
-    context: dict      # Template variables
-
-
-@dataclass
 class PythonStmt:
     """Python directive: @python code string or @python { code block }"""
     code: str          # Python code to execute at compile time

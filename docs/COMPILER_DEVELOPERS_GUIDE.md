@@ -67,7 +67,7 @@ src/hasc/
 - Compile-time directives: `#warning`, `#error`, `#pragma lockreg(...)`, `const` declarations
 - Procedure system: `proc`, forward `func` declarations, `extern func/var`, `public` exports
 - Control flow and expressions: loops (`for`/`while`/`repeat`), conditionals, full operator set including shifts and bitwise ops
-- Python integration: macros, Jinja2 templates, `@python` directives, optional external generation via `--generate`
+- Python integration: macros, `@python` directives, optional external generation via `--generate`
 - Data constructs: arrays (multi-dimensional), structs, pointer/address-of/deref operations
 ```
 
@@ -94,7 +94,6 @@ pip install -r requirements.txt
 
 - **lark-parser**: Grammar-based parsing (EBNF syntax)
 - **vasm/vlink**: External assembler/linker (install separately)
-- **Jinja2**: Template rendering for `@template` directives
 - **subprocess**: For `@python` code generation phase
 
 ### 3. First Exercise: Trace a Simple Compilation
@@ -150,7 +149,7 @@ print(f"DEBUG: Generating code for {len(self.module.items)} items")
 
 **Key Pattern**: **Preprocessing** extracts special blocks before parsing:
 - `@python { ... }` → Python code blocks
-- `@template "..." ctx;` → Template directives
+- `@python "..." ctx;` → Python directives
 - `asm { ... }` → Raw assembly blocks
 
 ### Stage 2: Validation (validator.py)
@@ -1157,23 +1156,7 @@ def _expand_macro(self, name, args):
 
 **Substitution Pattern**: Recursively walk AST, replace `ast.VarRef` nodes
 
-### Topic 2: Template Rendering
-
-**Location**: `parser.py` (block extraction/restoration) and `codegen.py` (statement-level expansion)
-
-**Status**: Supported at statement level. Templates are expanded inside procedure bodies; if a template produces procedures, codegen emits an error comment instead of integrating them.
-
-**How It Works**:
-1. **Extraction**: `parser.py` replaces `@template "file.j2" { ... }` blocks with placeholders and stores their contexts.
-2. **Restoration**: Placeholders are restored onto `ast.TemplateStmt` nodes after parsing.
-3. **Expansion**: `codegen.py` loads `templates/<file>.j2`, renders with the provided context dict, parses the rendered HAS snippet, and emits the resulting statements inline.
-
-**Notes**:
-- Requires Jinja2 installed.
-- Context handling is minimal; prefer simple key/value contexts.
-- Statement-only: keep template outputs to statements inside a procedure; generating procs triggers an emitted error comment.
-
-### Topic 3: Python Code Generation
+### Topic 2: Python Code Generation
 
 **Location**: `cli.py`, `main()` function with `--generate` flag
 
