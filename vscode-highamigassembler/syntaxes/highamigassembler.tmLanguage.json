@@ -130,6 +130,10 @@
           "match": "\\bfunc\\b"
         },
         {
+          "name": "keyword.modifier.native.highamigassembler",
+          "match": "\\bnative\\b"
+        },
+        {
           "name": "keyword.control.highamigassembler",
           "match": "\\b(?:extern|public|macro|const|var|struct|return|if|else|while|for|repeat|to|by|break|continue|call|asm|PUSH|POP)\\b"
         },

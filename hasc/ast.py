@@ -79,6 +79,7 @@ class Proc:
     params: List['Param']  # Changed from List[tuple] to List[Param]
     rettype: Optional[str]
     body: List[Any]
+    native: bool = False  # True if 'native' keyword is used (no stack frame)
 
 
 @dataclass
@@ -87,6 +88,7 @@ class FuncDecl:
     name: str
     params: List['Param']
     rettype: Optional[str]
+    native: bool = False  # True if 'native' keyword is used (no stack frame)
 
 
 @dataclass

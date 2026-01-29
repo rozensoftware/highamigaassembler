@@ -1,0 +1,44 @@
+// Test the native keyword feature
+// This should compile without link/unlk instructions
+
+code test_native:
+
+    // Native function with register parameters only - like peek_w example
+    native proc peek_w(__reg(a0) a: long) -> long {
+        asm {
+            move.w (a0),d0         ; d0 = word at addr
+            ext.l d0               ; sign-extend to 32-bit
+        }
+        return;
+    }
+    
+    // Another native function example
+    native proc fast_add(__reg(d0) a: long, __reg(d1) b: long) -> long {
+        asm {
+            add.l d1,d0            ; d0 = a + b
+        }
+        return;
+    }
+    
+    // Native function with void return
+    native proc set_register(__reg(d0) value: long) -> void {
+        asm {
+            ; d0 already contains value, just use it
+            move.l d0,d2
+        }
+    }
+    
+    // Regular function for comparison (should have link/unlk)
+    proc regular_func(x: long) -> long {
+        return x * 2;
+    }
+    
+    proc main() -> void {
+        var result: long;
+        var addr: long = 0x100000;
+        
+        result = peek_w(addr);
+        result = fast_add(10, 20);
+        set_register(42);
+        result = regular_func(100);
+    }

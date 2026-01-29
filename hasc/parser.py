@@ -30,7 +30,9 @@ macro_def: "macro" CNAME "(" [macro_params] ")" "{" stmt* "}"
 macro_params: CNAME ("," CNAME)*
 
 proc_decl: "proc" CNAME "(" [params] ")" "->" type "{" stmt* "}"
+         | "native" "proc" CNAME "(" [params] ")" "->" type "{" stmt* "}" -> native_proc_decl
 func_decl: "func" CNAME "(" [params] ")" "->" type ";"
+         | "native" "func" CNAME "(" [params] ")" "->" type ";" -> native_func_decl
 params: param ("," param)*
 param: ["__reg" "(" REG ")"] CNAME ":" type
 type: CNAME STAR?  // Support pointer types like "int*"
@@ -252,7 +254,7 @@ class ASTBuilder(Transformer):
         idx = 1
         
         # Extract params if present (it's a list)
-        if isinstance(items[idx], list):
+        if idx < len(items) and isinstance(items[idx], list):
             params = items[idx]
             idx += 1
         
@@ -267,7 +269,32 @@ class ASTBuilder(Transformer):
             if isinstance(it, (ast.VarDecl, ast.Assign, ast.CompoundAssign, ast.Return, ast.If, ast.While, ast.DoWhile, ast.ForLoop, ast.RepeatLoop, ast.ExprStmt, ast.AsmBlock, ast.CallStmt, ast.PushRegs, ast.PopRegs, ast.Break, ast.Continue, ast.MacroCall, ast.TemplateStmt, ast.PythonStmt)):
                 body.append(it)
         
-        return ast.Proc(name=name, params=params, rettype=rettype, body=body)
+        return ast.Proc(name=name, params=params, rettype=rettype, body=body, native=False)
+    
+    def native_proc_decl(self, items):
+        """Handle native proc declarations"""
+        name = self._val(items[0])
+        params = []
+        rettype = None
+        idx = 1
+        
+        # Extract params if present (it's a list)
+        if idx < len(items) and isinstance(items[idx], list):
+            params = items[idx]
+            idx += 1
+        
+        # Extract return type - should be next after params
+        if idx < len(items) and isinstance(items[idx], str):
+            rettype = items[idx]
+            idx += 1
+        
+        # Gather body statements (all remaining ast nodes)
+        body = []
+        for it in items[idx:]:
+            if isinstance(it, (ast.VarDecl, ast.Assign, ast.CompoundAssign, ast.Return, ast.If, ast.While, ast.DoWhile, ast.ForLoop, ast.RepeatLoop, ast.ExprStmt, ast.AsmBlock, ast.CallStmt, ast.PushRegs, ast.PopRegs, ast.Break, ast.Continue, ast.MacroCall, ast.TemplateStmt, ast.PythonStmt)):
+                body.append(it)
+        
+        return ast.Proc(name=name, params=params, rettype=rettype, body=body, native=True)
 
     def func_decl(self, items):
         """Forward declaration: func name(params) -> type;"""
@@ -285,7 +312,25 @@ class ASTBuilder(Transformer):
         if idx < len(items) and isinstance(items[idx], str):
             rettype = items[idx]
         
-        return ast.FuncDecl(name=name, params=params, rettype=rettype)
+        return ast.FuncDecl(name=name, params=params, rettype=rettype, native=False)
+    
+    def native_func_decl(self, items):
+        """Forward declaration for native function: native func name(params) -> type;"""
+        name = self._val(items[0])
+        params = []
+        rettype = None
+        idx = 1
+        
+        # Extract params if present
+        if idx < len(items) and isinstance(items[idx], list):
+            params = items[idx]
+            idx += 1
+        
+        # Extract return type
+        if idx < len(items) and isinstance(items[idx], str):
+            rettype = items[idx]
+        
+        return ast.FuncDecl(name=name, params=params, rettype=rettype, native=True)
 
     def params(self, items):
         return items

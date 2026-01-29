@@ -232,6 +232,52 @@ class Validator:
     
     def _validate_proc(self, proc):
         """Validate a procedure."""
+        # Validate native functions
+        if proc.native:
+            # Check that all parameters are register-based
+            for param in proc.params:
+                if not param.register or param.register == 'None':
+                    self.errors.append(
+                        f"In native proc '{proc.name}': Parameter '{param.name}' must use __reg. "
+                        f"Native functions require all parameters to be register-based."
+                    )
+            
+            # Check that there are no local variables
+            def has_local_vars(stmts):
+                from lark import Tree
+                def _as_list(possible_list):
+                    if isinstance(possible_list, Tree):
+                        return list(possible_list.children)
+                    return possible_list if possible_list is not None else []
+                
+                for stmt in _as_list(stmts):
+                    if isinstance(stmt, ast.VarDecl):
+                        return True
+                    elif isinstance(stmt, ast.ForLoop):
+                        if has_local_vars(stmt.body):
+                            return True
+                    elif isinstance(stmt, ast.While):
+                        if has_local_vars(stmt.body):
+                            return True
+                    elif isinstance(stmt, ast.DoWhile):
+                        if has_local_vars(stmt.body):
+                            return True
+                    elif isinstance(stmt, ast.RepeatLoop):
+                        if has_local_vars(stmt.body):
+                            return True
+                    elif isinstance(stmt, ast.If):
+                        if has_local_vars(stmt.then_body):
+                            return True
+                        if stmt.else_body and has_local_vars(stmt.else_body):
+                            return True
+                return False
+            
+            if has_local_vars(proc.body):
+                self.errors.append(
+                    f"In native proc '{proc.name}': Local variables are not allowed. "
+                    f"Native functions cannot allocate stack space for local variables."
+                )
+        
         # Build symbol table for this procedure
         symbols = {}
         

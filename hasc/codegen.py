@@ -442,19 +442,21 @@ class CodeGen:
         
         # CRITICAL FIX: Allocate stack space for data register parameters (d0-d7)
         # These must be saved immediately in prologue before they can be clobbered
+        # EXCEPT for native functions - they use registers directly without stack
         saved_reg_params = {}  # Maps param name -> (register, offset)
-        for param in params:
-            reg = param.register
-            if reg and reg != 'None' and reg.startswith('d'):
-                # Data register parameter - needs stack slot to prevent clobbering
-                size = ast.type_size(param.ptype) if param.ptype else 4
-                offset += size
-                # Align offset to even boundary
-                if offset & 1:
-                    offset += 1
-                saved_reg_params[param.name] = (reg, offset)
-                # Add to locals_info so VarRef lookups find it
-                locals_info.append((param.name, param.ptype, offset))
+        if not proc.native:
+            for param in params:
+                reg = param.register
+                if reg and reg != 'None' and reg.startswith('d'):
+                    # Data register parameter - needs stack slot to prevent clobbering
+                    size = ast.type_size(param.ptype) if param.ptype else 4
+                    offset += size
+                    # Align offset to even boundary
+                    if offset & 1:
+                        offset += 1
+                    saved_reg_params[param.name] = (reg, offset)
+                    # Add to locals_info so VarRef lookups find it
+                    locals_info.append((param.name, param.ptype, offset))
         
         # Collect all local variables and for loop counters
         def collect_locals(stmts):
@@ -2461,16 +2463,18 @@ class CodeGen:
                 for l in code:
                     for sub in str(l).splitlines():
                         self.emit(sub if sub.startswith(indent) else indent + sub)
-            # epilogue: restore a4 if we saved it in the frame
-            if len(locals_info) > 0 and frame_reg == "a4":
-                # Calculate the offset where a4 was saved
-                offset = 0
-                for name, vtype, off in locals_info:
-                    offset = max(offset, off)
-                # Add 4 for the saved a4 itself (it's after locals)
-                localsize = ((offset + 3) & ~3) + 4
-                self.emit(indent + f"move.l -{localsize}(a6),a4  ; restore a4 from frame")
-            self.emit(indent + "unlk a6")
+            # Skip epilogue for native functions (no stack frame to restore)
+            if not proc.native:
+                # epilogue: restore a4 if we saved it in the frame
+                if len(locals_info) > 0 and frame_reg == "a4":
+                    # Calculate the offset where a4 was saved
+                    offset = 0
+                    for name, vtype, off in locals_info:
+                        offset = max(offset, off)
+                    # Add 4 for the saved a4 itself (it's after locals)
+                    localsize = ((offset + 3) & ~3) + 4
+                    self.emit(indent + f"move.l -{localsize}(a6),a4  ; restore a4 from frame")
+                self.emit(indent + "unlk a6")
             self.emit(indent + "rts")
         elif isinstance(stmt, ast.AsmBlock):
             # Substitute @varname references with addresses/registers
@@ -3251,10 +3255,12 @@ class CodeGen:
                             if reg:
                                 self.emit(indent + f"; param {p.name}: {p.ptype} in {reg}")
                             else:
-                                stack_params = [sp for sp in params if not (sp.register and sp.register != 'None')]
-                                idx = stack_params.index(p)
-                                off = 8 + 4 * idx
-                                self.emit(indent + f"; param {p.name}: {p.ptype} at {off}(a6)")
+                                # Only show stack-based param comments for non-native functions
+                                if not it.native:
+                                    stack_params = [sp for sp in params if not (sp.register and sp.register != 'None')]
+                                    idx = stack_params.index(p)
+                                    off = 8 + 4 * idx
+                                    self.emit(indent + f"; param {p.name}: {p.ptype} at {off}(a6)")
                         # Add comments for local variables
                         for name, vtype, offset in locals_info:
                             self.emit(indent + f"; local {name}: {vtype} at {-offset}({frame_reg})")
@@ -3262,26 +3268,28 @@ class CodeGen:
                         # Check if return type is void
                         is_void = it.rettype == 'void'
                         
-                        # prologue: establish frame with LINK
-                        # Use #0 for no locals, #-N for N bytes of locals
-                        link_param = f"#0" if localsize == 0 else f"#-{localsize}"
-                        self.emit(indent + f"link a6,{link_param}")
-                        
-                        # CRITICAL FIX: Save data register parameters immediately after link
-                        # to prevent them from being clobbered before use
-                        for param_name, (reg, offset) in saved_reg_params.items():
-                            self.emit(indent + f"move.l {reg},{-offset}(a6)  ; save {param_name} from {reg}")
-                        
-                        # If we have locals and using a4 as frame register, save a4 in allocated space
-                        if len(locals_info) > 0:
-                            if frame_reg == "a4":
-                                # Save a4 at the bottom of the frame (it's part of link allocation)
-                                # Frame layout: [locals...][saved_a4]
-                                self.emit(indent + f"move.l a4,-{localsize}(a6)  ; save a4 in frame")
-                                self.emit(indent + f"move.l a6,{frame_reg}  ; save frame pointer in {frame_reg}")
-                            else:
-                                # Using a6 as frame pointer (no optimization)
-                                self.emit(indent + f"move.l a6,{frame_reg}  ; save frame pointer in {frame_reg}")
+                        # Skip stack frame setup for native functions
+                        if not it.native:
+                            # prologue: establish frame with LINK
+                            # Use #0 for no locals, #-N for N bytes of locals
+                            link_param = f"#0" if localsize == 0 else f"#-{localsize}"
+                            self.emit(indent + f"link a6,{link_param}")
+                            
+                            # CRITICAL FIX: Save data register parameters immediately after link
+                            # to prevent them from being clobbered before use
+                            for param_name, (reg, offset) in saved_reg_params.items():
+                                self.emit(indent + f"move.l {reg},{-offset}(a6)  ; save {param_name} from {reg}")
+                            
+                            # If we have locals and using a4 as frame register, save a4 in allocated space
+                            if len(locals_info) > 0:
+                                if frame_reg == "a4":
+                                    # Save a4 at the bottom of the frame (it's part of link allocation)
+                                    # Frame layout: [locals...][saved_a4]
+                                    self.emit(indent + f"move.l a4,-{localsize}(a6)  ; save a4 in frame")
+                                    self.emit(indent + f"move.l a6,{frame_reg}  ; save frame pointer in {frame_reg}")
+                                else:
+                                    # Using a6 as frame pointer (no optimization)
+                                    self.emit(indent + f"move.l a6,{frame_reg}  ; save frame pointer in {frame_reg}")
 
                         # compile statements with frame register info
                         for stmt in it.body:
@@ -3290,16 +3298,18 @@ class CodeGen:
                         # if no explicit return, still emit epilogue+RTS (for void functions or missing returns)
                         has_return = any(isinstance(s, ast.Return) for s in it.body)
                         if not has_return:
-                            # epilogue: restore a4 if we saved it in the frame
-                            if len(locals_info) > 0 and frame_reg == "a4":
-                                # Calculate the offset where a4 was saved
-                                offset = 0
-                                for name, vtype, off in locals_info:
-                                    offset = max(offset, off)
-                                # Add 4 for the saved a4 itself (it's after locals)
-                                localsize = ((offset + 3) & ~3) + 4
-                                self.emit(indent + f"move.l -{localsize}(a6),a4  ; restore a4 from frame")
-                            self.emit(indent + "unlk a6")
+                            # Skip epilogue for native functions (no stack frame to restore)
+                            if not it.native:
+                                # epilogue: restore a4 if we saved it in the frame
+                                if len(locals_info) > 0 and frame_reg == "a4":
+                                    # Calculate the offset where a4 was saved
+                                    offset = 0
+                                    for name, vtype, off in locals_info:
+                                        offset = max(offset, off)
+                                    # Add 4 for the saved a4 itself (it's after locals)
+                                    localsize = ((offset + 3) & ~3) + 4
+                                    self.emit(indent + f"move.l -{localsize}(a6),a4  ; restore a4 from frame")
+                                self.emit(indent + "unlk a6")
                             self.emit(indent + "rts")
 
         optimized_lines = peepholeopt.peephole_optimize(self.lines)

@@ -64,11 +64,11 @@ class HasDefinitionProvider {
 
     /**
      * Find procedure definition in HAS source code
-     * Matches: proc name(...) -> type { ... }
+     * Matches: proc name(...) -> type { ... } or native proc name(...) -> type { ... }
      */
     findDefinitionInFile(fileContent, procedureName, fileUri) {
-        // Match: proc name(params...) -> type {
-        const procPattern = new RegExp(`\\bproc\\s+${this.escapeRegex(procedureName)}\\s*\\(`, 'g');
+        // Match: proc name(params...) -> type { or native proc name(params...) -> type {
+        const procPattern = new RegExp(`\\b(?:native\\s+)?proc\\s+${this.escapeRegex(procedureName)}\\s*\\(`, 'g');
         let match;
 
         while ((match = procPattern.exec(fileContent)) !== null) {
@@ -139,29 +139,31 @@ class HasHoverProvider {
 
         const procedureName = document.getText(word);
         
-        // Try to find the procedure signature
-        const procPattern = new RegExp(`\\bproc\\s+${this.escapeRegex(procedureName)}\\s*\\(([^)]*)\\)\\s*->\\s*(\\w+)`, 'g');
+        // Try to find the procedure signature (including native)
+        const procPattern = new RegExp(`\\b(native\\s+)?proc\\s+${this.escapeRegex(procedureName)}\\s*\\(([^)]*)\\)\\s*->\\s*(\\w+)`, 'g');
         let match = procPattern.exec(document.getText());
 
         if (match) {
-            const params = match[1].trim();
-            const returnType = match[2];
+            const nativeKeyword = match[1] ? 'native ' : '';
+            const params = match[2].trim();
+            const returnType = match[3];
             
-            let markdown = new vscode.MarkdownString(`\`\`\`has\nproc ${procedureName}(${params}) -> ${returnType}\n\`\`\``);
+            let markdown = new vscode.MarkdownString(`\`\`\`has\n${nativeKeyword}proc ${procedureName}(${params}) -> ${returnType}\n\`\`\``);
             markdown.isTrusted = true;
             
             return new vscode.Hover(markdown);
         }
 
-        // Try to find forward declaration (func)
-        const funcPattern = new RegExp(`\\bfunc\\s+${this.escapeRegex(procedureName)}\\s*\\(([^)]*)\\)\\s*->\\s*(\\w+)`, 'g');
+        // Try to find forward declaration (func, including native)
+        const funcPattern = new RegExp(`\\b(native\\s+)?func\\s+${this.escapeRegex(procedureName)}\\s*\\(([^)]*)\\)\\s*->\\s*(\\w+)`, 'g');
         match = funcPattern.exec(document.getText());
 
         if (match) {
-            const params = match[1].trim();
-            const returnType = match[2];
+            const nativeKeyword = match[1] ? 'native ' : '';
+            const params = match[2].trim();
+            const returnType = match[3];
             
-            let markdown = new vscode.MarkdownString(`\`\`\`has\nfunc ${procedureName}(${params}) -> ${returnType} // Forward declaration\n\`\`\``);
+            let markdown = new vscode.MarkdownString(`\`\`\`has\n${nativeKeyword}func ${procedureName}(${params}) -> ${returnType} // Forward declaration\n\`\`\``);
             markdown.isTrusted = true;
             
             return new vscode.Hover(markdown);

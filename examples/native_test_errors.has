@@ -1,0 +1,26 @@
+// Test that native functions with invalid parameters or locals produce errors
+
+code test_native_errors:
+
+    // ERROR: native function with stack-based parameter
+    native proc bad_native1(x: long) -> long {
+        asm {
+            move.l d0,d1
+        }
+        return;
+    }
+    
+    // ERROR: native function with local variable
+    native proc bad_native2(__reg(d0) x: long) -> long {
+        var temp: long;
+        temp = x + 1;
+        return temp;
+    }
+    
+    // OK: All register parameters, no locals
+    native proc good_native(__reg(d0) x: long, __reg(d1) y: long) -> long {
+        asm {
+            add.l d1,d0
+        }
+        return;
+    }

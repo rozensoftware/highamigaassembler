@@ -26,6 +26,7 @@ HAS bridges the gap between high-level languages and assembly programming. It of
 
 ### Core Language Features
 - **Procedures & Functions**: Forward declarations, external imports, calling conventions
+- **Native Functions**: Zero-overhead assembly functions with `native` keyword
 - **Data Types**: 8/16/32-bit integers, pointers, arrays, structs
 - **Control Flow**: if/else, for, while, do-while, break, continue
 - **Operators**: Arithmetic, bitwise, logical, shift, comparison
@@ -105,6 +106,7 @@ python -m hasc.cli hello.has -o hello.s
 
 ### Feature-Specific Documentation
 - **[docs/PROC_VS_FUNC_SUMMARY.md](docs/PROC_VS_FUNC_SUMMARY.md)** - Understanding `proc` vs `func` vs `extern func`
+- **[docs/NATIVE_KEYWORD.md](docs/NATIVE_KEYWORD.md)** - Zero-overhead native functions for performance-critical code
 - **[docs/OPERATORS.md](docs/OPERATORS.md)** - Complete operator reference
 - **[docs/BITWISE.md](docs/BITWISE.md)** - Bitwise and shift operations
 - **[docs/SHIFT_OPERATORS.md](docs/SHIFT_OPERATORS.md)** - Shift operation details
@@ -289,6 +291,17 @@ var ptr:ptr = null;
 ```has
 proc add(a:int, b:int) -> int {
     return a + b;
+}
+```
+
+### Native Functions (Zero-Overhead)
+```has
+// No stack frame overhead - ideal for performance-critical code
+native proc fast_add(__reg(d0) a:int, __reg(d1) b:int) -> int {
+    asm {
+        add.l d1,d0    ; Result in d0
+    }
+    return;
 }
 ```
 
