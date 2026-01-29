@@ -4,7 +4,7 @@ Thank you for your interest in contributing to the HAS (High Assembler) project!
 
 ## Project Status
 
-**Version 0.2 - In Constant Development**
+**Version 0.3 - In Constant Development**
 
 This compiler is actively being developed. We welcome contributions, bug reports, and suggestions.
 
@@ -141,7 +141,7 @@ Explain the problem this commit solves and why this approach was chosen.
 
 ### Areas Needing Help
 
-Current focus areas (Version 0.2):
+Current focus areas (Version 0.3):
 
 #### High Priority
 - **Test Suite**: Automated testing framework

@@ -1,6 +1,6 @@
 # HAS - High Assembler for Motorola 68000 (Amiga)
 
-**Version:** 0.2 (In Constant Development)
+**Version:** 0.3 (In Constant Development)
 
 > ⚠️ **NOT PRODUCTION READY** ⚠️
 >
@@ -28,6 +28,7 @@ HAS bridges the gap between high-level languages and assembly programming. It of
 - **Procedures & Functions**: Forward declarations, external imports, calling conventions
 - **Native Functions**: Zero-overhead assembly functions with `native` keyword
 - **Data Types**: 8/16/32-bit integers, pointers, arrays, structs
+- **Struct Pointers**: Arrow operator (`p->field`) for efficient member access
 - **Control Flow**: if/else, for, while, do-while, break, continue
 - **Operators**: Arithmetic, bitwise, logical, shift, comparison
 - **Memory Sections**: code, data, bss with automatic alignment
@@ -250,6 +251,7 @@ tools/                 # Asset conversion utilities
 ├── sprite_strip_importer.py # Hardware sprite strip converter
 ├── bob_importer.py    # Blitter object converter
 ├── bob_strip_importer.py # Blitter object strip converter
+├── tile_importer.py   # Tile graphics converter
 ├── frame_merger.py    # Assembly frame file merger
 ├── c64_font_converter.py  # C64 font importer
 ├── c64_sprites_to_bobs.py # C64 sprite converter
@@ -447,7 +449,7 @@ HAS follows Motorola 68000 standard calling convention:
 
 ## 🛠️ Development Status
 
-**Version 0.2** - In Constant Development
+**Version 0.3** - In Constant Development
 
 This compiler is actively being developed. Current focus areas:
 - Enhanced optimization passes

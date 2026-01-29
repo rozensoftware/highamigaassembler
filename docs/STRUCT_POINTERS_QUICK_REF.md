@@ -61,20 +61,20 @@ proc DrawBullets() -> void
     for i = 0 to MAX_BULLETS
     {
         b = &bullet[i];             // <<< CALCULATE ONCE
-        if ((*b).active == 1)       // <<< USE POINTER
+        if (b->active == 1)         // <<< USE ARROW OPERATOR
         {
-            delay = (*b).anim_delay;
+            delay = b->anim_delay;
             if (delay > 0)
             {
                 delay = delay - 1;
-                (*b).anim_delay = delay;
+                b->anim_delay = delay;
             }
             else
             {
-                (*b).anim_delay = ANIM_DELAY;
-                frame = (*b).frame;
-                x = (*b).x;
-                y = (*b).y;
+                b->anim_delay = ANIM_DELAY;
+                frame = b->frame;
+                x = b->x;
+                y = b->y;
                 
                 bob_id = i + 10;
                 DrawBob(bob_id, x, y, frame);
@@ -83,7 +83,7 @@ proc DrawBullets() -> void
                 if (frame >= BULLET_FRAMES) {
                     frame = 0;
                 }
-                (*b).frame = frame;
+                b->frame = frame;
             }
         }
     }
@@ -102,12 +102,14 @@ proc DrawBullets() -> void
    b = &bullet[i];
    ```
 
-3. **Replace all `bullet[i]` with `(*b)`**:
+3. **Replace all `bullet[i]` with `b->`** (arrow operator):
    ```has
-   bullet[i].active  →  (*b).active
-   bullet[i].x       →  (*b).x
-   bullet[i].frame   →  (*b).frame
+   bullet[i].active  →  b->active
+   bullet[i].x       →  b->x
+   bullet[i].frame   →  b->frame
    ```
+
+   Or use explicit dereference `(*b).field` if you prefer.
 
 ## When to Use
 
@@ -149,21 +151,21 @@ proc UpdateEnemies() -> void {
     for i = 0 to MAX_ENEMY_ROBOTS {
         e = &enemies[i];              // Get address once
         
-        if ((*e).active == 1) {
+        if (e->active == 1) {         // Use arrow operator
             // Update position
-            (*e).x = (*e).x + (*e).dir_x;
-            (*e).y = (*e).y + (*e).dir_y;
+            e->x = e->x + e->dir_x;
+            e->y = e->y + e->dir_y;
             
             // Update animation
-            (*e).anim_delay = (*e).anim_delay - 1;
-            if ((*e).anim_delay == 0) {
-                (*e).frame = ((*e).frame + 1) & 3;
-                (*e).anim_delay = ANIM_DELAY;
+            e->anim_delay = e->anim_delay - 1;
+            if (e->anim_delay == 0) {
+                e->frame = (e->frame + 1) & 3;
+                e->anim_delay = ANIM_DELAY;
             }
             
             // Check bounds
-            if ((*e).x < 0 || (*e).x > 320) {
-                (*e).dir_x = -(*e).dir_x;
+            if (e->x < 0 || e->x > 320) {
+                e->dir_x = -e->dir_x;
             }
         }
     }
@@ -172,14 +174,19 @@ proc UpdateEnemies() -> void {
 
 ## Common Mistakes to Avoid
 
-### ❌ Wrong: Missing parentheses
+### ✗ Wrong: Missing parentheses with explicit dereference
 ```has
 *p.field      // Parser error!
 ```
 
-### ✓ Correct: Use parentheses
+### ✓ Correct: Use arrow operator (recommended)
 ```has
-(*p).field    // Works!
+p->field      // Clean and works!
+```
+
+### ✓ Correct: Or use parentheses with explicit dereference
+```has
+(*p).field    // Also works!
 ```
 
 ### ❌ Wrong: Don't get address multiple times
@@ -195,7 +202,7 @@ for i = 0 to MAX_BULLETS {
 var b:bullet*;
 for i = 0 to MAX_BULLETS {
     b = &bullet[i];                // Assign in loop
-    (*b).x = 100;
+    b->x = 100;                    // Use arrow operator
 }
 ```
 

@@ -1,9 +1,9 @@
 HAS - High Assembler for Motorola 68000 (Amiga)
-Version 0.2
+Version 0.3
 
 Status: In Constant Development
 
-Release Date: December 31, 2025
+Release Date: January 29, 2026
 
 Major Features in This Version:
 - Complete 68000 assembly code generation
@@ -25,6 +25,9 @@ Major Features in This Version:
 - Constant evaluation at compile-time
 - Type system with automatic promotion
 - Struct declarations
+- Struct pointers with arrow operator (p->field)
+- Native keyword for zero-overhead assembly functions
+- Tile graphics importer tool
 
 Known Limitations:
 - No floating-point support

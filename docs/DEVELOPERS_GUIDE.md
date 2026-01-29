@@ -490,6 +490,56 @@ code null_checks:
     }
 ```
 
+### Struct Pointers with Arrow Operator
+
+HAS supports C-style arrow operator (`->`) for accessing struct members through pointers:
+
+```has
+data types:
+    struct Player {
+        x: word;
+        y: word;
+        health: byte;
+        active: byte;
+    }
+
+data game:
+    player: Player[10];
+
+code game_logic:
+    proc update_player(index: int) -> void {
+        var p: Player*;
+        
+        p = &player[index];     ; Get pointer to array element
+        
+        ; Arrow operator (recommended - clean and readable)
+        p->x = p->x + 5;
+        p->y = p->y + 10;
+        p->health = p->health - 1;
+        
+        ; Equivalent explicit dereference (also works)
+        (*p).x = (*p).x + 5;
+        (*p).y = (*p).y + 10;
+    }
+```
+
+**Performance Benefit:** Struct pointers cache the address calculation, reducing code size and execution time when accessing multiple fields:
+
+```has
+; Without pointer: 6 array index calculations
+player[i].x = 10;
+player[i].y = 20;
+player[i].health = 100;
+
+; With pointer: 1 address calculation + reuse
+p = &player[i];
+p->x = 10;
+p->y = 20;
+p->health = 100;
+```
+
+See [docs/STRUCT_POINTERS.md](STRUCT_POINTERS.md) for detailed documentation and performance analysis.
+
 ---
 
 ## Control Flow
@@ -574,37 +624,6 @@ code for_loops:
     proc countdown(start: long) -> long {
         for i = start downto 0 {
             ; Process each i
-        }
-        return 0;
-    }
-```
-
-### DBRA Loop (68000 Specific)
-
-Note: The high-level DBRA loop syntax (`for i = count dbra { ... }`) is not implemented in the current compiler. Use inline 68000 assembly or a standard `while` loop instead.
-
-Inline 68000 assembly example:
-```has
-code dbra_loop:
-    proc fast_loop(count: long) -> long {
-        var c16: word = count;        ; dbra operates on 16-bit
-        asm {
-            move.w c16,d0            ; load loop counter
-.loop:
-            ; loop body here
-            dbra d0,.loop            ; decrement and branch while d0 != -1
-        }
-        return 0;
-    }
-```
-
-High-level alternative using a while loop:
-```has
-code dbra_loop_alt:
-    proc fast_loop(count: long) -> long {
-        while (count > 0) {
-            ; loop body here
-            count = count - 1;
         }
         return 0;
     }

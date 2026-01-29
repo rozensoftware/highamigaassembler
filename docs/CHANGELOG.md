@@ -2,6 +2,40 @@
 
 All notable changes to the HAS (High Assembler) project will be documented in this file.
 
+## [0.3] - 2026-01-29
+
+### New Features
+
+#### Language Enhancements
+- **Native Keyword**: Zero-overhead assembly functions with `native` keyword
+  - Eliminates stack frame setup/teardown (`link`/`unlk` instructions)
+  - Requires all parameters to be register-based (`__reg`)
+  - No local variable allocation allowed
+  - Ideal for performance-critical assembly-only functions
+  - See [docs/NATIVE_KEYWORD.md](NATIVE_KEYWORD.md) for details
+
+- **Struct Pointer Arrow Operator**: C-style arrow syntax for cleaner code
+  - `p->field` as syntactic sugar for `(*p).field`
+  - Significantly improves code readability
+  - Same performance as explicit dereference
+  - Both syntaxes supported and produce identical assembly
+  - See [docs/STRUCT_POINTERS.md](STRUCT_POINTERS.md) for details
+
+#### Tools
+- **Tile Graphics Importer**: New `tile_importer.py` tool for converting tile-based graphics
+
+#### Documentation
+- Comprehensive documentation for native keyword feature
+- Updated struct pointer documentation with arrow operator examples
+- Removed deprecated DBRA loop syntax documentation
+- Added native keyword to VS Code extension syntax highlighting
+- Updated README with new features
+
+### Improvements
+- VS Code extension now recognizes `native` keyword
+- "Go to Definition" and hover support for native functions
+- Better organization of asset conversion tools in documentation
+
 ## [0.2] - 2025-12-31
 
 ### Major Features

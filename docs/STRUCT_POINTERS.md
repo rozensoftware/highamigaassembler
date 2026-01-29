@@ -20,8 +20,12 @@ p = &enemies[i];        // Get address of enemies[i] in loop
 
 ### Accessing Through Pointer
 ```has
-(*p).x = 100;           // Write to field through pointer
-var frame = (*p).frame; // Read from field through pointer
+// Two syntaxes supported:
+p->x = 100;             // Arrow operator (recommended)
+var frame = p->frame;   // Cleaner and more readable
+
+(*p).x = 100;           // Explicit dereference (also works)
+var frame = (*p).frame; // Equivalent to arrow operator
 ```
 
 ## Use Case: Performance Optimization
@@ -66,11 +70,11 @@ proc UpdateBullets() -> void {
     
     for i = 0 to MAX_BULLETS {
         b = &bullet[i];                      // Calculate once
-        if ((*b).active == 1) {
-            // Reuse cached address
-            (*b).x = (*b).x + (*b).dir_x;
-            (*b).y = (*b).y + (*b).dir_y;
-            (*b).frame = ((*b).frame + 1) & 3;
+        if (b->active == 1) {
+            // Reuse cached address with arrow operator
+            b->x = b->x + b->dir_x;
+            b->y = b->y + b->dir_y;
+            b->frame = (b->frame + 1) & 3;
         }
     }
 }
@@ -198,22 +202,29 @@ Don't bother for:
 
 ## Limitations
 
-### Current Syntax
+### Syntax Options
 
-The dereference syntax requires parentheses:
+#### Arrow Operator (Recommended)
+
+C-style arrow operator for cleaner syntax:
 ```has
-(*p).field    // ✓ Correct
+p->field      // ✓ Recommended - clean and readable
+p->x = 100;
+var y = p->y;
+```
+
+#### Explicit Dereference
+
+Direct dereference syntax (requires parentheses):
+```has
+(*p).field    // ✓ Also works - more explicit
+(*p).x = 100;
+var y = (*p).y;
+
 *p.field      // ✗ Won't work - ambiguous parsing
 ```
 
-### Arrow Operator
-
-C-style arrow operator not supported:
-```has
-p->field      // ✗ Not implemented
-```
-
-Use `(*p).field` instead. This is more explicit and matches the 68000 assembly model.
+**Note:** The arrow operator `p->field` is syntactic sugar that the compiler translates to `(*p).field` internally. Both produce identical assembly code.
 
 ### Pointer Arithmetic
 
