@@ -14,21 +14,26 @@ Integrating Python code generation into HAS would allow runtime code synthesis a
 
 ```has
 code generated:
-    @python """
-    # Python code runs at compile time
-    def generate_unroll_loop(count, body):
-        code = ""
-        for i in range(count):
-            code += f"    {body}\n"
-        return code
-    
-    result = generate_unroll_loop(4, "add d1,d0")
-    """
-    
     proc unrolled_add() -> int {
         var result:int = 0;
-        @python: result = generate_unroll_loop(4, "add.l #1,d0")
+        
+        // Inline string syntax
+        @python "result_val = 10 * 4; generated_code = f'result = {result_val};'";
+        
         return result;
+    }
+    
+    proc block_example() -> int {
+        var total:int = 0;
+        
+        // Block syntax for multi-line Python
+        @python {
+import math
+values = [i * 10 for i in range(5)]
+generated_code = "total = " + str(sum(values)) + ";"
+        }
+        
+        return total;
     }
 ```
 
@@ -53,16 +58,14 @@ Assembly output
 ### Implementation
 
 ```python
-# In parser.py - Add to grammar
+# In parser.py - Grammar (already implemented)
 GRAMMAR = r"""
 ...
 ?stmt: ... | python_stmt
 
 python_stmt: "@python" STRING ";"
-          | "@python" "{" multiline_code "}"
 
-multiline_code: /\{PYTHON_\d+\}/
-PYTHON_BLOCK: /\{PYTHON_\d+\}/
+# Block syntax: @python { code } is preprocessed to @python "PYTHON_0";
 ...
 """
 
@@ -76,21 +79,25 @@ def python_stmt(self, items):
 class PythonStmt:
     code: str  # Python code to execute
 
-# In codegen.py - Execute and inject
+# In codegen.py - Execute and inject (already implemented)
 elif isinstance(stmt, ast.PythonStmt):
-    result = self._execute_python(stmt.code, self.python_context)
-    # Inject generated statements back
-    for generated_stmt in result:
-        self._emit_stmt(generated_stmt, ...)
-
-def _execute_python(self, code, context):
-    """Execute Python code with safe HAS API"""
-    sandbox = {
-        '__builtins__': {'range', 'len', 'str', 'list', 'dict'},
-        'HAS': self.python_context,  # HAS API
+    # Execute Python code in sandboxed environment
+    sandbox_globals = {
+        '__builtins__': {
+            'range': range, 'len': len, 'list': list, 'dict': dict,
+            'str': str, 'int': int, 'float': float, 'sum': sum,
+            'max': max, 'min': min, 'abs': abs, 'enumerate': enumerate,
+            '__import__': __import__,  # Allow imports
+        },
+        'math': math,  # Common module
     }
-    exec(code, sandbox)
-    return sandbox.get('generated_code', [])
+    exec(stmt.code, sandbox_globals)
+    
+    # Check if 'generated_code' variable was set
+    if 'generated_code' in sandbox_globals:
+        generated = sandbox_globals['generated_code']
+        # Parse and emit the generated HAS code
+        # ... (parsing logic)
 ```
 
 ### Advantages
@@ -368,27 +375,36 @@ python3 -m hasc.cli generated.has -o out.s
 
 ## Example Use Cases
 
-### Use Case 1: Loop Unrolling
+### Use Case 1: Loop Unrolling (with @python directive)
 
-```python
-# unroll.py
-def unroll_loop(iterations, body):
-    for i in range(iterations):
-        print(f"    ; Iteration {i}")
-        print(f"    {body}")
-        print(f"    add.l #1,d0")
-
-code = """
+```has
 code mycode:
     proc optimized_loop() -> int {
         var count:int = 0;
         
-        """
+        // Generate 4 unrolled increment statements
+        @python {
+statements = ""
 for i in range(4):
-    code += "    count += 1;\n"
-code += "        return count;"
-code += "    }"
-print(code)
+    statements += "count = count + 1;\n        "
+generated_code = statements
+        }
+        
+        return count;
+    }
+```
+
+### Use Case 1b: External Generator
+
+```python
+# unroll.py - External pre-processor
+print("code mycode:")
+print("    proc optimized_loop() -> int {")
+print("        var count:int = 0;")
+for i in range(4):
+    print("        count = count + 1;")
+print("        return count;")
+print("    }")
 ```
 
 ### Use Case 2: Table Generation

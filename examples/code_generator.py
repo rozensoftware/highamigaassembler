@@ -2,87 +2,72 @@
 """
 Example: Code generator for High Assembler
 Demonstrates Phase 1 (External Python) integration
-Run this to generate HAS code, then compile with hasc
+Run this to generate HAS code, then compile with hasc:
+  python3 code_generator.py | python3 -m hasc.cli /dev/stdin -o output.s
+
+Note: This generates HAS source code (not assembly).
+For direct assembly generation, modify to output .s format instead.
 """
 
 import math
 
-def generate_sin_table(entries=256):
-    """Generate sine lookup table"""
+def generate_lookup_arrays():
+    """Generate sine and cosine lookup arrays as HAS data"""
+    entries = 64  # Reduced size for compilation speed
     code = "data math_tables:\n"
-    code += "sin_table:\n"
+    
+    # Generate sin values as array (offset to avoid negatives)
+    sin_values = []
     for i in range(entries):
         angle = (i / entries) * math.pi * 2
-        value = int(32767 * math.sin(angle))
-        code += f"    dc.w {value}\n"
-    return code
-
-def generate_cos_table(entries=256):
-    """Generate cosine lookup table"""
-    code = "cos_table:\n"
+        value = int(127 * math.sin(angle)) + 128  # Offset to 0-255 range
+        sin_values.append(str(value))
+    code += f"    sin_table.b[{entries}] = {{ {', '.join(sin_values)} }}\n\n"
+    
+    # Generate cos values as array (offset to avoid negatives)
+    cos_values = []
     for i in range(entries):
         angle = (i / entries) * math.pi * 2
-        value = int(32767 * math.cos(angle))
-        code += f"    dc.w {value}\n"
-    return code
-
-def generate_dispatch_table(opcodes):
-    """Generate opcode dispatch table"""
-    code = "opcode_dispatch:\n"
-    for i, opcode in enumerate(opcodes):
-        code += f"    dc.l handle_{opcode}\n"
+        value = int(127 * math.cos(angle)) + 128  # Offset to 0-255 range
+        cos_values.append(str(value))
+    code += f"    cos_table.b[{entries}] = {{ {', '.join(cos_values)} }}\n"
+    
     return code
 
 def generate_opcodes(opcodes):
-    """Generate opcode handler stubs"""
+    """Generate opcode handler procedures"""
     code = "code opcode_handlers:\n"
     for opcode in opcodes:
         code += f"    proc handle_{opcode}() -> int {{\n"
-        code += f"        ; Handler for {opcode}\n"
-        code += f"        return 0;\n"
+        code += f"        var status:int = 0;\n"
+        code += f"        return status;\n"
         code += f"    }}\n\n"
     return code
 
 def generate_vector_operations(vector_size=8):
-    """Generate SIMD vector operation stubs"""
+    """Generate vector operation procedures"""
     code = "code vector_ops:\n"
     
     ops = ['add', 'sub', 'mul']
     for op in ops:
-        code += f"    proc vector_{op}(a0:int*, a1:int*, d0:int) -> int {{\n"
+        code += f"    proc vector_{op}(__reg(a0) src:ptr, __reg(a1) dst:ptr, __reg(d0) count:int) -> int {{\n"
         code += f"        var i:int = 0;\n"
-        code += f"        while(i < d0) {{\n"
-        code += f"            ; Vector {op} operation\n"
-        code += f"            i++;\n"
+        code += f"        while(i < count) {{\n"
+        code += f"            i = i + 1;\n"
         code += f"        }}\n"
         code += f"        return 0;\n"
         code += f"    }}\n\n"
     
     return code
 
-def generate_loop_unroll(iterations=4, body="add.l #1,d0"):
-    """Generate unrolled loop assembly"""
-    code = "    ; Unrolled loop ({} iterations)\n".format(iterations)
-    for i in range(iterations):
-        code += f"    {body}  ; Iteration {i}\n"
-    return code
-
 def main():
     """Generate complete HAS code"""
-    print("; Generated High Assembler code")
-    print("; Auto-generated from Python - DO NOT EDIT")
-    print()
-    
     # Math tables
-    print(generate_sin_table(256))
-    print()
-    print(generate_cos_table(256))
+    print(generate_lookup_arrays())
     print()
     
     # Opcode handlers
     opcodes = ['NOP', 'LOAD', 'STORE', 'ADD', 'SUB']
-    print(generate_dispatch_table(opcodes))
-    print()
     print(generate_opcodes(opcodes))
     print()
     

@@ -1,4 +1,4 @@
-// Python Directive Example - Phase 4: @python Compile-Time Generation
+// Python Directive Example - Phase 3: @python Compile-Time Generation
 // Demonstrates using Python code to generate HAS code at compile time
 
 code generated:
