@@ -25,6 +25,7 @@ HAS bridges the gap between high-level languages and assembly programming. It of
 ## 📋 Features
 
 ### Core Language Features
+
 - **Procedures & Functions**: Forward declarations, external imports, calling conventions
 - **Native Functions**: Zero-overhead assembly functions with `native` keyword
 - **Data Types**: 8/16/32-bit integers, pointers, arrays, structs
@@ -36,6 +37,7 @@ HAS bridges the gap between high-level languages and assembly programming. It of
 - **Inline Assembly**: Full control with `asm { ... }` blocks
 
 ### Advanced Features
+
 - **Macro System (Phase 2)**: Define reusable code patterns
 - **@python Directive (Phase 4)**: Execute Python code during compilation
 - **Include System**: Modular code organization with `#include`
@@ -44,6 +46,7 @@ HAS bridges the gap between high-level languages and assembly programming. It of
 - **Register Locking**: `#pragma lockreg()` to protect registers from compiler allocation
 
 ### Amiga-Specific
+
 - **Hardware Registers**: Direct access to Amiga chipset
 - **Graphics Library Interface**: Copper lists, HAM6 mode, sprites, blitter objects
 - **Heap Management**: Dynamic memory allocation primitives
@@ -58,11 +61,13 @@ HAS bridges the gap between high-level languages and assembly programming. It of
    - `vasm` and `vlink` (for assembly and linking) - optional but recommended
 
 2. **Install Python dependencies**:
+
    ```bash
    pip install -r requirements.txt
    ```
 
 3. **Verify installation**:
+
    ```bash
    python -m hasc.cli --help
    ```
@@ -87,11 +92,13 @@ code main:
 **Note:** HAS executes from top to bottom like traditional assembly. There is no automatic "main()" entry point - execution starts at the first instruction in your code section. See [docs/DEVELOPERS_GUIDE.md](docs/DEVELOPERS_GUIDE.md) for details on execution order.
 
 **Compile to assembly**:
+
 ```bash
 python -m hasc.cli hello.has -o hello.s
 ```
 
 **Assemble and link** (requires vasm/vlink):
+
 ```bash
 ./scripts/build.sh hello.s hello.o hello.exe
 ```
@@ -99,12 +106,14 @@ python -m hasc.cli hello.has -o hello.s
 ## 📖 Documentation
 
 ### Essential Guides
+
 - **[docs/QUICK_START_ALL_PHASES.md](docs/QUICK_START_ALL_PHASES.md)** - Complete tutorial for all features
 - **[docs/COMPILER_DEVELOPERS_GUIDE.md](docs/COMPILER_DEVELOPERS_GUIDE.md)** - Architecture and internals
 - **[docs/DEVELOPERS_GUIDE.md](docs/DEVELOPERS_GUIDE.md)** - Language reference and usage patterns
 - **[docs/COMPILER_FEATURES_SUMMARY.md](docs/COMPILER_FEATURES_SUMMARY.md)** - Feature overview
 
 ### Feature-Specific Documentation
+
 - **[docs/PROC_VS_FUNC_SUMMARY.md](docs/PROC_VS_FUNC_SUMMARY.md)** - Understanding `proc` vs `func` vs `extern func`
 - **[docs/NATIVE_KEYWORD.md](docs/NATIVE_KEYWORD.md)** - Zero-overhead native functions for performance-critical code
 - **[docs/OPERATORS.md](docs/OPERATORS.md)** - Complete operator reference
@@ -115,6 +124,7 @@ python -m hasc.cli hello.has -o hello.s
 - **[docs/TERMINOLOGY.md](docs/TERMINOLOGY.md)** - Language and architecture terminology
 
 ### Implementation Details
+
 - **[docs/ARRAY_ACCESS_IMPLEMENTATION.md](docs/ARRAY_ACCESS_IMPLEMENTATION.md)** - Array indexing details
 - **[docs/GETREG_SETREG_IMPLEMENTATION.md](docs/GETREG_SETREG_IMPLEMENTATION.md)** - Direct register manipulation
 - **[docs/INCLUDE_SYSTEM_COMPLETION.md](docs/INCLUDE_SYSTEM_COMPLETION.md)** - Module system details
@@ -126,35 +136,41 @@ python -m hasc.cli hello.has -o hello.s
 The `examples/` directory contains numerous demonstrations:
 
 ### Basic Examples
+
 - `add.has` - Simple arithmetic operations
 - `vars_test.has` - Variable declarations and initialization
 - `types_demo.has` - Data type demonstrations
 - `const_demo.has` - Constant usage
 
 ### Control Flow
+
 - `loops_test.has` - for, while, do-while loops
 - `break_continue_test.has` - Loop control statements
 - `comprehensive_operators.has` - All operator types
 
 ### Arrays and Pointers
+
 - `arrays_test.has` - Array declarations and access
 - `array_comprehensive_test.has` - Advanced array operations
 - `pointers.has` - Pointer operations and dereferencing
 - `address_of.has` - Address-of operator examples
 
 ### Advanced Features
+
 - `macro_example.has` - Macro system usage
 - `python_directive.has` - @python directive examples
 - `asm_comprehensive_test.has` - Inline assembly
 - `include_test.has` - Module inclusion
 
 ### Amiga-Specific
+
 - `graphics_test.has` - Graphics library usage
 - `ham6_display_test.has` - HAM6 mode graphics
 - `heap_test.has` - Memory allocation
 - `getreg_setreg_test.has` - Hardware register access
 
 ### Complete Game Examples
+
 - `games/launchers/` - **Launchers**: A complete space shooter game demonstrating:
   - HAM6 background graphics
   - Hardware sprites for player targeting pointer
@@ -167,22 +183,26 @@ The `examples/` directory contains numerous demonstrations:
   - Full game loop with multiple screens
 
 ### Code Generation
+
 - `code_generator.py` - External Python code generation (Phase 1)
 - `simple_generator.py` - Simple generation example
 
 ## 🔧 Usage
 
 ### Basic Compilation
+
 ```bash
 python -m hasc.cli input.has -o output.s
 ```
 
 ### With External Code Generation (Phase 1)
+
 ```bash
 python -m hasc.cli main.has --generate generator.py -o output.s
 ```
 
 The generator script should print HAS code to stdout:
+
 ```python
 #!/usr/bin/env python3
 def main():
@@ -196,11 +216,13 @@ if __name__ == "__main__":
 ```
 
 ### Skip Validation (for testing)
+
 ```bash
 python -m hasc.cli input.has --no-validate -o output.s
 ```
 
 ### Build Complete Executable
+
 ```bash
 # Compile HAS to assembly
 python -m hasc.cli program.has -o program.s
@@ -262,6 +284,7 @@ docs/                  # Additional documentation
 The project includes a **VS Code extension** for enhanced development experience:
 
 **Features:**
+
 - **Syntax Highlighting** - Colorized HAS code with proper keywords, registers, and literals
 - **Code Navigation** - Jump to procedure definitions (Ctrl+Click, F12)
 - **Find References** - Locate all usages of procedures (Shift+F12)
@@ -269,6 +292,7 @@ The project includes a **VS Code extension** for enhanced development experience
 - **Cross-File Navigation** - Navigate between `.has` files and `.s` assembly files
 
 **Installation:**
+
 1. Navigate to the vscode-highamigassembler folder
 2. Press SHIFT-CTRL-P and select: "Developer: Install extension from Location.."
 3. Browse to the folder mentioned in step 1
@@ -279,6 +303,7 @@ See [vscode-highamigassembler/README.md](vscode-highamigassembler/README.md) for
 ### Language Basics
 
 ### Variable Declaration
+
 ```has
 var x:int = 42;
 var y:word = 0x1234;
@@ -286,6 +311,7 @@ var ptr:ptr = null;
 ```
 
 ### Procedures
+
 ```has
 proc add(a:int, b:int) -> int {
     return a + b;
@@ -293,6 +319,7 @@ proc add(a:int, b:int) -> int {
 ```
 
 ### Native Functions (Zero-Overhead)
+
 ```has
 // No stack frame overhead - ideal for performance-critical code
 native proc fast_add(__reg(d0) a:int, __reg(d1) b:int) -> int {
@@ -304,6 +331,7 @@ native proc fast_add(__reg(d0) a:int, __reg(d1) b:int) -> int {
 ```
 
 ### Forward Declarations
+
 ```has
 func helper(x:int) -> int;  // Forward declaration
 
@@ -317,17 +345,21 @@ proc helper(x:int) -> int {
 ```
 
 ### External Functions
+
 ```has
-extern func printf(format:ptr, ...);  // Import from library
+extern func printf(format:ptr);  // Import from library
 
 code main:
     proc main() -> int {
-        printf("Hello, Amiga!\n");
+        printf(&txt);
         return 0;
     }
+data txt_data:
+    txt.b = "Hello Amiga!",0
 ```
 
 ### Arrays
+
 ```has
 data globals:
     table:int[10] = { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 };
@@ -341,6 +373,7 @@ code main:
 ```
 
 ### Inline Assembly
+
 ```has
 proc custom_operation() -> void {
     asm {
@@ -352,6 +385,7 @@ proc custom_operation() -> void {
 ```
 
 ### Macros
+
 ```has
 macro SWAP(a, b) {
     var temp = a;
@@ -372,7 +406,7 @@ code main:
 
 The `#pragma lockreg(register)` directive prevents the compiler from using specific registers for temporary values or spilling operations. This is **critical** when interfacing with Amiga system libraries that expect certain registers to remain unchanged.
 
-**Common Use Case: CUSTOM Chip Base Address**
+#### Common Use Case: CUSTOM Chip Base Address
 
 Many Amiga libraries and system routines use register `a5` to hold the CUSTOM chip base address (`$DFF000`). When calling these libraries, you must ensure the compiler doesn't modify `a5`:
 
@@ -405,12 +439,14 @@ code main:
 4. **Register Allocator**: Without `lockreg`, the compiler might use `a5` for temporaries, corrupting the base pointer
 
 **Syntax:**
+
 ```has
 #pragma lockreg(a5);        // Lock a single register
 #pragma lockreg(a5, a4);    // Lock multiple registers (comma-separated)
 ```
 
 **Locked Registers Are:**
+
 - Never allocated for temporary values
 - Never used for register spilling
 - Never modified by compiler-generated code
@@ -448,6 +484,7 @@ HAS follows Motorola 68000 standard calling convention:
 **Version 0.3** - In Constant Development
 
 This compiler is actively being developed. Current focus areas:
+
 - Enhanced optimization passes
 - Improved error messages
 - Additional Amiga hardware abstractions
@@ -498,10 +535,12 @@ This compiler is actively being developed. Current focus areas:
 ## 🔗 Requirements
 
 **Python Dependencies** (see requirements.txt):
+
 - `lark-parser` - Parser generator
 - `Pillow` (PIL) - Image processing (optional, for asset tools)
 
 **External Tools** (optional, for full build):
+
 - `vasm` - Motorola 68000 assembler
 - `vlink` - Linker for Amiga executables
 - Amiga emulator (e.g., FS-UAE, WinUAE) for testing
@@ -534,6 +573,6 @@ These tools generate assembly `.s` files that can be included in your HAS projec
 
 ---
 
-**Happy Amiga Programming! 🖥️**
+## Happy Amiga Programming! 🖥️
 
 For detailed documentation, see the markdown files in this directory or explore the examples folder.
