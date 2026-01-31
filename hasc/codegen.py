@@ -846,17 +846,15 @@ class CodeGen:
                     code.append(f"    move.l #0,{reg_left}")
                     return code
             
-            # Global array access
+            # Global array or pointer access
             if len(expr.indices) == 1:
-                # 1D array: arr[index]
-                # Calculate: base_address + index * element_size
+                # 1D array: arr[index] OR pointer dereference: ptr[index]
+                # Distinguish between true arrays and pointer variables
                 
-                # Determine element size
-                elem_size_suffix = 'l'  # default
-                elem_bytes = 4
-                shift_amount = 2  # for 4-byte elements
+                is_array = name in self.array_dims
                 
-                if name in self.array_dims:
+                if is_array:
+                    # TRUE ARRAY: Calculate base_address + index * element_size
                     elem_size_suffix = self.array_dims[name]['size']
                     if elem_size_suffix == 'b':
                         elem_bytes = 1
@@ -867,33 +865,52 @@ class CodeGen:
                     else:  # 'l'
                         elem_bytes = 4
                         shift_amount = 2
-                
-                # Check if index is a constant
-                if isinstance(expr.indices[0], ast.Number):
-                    # Constant index: generate direct offset
-                    index_val = expr.indices[0].value
-                    offset = index_val * elem_bytes
-                    size_suffix = ast.size_suffix(elem_bytes)
                     
-                    if offset == 0:
-                        code.append(f"    move{size_suffix} {name},{reg_left}")
+                    # Check if index is a constant
+                    if isinstance(expr.indices[0], ast.Number):
+                        # Constant index: generate direct offset
+                        index_val = expr.indices[0].value
+                        offset = index_val * elem_bytes
+                        size_suffix = ast.size_suffix(elem_bytes)
+                        
+                        if offset == 0:
+                            code.append(f"    move{size_suffix} {name},{reg_left}")
+                        else:
+                            code.append(f"    move{size_suffix} {name}+{offset},{reg_left}")
                     else:
-                        code.append(f"    move{size_suffix} {name}+{offset},{reg_left}")
+                        # Variable index: generate runtime calculation
+                        code.append(f"    lea {name},a0")
+                        
+                        # Evaluate index into d1
+                        index_code = self._emit_expr(expr.indices[0], params, locals_info, "d1", "d2", target_type="int", frame_reg=frame_reg)
+                        code.extend(index_code)
+                        
+                        # Scale index by element size if needed
+                        if shift_amount > 0:
+                            code.append(f"    lsl.l #{shift_amount},d1  ; multiply index by {elem_bytes}")
+                        
+                        # Load element with correct size
+                        size_suffix = ast.size_suffix(elem_bytes)
+                        code.append(f"    move{size_suffix} (a0,d1.l),{reg_left}")
                 else:
-                    # Variable index: generate runtime calculation
-                    code.append(f"    lea {name},a0")
+                    # POINTER VARIABLE: Load pointer value, then dereference
+                    # When a non-array global is indexed, treat it as a byte pointer by default
+                    # (since there's no type information about what it points to)
+                    elem_bytes = 1  # Default to byte pointer
+                    shift_amount = 0  # No shift for bytes
+                    
+                    # Load the pointer value into a0
+                    code.append(f"    move.l {name},a0")
                     
                     # Evaluate index into d1
                     index_code = self._emit_expr(expr.indices[0], params, locals_info, "d1", "d2", target_type="int", frame_reg=frame_reg)
                     code.extend(index_code)
                     
-                    # Scale index by element size if needed
-                    if shift_amount > 0:
-                        code.append(f"    lsl.l #{shift_amount},d1  ; multiply index by {elem_bytes}")
-                    
-                    # Load element with correct size
-                    size_suffix = ast.size_suffix(elem_bytes)
-                    code.append(f"    move{size_suffix} (a0,d1.l),{reg_left}")
+                    # For byte pointers, no scaling needed (shift_amount = 0)
+                    # Load byte element through pointer
+                    code.append(f"    move.b (a0,d1.l),{reg_left}")
+                    # Zero-extend byte to long
+                    code.append(f"    andi.l #$FF,{reg_left}")
                 
             elif len(expr.indices) == 2:
                 # 2D array: matrix[row][col]
