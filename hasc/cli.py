@@ -5,11 +5,32 @@ from . import parser, codegen, validator
 import os
 from lark.exceptions import LarkError, UnexpectedInput, UnexpectedToken, UnexpectedCharacters
 
+_internal_versiojn = "0.3"
+
+# Read version from VERSION file
+def _get_version():
+    try:
+        version_file = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "VERSION")
+        with open(version_file, "r", encoding="utf-8") as f:
+            for line in f:
+                if line.startswith("Version"):
+                    return line.split()[-1].strip()
+        return _internal_versiojn
+    except:
+        return _internal_versiojn
+
+__version__ = _get_version()
+__author__ = "Piotr Rozentreter"
 
 def main(argv=None):
-    ap = argparse.ArgumentParser(prog="hasc", description="High Assembler 68000 - prototype")
+    ap = argparse.ArgumentParser(
+        prog="hasc",
+        description="High Assembler 68000 - prototype",
+        epilog=f"Author: {__author__}"
+    )
     ap.add_argument("input", help="Input .has file")
     ap.add_argument("-o", "--output", help="Output assembly file", default="out.s")
+    ap.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
     ap.add_argument("--generate", help="Pre-process with Python script to generate code")
     ap.add_argument("--no-validate", action="store_true", help="Skip validation checks")
     args = ap.parse_args(argv)

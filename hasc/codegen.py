@@ -143,7 +143,8 @@ class CodeGen:
                     if isinstance(var, ast.StructVarDecl):
                         globals_map[var.name] = 'l'  # default width when used as scalar
                     else:
-                        size = var.size if var.size else (var.size_suffix if hasattr(var, 'size_suffix') else 'l')
+                        # Prioritize size_suffix over size (size is byte count, size_suffix is 'b'/'w'/'l')
+                        size = var.size_suffix if hasattr(var, 'size_suffix') and var.size_suffix else (var.size if var.size else 'l')
                         if size not in ('b', 'w', 'l'):
                             size = 'l'
                         globals_map[var.name] = size
@@ -181,15 +182,30 @@ class CodeGen:
         return info
 
     def _build_extern_vars(self, module: ast.Module):
-        """Collect extern variable declarations."""
-        extern_vars = set()
+        """Collect extern variable declarations with their sizes."""
+        extern_vars = {}
         for item in module.items:
             if isinstance(item, ast.CodeSection):
                 for code_item in item.items:
                     if isinstance(code_item, ast.ExternDecl) and code_item.kind == 'var':
-                        extern_vars.add(code_item.name)
+                        # Extract size from signature if available (e.g., "u8", "int", etc.)
+                        size = 'l'  # default to long
+                        if code_item.signature:
+                            sig = code_item.signature
+                            if sig in ('u8', 'i8', 'byte', 'UBYTE', 'BYTE'):
+                                size = 'b'
+                            elif sig in ('u16', 'i16', 'word', 'UWORD', 'WORD'):
+                                size = 'w'
+                        extern_vars[code_item.name] = size
             elif isinstance(item, ast.ExternDecl) and item.kind == 'var':
-                extern_vars.add(item.name)
+                size = 'l'
+                if item.signature:
+                    sig = item.signature
+                    if sig in ('u8', 'i8', 'byte', 'UBYTE', 'BYTE'):
+                        size = 'b'
+                    elif sig in ('u16', 'i16', 'word', 'UWORD', 'WORD'):
+                        size = 'w'
+                extern_vars[item.name] = size
         return extern_vars
 
     def _build_extern_funcs(self, module: ast.Module):
@@ -1048,7 +1064,24 @@ class CodeGen:
                     if param_obj in stack_params:
                         idx = stack_params.index(param_obj)
                         off = 8 + 4 * idx
-                        return [f"    move.l {off}(a6),{reg_left}"]
+                        # Get parameter type and size
+                        param_type = param_obj.ptype if param_obj.ptype else 'long'
+                        param_size = ast.type_size(param_type) if param_type else 4
+                        
+                        if param_size == 1:
+                            # Byte parameter - zero extend
+                            return [
+                                f"    move.l {off}(a6),{reg_left}",
+                                f"    andi.l #$FF,{reg_left}"
+                            ]
+                        elif param_size == 2:
+                            # Word parameter - zero extend
+                            return [
+                                f"    move.l {off}(a6),{reg_left}",
+                                f"    andi.l #$FFFF,{reg_left}"
+                            ]
+                        else:
+                            return [f"    move.l {off}(a6),{reg_left}"]
                     else:
                         return [f"    ; parameter {name} not found in stack_params", f"    move.l #0,{reg_left}"]
             
@@ -1068,8 +1101,25 @@ class CodeGen:
                     ]
                 else:
                     return [f"    move.l {name},{reg_left}"]
-            else:
-                self._fail(f"Undefined variable '{name}' in expression")
+            
+            # Check extern vars
+            if name in self.extern_vars:
+                size = self.extern_vars.get(name, 'l')
+                suffix = {'b': '.b', 'w': '.w', 'l': '.l'}.get(size, '.l')
+                if suffix == '.b':
+                    return [
+                        f"    move.b {name},{reg_left}",
+                        f"    andi.l #$FF,{reg_left}"
+                    ]
+                elif suffix == '.w':
+                    return [
+                        f"    move.w {name},{reg_left}",
+                        f"    andi.l #$FFFF,{reg_left}"
+                    ]
+                else:
+                    return [f"    move.l {name},{reg_left}"]
+            
+            self._fail(f"Undefined variable '{name}' in expression")
         if isinstance(expr, ast.BinOp):
             # Ensure registers are valid
             if reg_left is None or reg_left == 'None':
@@ -1848,9 +1898,16 @@ class CodeGen:
                 else:
                     lines.append(f"{indent}move.l {name},-(a7)")
                 return lines
-            # Extern variables (xref) are treated as long addresses
+            # Extern variables (xref)
             if name in self.extern_vars:
-                lines.append(f"{indent}move.l {name},-(a7)")
+                esize = self.extern_vars.get(name, 'l')
+                esuffix = {'b': '.b', 'w': '.w', 'l': '.l'}.get(esize, '.l')
+                if esuffix in ('.b', '.w'):
+                    lines.append(f"{indent}clr.l d0")
+                    lines.append(f"{indent}move{esuffix} {name},d0")
+                    lines.append(f"{indent}move.l d0,-(a7)")
+                else:
+                    lines.append(f"{indent}move.l {name},-(a7)")
                 return lines
             # Fallback: unresolved variable
             lines.append(f"{indent}; WARNING: unresolved variable {name}")
@@ -2393,8 +2450,9 @@ class CodeGen:
                         self.emit(indent + f"; arrays with >2 dimensions not supported for stores")
                 else:
                     # Scalar variable assignment
-                    self.emit(indent + f"; {target} = {expr_comment}")
-                    local_info = next((l for l in locals_info if l[0] == target), None)
+                    target_name = target.name if isinstance(target, ast.VarRef) else target
+                    self.emit(indent + f"; {target_name} = {expr_comment}")
+                    local_info = next((l for l in locals_info if l[0] == target_name), None)
                     if local_info:
                         name, vtype, offset = local_info
                         size = ast.type_size(vtype) if vtype else 4
@@ -2410,26 +2468,28 @@ class CodeGen:
                             self.emit(indent + f"move{suffix} d0,{-offset}({frame_reg})")
                     else:
                         # Global or extern variable assignment
-                        if isinstance(target, str) and target in self.globals:
-                            size_code = self.globals.get(target, 'l')
+                        if isinstance(target_name, str) and target_name in self.globals:
+                            size_code = self.globals.get(target_name, 'l')
                             suffix = { 'b': '.b', 'w': '.w', 'l': '.l' }.get(size_code, '.l')
                             # OPTIMIZATION: For simple constants, emit size-appropriate move directly
                             if isinstance(stmt.expr, ast.Number):
-                                self.emit(indent + f"move{suffix} #{stmt.expr.value},{target}")
+                                self.emit(indent + f"move{suffix} #{stmt.expr.value},{target_name}")
                             else:
                                 code = self._emit_expr(stmt.expr, params, locals_info, "d0", frame_reg=frame_reg)
                                 for l in code:
                                     for sub in str(l).splitlines():
                                         self.emit(sub if sub.startswith(indent) else indent + sub)
-                                self.emit(indent + f"move{suffix} d0,{target}")
-                        elif isinstance(target, str) and target in self.extern_vars:
+                                self.emit(indent + f"move{suffix} d0,{target_name}")
+                        elif isinstance(target_name, str) and target_name in self.extern_vars:
+                            size_code = self.extern_vars.get(target_name, 'l')
+                            suffix = { 'b': '.b', 'w': '.w', 'l': '.l' }.get(size_code, '.l')
                             code = self._emit_expr(stmt.expr, params, locals_info, "d0", frame_reg=frame_reg)
                             for l in code:
                                 for sub in str(l).splitlines():
                                     self.emit(sub if sub.startswith(indent) else indent + sub)
-                            self.emit(indent + f"move.l d0,{target}")
+                            self.emit(indent + f"move{suffix} d0,{target_name}")
                         else:
-                            self.emit(indent + f"; assign to unknown target {target}")
+                            self.emit(indent + f"; assign to unknown target {target_name}")
         elif isinstance(stmt, ast.CompoundAssign):
             # Compound assignment: x += 5, x -= 3, etc.
             target = stmt.target
