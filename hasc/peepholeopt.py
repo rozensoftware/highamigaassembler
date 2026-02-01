@@ -310,6 +310,24 @@ def _extract_modified_regs(instruction):
     
     return modified
 
+def _extract_used_regs(operand):
+    """Extract registers that are used (read) in an operand.
+    Examples:
+        "5(a0)" -> {'a0'}
+        "(a0)" -> {'a0'}
+        "(a0,d1.w)" -> {'a0', 'd1'}
+        "d0" -> set() (direct register, not part of addressing)
+    """
+    used = set()
+    
+    # Match indirect addressing modes: offset(reg), (reg), (reg,index)
+    # Pattern: anything(reg) or (reg) or (reg,index)
+    matches = re.findall(r'([da]\d+)', operand)
+    for match in matches:
+        used.add(match)
+    
+    return used
+
 def _fold_constant_shifts(lines):
     """Fold constant shift operations: moveq #N,dX; lsl.l #M,dX -> moveq #(N<<M),dX"""
     optimized = []
@@ -502,9 +520,12 @@ def _fold_immediate_to_memory(lines):
                                 size = m3.group(1)
                                 dest = m3.group(2)
                                 if not re.match(r"[da]\d+$", dest):
-                                    optimized.append(f"{indent}move{size} #{val},{dest}{comment3}")
-                                    i += 3
-                                    continue
+                                    # CRITICAL FIX: Check if middle instruction modifies registers used by dest
+                                    dest_regs = _extract_used_regs(dest)
+                                    if not any(dreg in modified for dreg in dest_regs):
+                                        optimized.append(f"{indent}move{size} #{val},{dest}{comment3}")
+                                        i += 3
+                                        continue
 
         optimized.append(lines[i])
         i += 1
@@ -553,15 +574,22 @@ def _fold_clr_to_memory(lines):
 
                     if not _is_label(base_mid) and not _is_branch(base_mid):
                         modified = _extract_modified_regs(base_mid)
+                        # CRITICAL FIX: Don't optimize if the middle instruction modifies source register
                         if reg not in modified:
                             m3 = re.match(rf"\s*move(\.[bwl])\s+{re.escape(reg)},\s*(\S+)$", base3)
                             if m3:
                                 size = m3.group(1)
                                 dest = m3.group(2)
                                 if not re.match(r"[da]\d+$", dest):
-                                    optimized.append(f"{indent}move{size} #0,{dest}{comment3}")
-                                    i += 3
-                                    continue
+                                    # CRITICAL FIX: Extract registers used in destination operand
+                                    # If destination uses addressing like "5(a0)" or "(a0)", we must check
+                                    # if the middle instruction modifies that address register
+                                    dest_regs = _extract_used_regs(dest)
+                                    # Check if any register used by dest is modified by middle instruction
+                                    if not any(dreg in modified for dreg in dest_regs):
+                                        optimized.append(f"{indent}move{size} #0,{dest}{comment3}")
+                                        i += 3
+                                        continue
 
         optimized.append(lines[i])
         i += 1

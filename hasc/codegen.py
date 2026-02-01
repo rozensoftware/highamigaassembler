@@ -619,12 +619,29 @@ class CodeGen:
             if isinstance(base, ast.UnaryOp) and base.op == '*':
                 # Dereference pointer and access member
                 ptr_operand = base.operand
-                # Evaluate pointer into a0
-                ptr_code = self._emit_expr(ptr_operand, params, locals_info, "a0", "d0", target_type=None, frame_reg=frame_reg)
-                code.extend(ptr_code)
-                # Move result to a0 if not already there
-                if ptr_code and "a0" not in ptr_code[-1]:
-                    code.append(f"    move.l d0,a0")
+                
+                # CRITICAL FIX: If pointer is a simple variable reference, load it directly
+                # from memory to avoid issues with stale register values after function calls
+                if isinstance(ptr_operand, ast.VarRef):
+                    var_name = ptr_operand.name
+                    local_info = next((l for l in locals_info if l[0] == var_name), None)
+                    if local_info:
+                        # Load pointer directly from local variable into a0
+                        _, _, offset = local_info
+                        code.append(f"    move.l {self._frame_offset(offset, frame_reg)},a0")
+                    else:
+                        # Not a local variable, might be parameter - use normal evaluation
+                        ptr_code = self._emit_expr(ptr_operand, params, locals_info, "a0", "d0", target_type=None, frame_reg=frame_reg)
+                        code.extend(ptr_code)
+                        if ptr_code and "a0" not in ptr_code[-1]:
+                            code.append(f"    move.l d0,a0")
+                else:
+                    # Complex expression for pointer - evaluate it
+                    ptr_code = self._emit_expr(ptr_operand, params, locals_info, "a0", "d0", target_type=None, frame_reg=frame_reg)
+                    code.extend(ptr_code)
+                    # Move result to a0 if not already there
+                    if ptr_code and "a0" not in ptr_code[-1]:
+                        code.append(f"    move.l d0,a0")
                 
                 # Try to infer struct type from various sources
                 struct_type = None
@@ -2230,14 +2247,46 @@ class CodeGen:
                             for sub in str(l).splitlines():
                                 self.emit(sub if sub.startswith(indent) else indent + sub)
                         
-                        # Evaluate pointer into a0
-                        ptr_code = self._emit_expr(ptr_operand, params, locals_info, "a0", "d1", target_type=None, frame_reg=frame_reg)
-                        for l in ptr_code:
-                            for sub in str(l).splitlines():
-                                self.emit(sub if sub.startswith(indent) else indent + sub)
-                        # Move result to a0 if not already there
-                        if ptr_code and "a0" not in ptr_code[-1]:
-                            self.emit(indent + f"move.l d0,a0")
+                        # CRITICAL FIX: For pointer variables (local or parameter), ALWAYS reload
+                        # from memory. We cannot trust that a0 contains a valid value because:
+                        # 1. Previous code in this function may have called jsr (destroying a0)
+                        # 2. RHS may have called jsr (destroying a0)
+                        # 3. a0 is caller-saved and may be clobbered at any time
+                        # Solution: Always load pointer fresh from its memory location
+                        if isinstance(ptr_operand, ast.VarRef):
+                            var_name = ptr_operand.name
+                            local_info = next((l for l in locals_info if l[0] == var_name), None)
+                            if local_info:
+                                # Reload pointer directly from local variable
+                                _, _, offset = local_info
+                                self.emit(indent + f"move.l {self._frame_offset(offset, frame_reg)},a0")
+                            else:
+                                # Not a local, try parameter
+                                param_obj = next((p for p in params if p.name == var_name), None)
+                                if param_obj and param_obj.register:
+                                    # Register parameter - should be saved to stack, load from there
+                                    # Find which saved register slot
+                                    reg_params = [p for p in params if p.register and p.register != 'None']
+                                    if param_obj in reg_params:
+                                        idx = reg_params.index(param_obj)
+                                        # Saved registers are below frame pointer
+                                        off = -4 * (len(reg_params) - idx)
+                                        self.emit(indent + f"move.l {off}({frame_reg}),a0")
+                                elif param_obj:
+                                    # Stack parameter
+                                    stack_params = [p for p in params if not (p.register and p.register != 'None')]
+                                    idx = stack_params.index(param_obj)
+                                    off = 8 + 4 * idx
+                                    self.emit(indent + f"move.l {off}({frame_reg}),a0")
+                        else:
+                            # Complex expression for pointer - evaluate it
+                            ptr_code = self._emit_expr(ptr_operand, params, locals_info, "a0", "d1", target_type=None, frame_reg=frame_reg)
+                            for l in ptr_code:
+                                for sub in str(l).splitlines():
+                                    self.emit(sub if sub.startswith(indent) else indent + sub)
+                            # Move result to a0 if not already there
+                            if ptr_code and "a0" not in ptr_code[-1]:
+                                self.emit(indent + f"move.l d0,a0")
                         
                         # Try to infer struct type from variable type info
                         struct_type = None
@@ -2250,6 +2299,9 @@ class CodeGen:
                                 # vtype might be like "bullet*" or "Enemy*"
                                 if vtype and vtype.endswith('*'):
                                     struct_type = vtype.rstrip('*').strip()
+                                # DEBUG
+                                if self.print_debug:
+                                    self.emit(f"; DEBUG: var={var_name} vtype={vtype} struct_type={struct_type}")
                             
                             # Check function parameters if not found in locals
                             if not struct_type:
@@ -2263,6 +2315,10 @@ class CodeGen:
                                     if var_name.startswith(sname.lower()) or var_name.endswith('_' + sname.lower()):
                                         struct_type = sname
                                         break
+                        
+                        # DEBUG
+                        if self.print_debug:
+                            self.emit(f"; DEBUG: struct_type={struct_type} field={field} in_struct_info={struct_type in self.struct_info if struct_type else False}")
                         
                         if struct_type and struct_type in self.struct_info:
                             sinfo = self.struct_info[struct_type]
