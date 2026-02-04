@@ -3203,7 +3203,14 @@ class CodeGen:
                             # Array initialization
                             if var.values:
                                 suffix = ast.size_suffix(ast.type_size('byte') if var.size == 'b' else (2 if var.size == 'w' else 4))
-                                values_str = ",".join(str(v) for v in var.values)
+                                # Properly quote string values in the array
+                                formatted_values = []
+                                for v in var.values:
+                                    if isinstance(v, str):
+                                        formatted_values.append(f'"{v}"')
+                                    else:
+                                        formatted_values.append(str(v))
+                                values_str = ",".join(formatted_values)
                                 self.emit(indent + f"dc{suffix} {values_str}")
                             else:
                                 total_size = 1

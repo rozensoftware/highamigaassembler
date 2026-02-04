@@ -2,6 +2,13 @@
 ; Provides basic constructors, arithmetic, and comparisons.
 ; Q16.16 layout: signed 32-bit, upper 16 bits = integer, lower 16 bits = fractional.
 
+; Q16.16 fixed-point helper: Q16(int_part, frac_part, decimal_places=2)
+; Formula: (int_part << 16) + (frac_part * 65536 / (10 ^ decimal_places))
+; Examples:
+;   43.55 -> (43 << 16) + (55 * 65536 / 100) = 2818048 + 36044 = 2854092
+;   10.25 -> (10 << 16) + (25 * 65536 / 100) = 655360 + 16384 = 671744
+;      0.98  -> (0 << 16) + (98 * 65536 / 100) = 0 + 64224 = 64224
+    
     SECTION code,CODE
     
     XDEF Q16FromInt
@@ -14,6 +21,9 @@
     XDEF Q16Lt
     XDEF Q16Ge
     XDEF Q16Le
+    XDEF Q16ToStringAlloc
+    
+    XREF HeapAlloc
 
 ; -----------------------------------------------------------------------------
 ; Q16FromInt(val: int) -> Q16.16
@@ -203,5 +213,136 @@ Q16Le:
     sle d0
     ext.w d0
     ext.l d0
+    unlk a6
+    rts
+
+; -----------------------------------------------------------------------------
+; Q16ToStringAlloc(val: Q16.16) -> ptr to string or 0
+; Converts Q16.16 fixed-point to string like "-123.4567"
+; Allocates memory from heap - caller must free with HeapFree
+; Format: up to 4 decimal places
+Q16ToStringAlloc:
+    link a6,#-32           ; temp buffer for building string
+    movem.l d1-d7/a0-a2,-(sp)
+    
+    move.l 8(a6),d1        ; Q16.16 value
+    moveq #0,d2            ; negative flag
+    
+    ; Handle negative
+    tst.l d1
+    bpl.s .q16s_positive
+    neg.l d1
+    moveq #1,d2
+.q16s_positive:
+    
+    ; Extract integer part (upper 16 bits)
+    move.l d1,d3
+    swap d3                ; get upper word
+    ext.l d3               ; sign extend to long
+    
+    ; Extract fractional part (lower 16 bits)
+    move.w d1,d4           ; get lower word
+    ext.l d4               ; zero extend
+    
+    ; Build string in temp buffer
+    lea -32(a6),a1         ; temp buffer
+    move.l a1,a2           ; save start
+    
+    ; Add minus sign if negative
+    tst.b d2
+    beq.s .q16s_no_minus
+    move.b #'-',(a1)+
+.q16s_no_minus:
+    
+    ; Convert integer part to string
+    ; Handle zero special case
+    tst.l d3
+    bne.s .q16s_int_nonzero
+    move.b #'0',(a1)+
+    bra.s .q16s_decimal
+    
+.q16s_int_nonzero:
+    ; Build integer digits in reverse on stack
+    lea -32(a6),a0
+    adda.l #16,a0          ; use second half of temp buffer
+    moveq #0,d5            ; digit count
+    
+.q16s_int_loop:
+    ; Divide d3 by 10
+    move.l d3,d6
+    divu #10,d6            ; quotient in low word, remainder in high word
+    move.w d6,d3           ; quotient becomes new value
+    swap d6                ; get remainder
+    move.b d6,d7
+    add.b #'0',d7
+    move.b d7,(a0)+
+    addq.w #1,d5
+    tst.w d3
+    bne.s .q16s_int_loop
+    
+    ; Copy integer digits in reverse
+.q16s_copy_int:
+    move.b -(a0),(a1)+
+    subq.w #1,d5
+    bgt.s .q16s_copy_int
+    
+.q16s_decimal:
+    ; Add decimal point
+    move.b #'.',(a1)+
+    
+    ; Convert fractional part (4 decimal places)
+    ; Multiply d4 by 10, take upper word as digit, repeat
+    moveq #4,d5            ; 4 decimal places
+    
+.q16s_frac_loop:
+    ; d4 contains fraction (0-65535), multiply by 10
+    move.l d4,d6
+    mulu #10,d6            ; result in d6
+    
+    ; Get digit (upper 16 bits / 65536 * 10)
+    move.l d6,d7
+    swap d7                ; get upper word
+    add.b #'0',d7
+    move.b d7,(a1)+
+    
+    ; Keep remainder (lower 16 bits) for next iteration
+    move.w d6,d4
+    
+    subq.w #1,d5
+    bgt.s .q16s_frac_loop
+    
+    ; NUL terminate
+    move.b #0,(a1)
+    
+    ; Calculate string length
+    move.l a1,d6
+    sub.l a2,d6            ; length in bytes including NUL
+    
+    ; Allocate memory: convert bytes to words (round up)
+    move.l d6,d0
+    addq.l #1,d0
+    lsr.l #1,d0
+    
+    ; Allocate from heap
+    move.l d0,-(sp)
+    jsr HeapAlloc
+    addq.l #4,sp
+    
+    move.l d0,d7           ; save allocated ptr
+    tst.l d7
+    beq.s .q16s_done
+    
+    ; Copy string from temp buffer to allocated memory
+    move.l a2,a0           ; source (temp buffer start)
+    move.l d7,a1           ; destination
+.q16s_copy:
+    move.b (a0)+,d0
+    move.b d0,(a1)+
+    tst.b d0
+    bne.s .q16s_copy
+    
+.q16s_done:
+    move.l d7,d0           ; return allocated ptr
+    movem.l (sp)+,d1-d7/a0-a2
     unlk a6
     rts

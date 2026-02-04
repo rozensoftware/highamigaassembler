@@ -151,7 +151,7 @@
       "patterns": [
         {
           "name": "storage.type.highamigassembler",
-          "match": "\\b(?:int|word|long|void|byte|bool|u8|u16|u32)\\b"
+          "match": "\\b(?:int|word|long|void|byte|bool|u8|u16|u32|ptr)\\b"
         }
       ]
     },
