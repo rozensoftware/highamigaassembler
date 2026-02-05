@@ -166,8 +166,9 @@ reglist: REG ("," REG)*
 %import common.HEXDIGIT
 %import common.ESCAPED_STRING -> STRING
 
-// Custom NUMBER that supports decimal, hex (0x or $), and binary (%)
-NUMBER: /0x[0-9a-fA-F]+/ | /\$[0-9a-fA-F]+/ | /%[01]+/ | /[0-9]+/
+// Custom NUMBER that supports decimal, hex (0x or $), binary (%), and floating-point
+// Floating-point numbers are automatically converted to Q16.16 fixed-point format
+NUMBER: /0x[0-9a-fA-F]+/ | /\$[0-9a-fA-F]+/ | /%[01]+/ | /[0-9]+\.[0-9]+/ | /[0-9]+/
 
 %ignore /[ \t\r\n]+/
 COMMENT: /\/\/[^\n]*/
@@ -188,7 +189,11 @@ class ASTBuilder(Transformer):
             return str(item)
 
     def _parse_number(self, num_str):
-        """Parse number string supporting decimal, hex (0x or $), and binary (%) formats."""
+        """Parse number string supporting decimal, hex (0x or $), binary (%), and floating-point formats.
+        
+        Floating-point numbers (e.g., 22.0, 1.55, -3.25) are automatically converted to Q16.16 
+        fixed-point format: Q16.16 = int(float_value * 65536)
+        """
         num_str = str(num_str).strip()
         
         if num_str.startswith('0x') or num_str.startswith('0X'):
@@ -200,8 +205,13 @@ class ASTBuilder(Transformer):
         elif num_str.startswith('%'):
             # Binary: % prefix
             return int(num_str[1:], 2)
+        elif '.' in num_str:
+            # Floating-point: automatically convert to Q16.16 format
+            float_value = float(num_str)
+            q16_value = int(float_value * 65536)
+            return q16_value
         else:
-            # Decimal
+            # Decimal integer
             return int(num_str)
 
     def start(self, items):

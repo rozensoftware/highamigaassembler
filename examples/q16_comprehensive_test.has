@@ -1,0 +1,45 @@
+// Comprehensive Q16 floating-point conversion test
+
+// Positive floating-point values
+const PLAYER_SPEED = 2.5;
+const GRAVITY = 0.98;
+const FRICTION = 0.15;
+const TEST_VALUE = 43.55;
+const SIMPLE_INT = 22.0;
+const PRECISE = 1.55;
+
+// Regular integers
+const INT_VALUE = 100;
+const HEX_VALUE = 0xFF;
+const BIN_VALUE = %11111111;
+
+// Zero and small values
+const ZERO_FLOAT = 0.0;
+const SMALL_VAL = 0.01;
+
+data test_data:
+    // Variables initialized with Q16 floating-point values
+    velocity.l = 3.75
+    angle.l = 360.0
+    factor.l = 0.5
+
+code main:
+    proc main() -> int {
+        var speed:int;
+        var result:int;
+        var temp:int;
+        
+        // Test constant floating-point values
+        speed = PLAYER_SPEED;
+        result = GRAVITY;
+        temp = FRICTION;
+        
+        // Use in expressions
+        speed = PLAYER_SPEED + GRAVITY;
+        
+        // Use in inline numeric literals
+        temp = 1.25;
+        result = 99.99;
+        
+        return 0;
+    }

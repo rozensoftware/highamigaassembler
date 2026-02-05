@@ -1,0 +1,27 @@
+// Test automatic Q16 floating-point conversion
+// This test verifies that floating-point literals are automatically converted to Q16.16 format
+
+// These floating-point values should be automatically converted to Q16.16 format
+const PLAYER_SPEED = 2.5;       // Should become 163840 (2.5 * 65536)
+const GRAVITY = 0.98;            // Should become 64225 (0.98 * 65536)
+const FRICTION = 0.15;           // Should become 9830 (0.15 * 65536)
+const TEST_VALUE = 43.55;        // Should become 2854092 (43.55 * 65536)
+const SIMPLE_INT = 22.0;         // Should become 1441792 (22.0 * 65536)
+const PRECISE = 1.55;            // Should become 101580 (1.55 * 65536)
+
+// Regular integers should still work
+const INT_VALUE = 100;           // Should remain 100
+const HEX_VALUE = 0xFF;          // Should remain 255
+const BIN_VALUE = %11111111;     // Should remain 255
+
+code main:
+    proc main() -> int {
+        var speed:int;
+        var result:int;
+        
+        // Use the Q16 constants
+        speed = PLAYER_SPEED;
+        result = GRAVITY;
+        
+        return 0;
+    }

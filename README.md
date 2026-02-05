@@ -1,6 +1,6 @@
 # HAS - High Assembler for Motorola 68000 (Amiga)
 
-**Version:** 0.3 (In Constant Development)
+**Version:** 0.4 (In Constant Development)
 
 > ⚠️ **NOT PRODUCTION READY** ⚠️
 >
@@ -32,6 +32,7 @@ HAS bridges the gap between high-level languages and assembly programming. It of
 - **Struct Pointers**: Arrow operator (`p->field`) for efficient member access
 - **Control Flow**: if/else, for, while, do-while, break, continue
 - **Operators**: Arithmetic, bitwise, logical, shift, comparison
+- **Q16.16 Fixed-Point**: Automatic conversion of floating-point literals (e.g., `2.5`, `0.98`) to Q16.16 format
 - **Memory Sections**: code, data, bss with automatic alignment
 - **Register Control**: `getreg()`/`setreg()` for direct register access
 - **Inline Assembly**: Full control with `asm { ... }` blocks
@@ -481,7 +482,7 @@ HAS follows Motorola 68000 standard calling convention:
 
 ## 🛠️ Development Status
 
-**Version 0.3** - In Constant Development
+**Version 0.4** - In Constant Development
 
 This compiler is actively being developed. Current focus areas:
 

@@ -2,6 +2,25 @@
 
 All notable changes to the HAS (High Assembler) project will be documented in this file.
 
+## [0.4] - 2026-02-05
+
+### New Features
+
+#### Language Enhancements
+- **Automatic Q16.16 Floating-Point Conversion**: Natural decimal syntax
+  - Write floating-point literals directly: `2.5`, `0.98`, `43.55`
+  - Compiler automatically converts to Q16.16 fixed-point format at compile-time
+  - Formula: `Q16.16 = int(float_value × 65536)`
+  - Works in constants, data sections, and inline literals
+  - Zero runtime overhead - all conversion happens during compilation
+  - See [docs/Q16_AUTOMATIC_CONVERSION.md](Q16_AUTOMATIC_CONVERSION.md) for details
+  - Examples: [q16_float_test.has](../examples/q16_float_test.has), [q16_comprehensive_test.has](../examples/q16_comprehensive_test.has)
+
+### Documentation
+- Added comprehensive Q16 automatic conversion documentation
+- Updated README with Q16.16 fixed-point feature
+- Added example files demonstrating float to Q16 conversion
+
 ## [0.3] - 2026-01-29
 
 ### New Features
