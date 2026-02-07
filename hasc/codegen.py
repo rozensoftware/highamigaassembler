@@ -1208,6 +1208,49 @@ class CodeGen:
                     code.append(f"    neg.b {reg_left}")
                 return code
             
+            # SHORT-CIRCUIT EVALUATION for && and ||
+            # Must evaluate left first and conditionally skip right if possible
+            if expr.op == '&&':
+                # Logical AND with short-circuit: if left is false, don't evaluate right
+                # Evaluate left into reg_left
+                code += self._emit_expr(expr.left, params, locals_info, reg_left, reg_right, target_type=target_type, frame_reg=frame_reg)
+                # Test if left is zero (false)
+                code.append(f"    tst.l {reg_left}")
+                code.append(f"    beq.s .and_false_{self.label_counter}")
+                # Left is true, evaluate right into reg_left
+                code += self._emit_expr(expr.right, params, locals_info, reg_left, reg_right, target_type=target_type, frame_reg=frame_reg)
+                # Test if right is zero (false)
+                code.append(f"    tst.l {reg_left}")
+                code.append(f"    beq.s .and_false_{self.label_counter}")
+                # Both true: result = 1
+                code.append(f"    move.l #1,{reg_left}")
+                code.append(f"    bra.s .and_done_{self.label_counter}")
+                code.append(f".and_false_{self.label_counter}:")
+                code.append(f"    move.l #0,{reg_left}")
+                code.append(f".and_done_{self.label_counter}:")
+                self.label_counter += 1
+                return code
+            elif expr.op == '||':
+                # Logical OR with short-circuit: if left is true, don't evaluate right
+                # Evaluate left into reg_left
+                code += self._emit_expr(expr.left, params, locals_info, reg_left, reg_right, target_type=target_type, frame_reg=frame_reg)
+                # Test if left is non-zero (true)
+                code.append(f"    tst.l {reg_left}")
+                code.append(f"    bne.s .or_true_{self.label_counter}")
+                # Left is false, evaluate right into reg_left
+                code += self._emit_expr(expr.right, params, locals_info, reg_left, reg_right, target_type=target_type, frame_reg=frame_reg)
+                # Test if right is non-zero (true)
+                code.append(f"    tst.l {reg_left}")
+                code.append(f"    bne.s .or_true_{self.label_counter}")
+                # Both false: result = 0
+                code.append(f"    move.l #0,{reg_left}")
+                code.append(f"    bra.s .or_done_{self.label_counter}")
+                code.append(f".or_true_{self.label_counter}:")
+                code.append(f"    move.l #1,{reg_left}")
+                code.append(f".or_done_{self.label_counter}:")
+                self.label_counter += 1
+                return code
+            
             # Evaluate left side into reg_left
             code += self._emit_expr(expr.left, params, locals_info, reg_left, reg_right, target_type=target_type, frame_reg=frame_reg)
             
@@ -1370,30 +1413,6 @@ class CodeGen:
                     code.append(f"    sge {reg_left}  ; set byte if greater or equal")
                 code.append(f"    andi.l #$FF,{reg_left}")
                 code.append(f"    neg.b {reg_left}")
-            elif expr.op == '&&':
-                # Logical AND: both must be non-zero
-                code.append(f"    tst.l {reg_left}")
-                code.append(f"    beq.s .and_false_{self.label_counter}")
-                code.append(f"    tst.l {reg_right}")
-                code.append(f"    beq.s .and_false_{self.label_counter}")
-                code.append(f"    move.l #1,{reg_left}")
-                code.append(f"    bra.s .and_done_{self.label_counter}")
-                code.append(f".and_false_{self.label_counter}:")
-                code.append(f"    move.l #0,{reg_left}")
-                code.append(f".and_done_{self.label_counter}:")
-                self.label_counter += 1
-            elif expr.op == '||':
-                # Logical OR: at least one must be non-zero
-                code.append(f"    tst.l {reg_left}")
-                code.append(f"    bne.s .or_true_{self.label_counter}")
-                code.append(f"    tst.l {reg_right}")
-                code.append(f"    bne.s .or_true_{self.label_counter}")
-                code.append(f"    move.l #0,{reg_left}")
-                code.append(f"    bra.s .or_done_{self.label_counter}")
-                code.append(f".or_true_{self.label_counter}:")
-                code.append(f"    move.l #1,{reg_left}")
-                code.append(f".or_done_{self.label_counter}:")
-                self.label_counter += 1
             elif expr.op == '&':
                 # Bitwise AND
                 code.append(f"    and.l {reg_right},{reg_left}")
@@ -1981,6 +2000,33 @@ class CodeGen:
             
             return code
         
+        # SHORT-CIRCUIT EVALUATION for && and ||
+        # Handle these before general evaluation to avoid evaluating both sides
+        if expr.op == '&&':
+            # Logical AND: if left is false, skip right and don't branch to true_label
+            code += self._emit_expr(expr.left, params, locals_info, "d0", "d1", target_type=None, frame_reg=frame_reg)
+            code.append(f"    tst.l d0")
+            code.append(f"    beq .skip_and_{self.label_counter}")  # Left is false -> skip right, don't branch to true
+            # Left is true, evaluate right
+            code += self._emit_expr(expr.right, params, locals_info, "d0", "d1", target_type=None, frame_reg=frame_reg)
+            code.append(f"    tst.l d0")
+            code.append(f"    beq .skip_and_{self.label_counter}")  # Right is false -> don't branch to true
+            # Both true -> branch to true_label
+            code.append(f"    bra {true_label}")
+            code.append(f".skip_and_{self.label_counter}:")
+            self.label_counter += 1
+            return code
+        elif expr.op == '||':
+            # Logical OR: if left is true, branch to true_label without evaluating right
+            code += self._emit_expr(expr.left, params, locals_info, "d0", "d1", target_type=None, frame_reg=frame_reg)
+            code.append(f"    tst.l d0")
+            code.append(f"    bne {true_label}")  # Left is true -> branch to true, skip right
+            # Left is false, evaluate right
+            code += self._emit_expr(expr.right, params, locals_info, "d0", "d1", target_type=None, frame_reg=frame_reg)
+            code.append(f"    tst.l d0")
+            code.append(f"    bne {true_label}")  # Right is true -> branch to true
+            return code
+        
         # Evaluate left side into d0
         code += self._emit_expr(expr.left, params, locals_info, "d0", "d1", target_type=None, frame_reg=frame_reg)
         
@@ -2030,21 +2076,6 @@ class CodeGen:
             else:
                 code.append(f"    cmp.l d1,d0")
                 code.append(f"    bge {true_label}")
-        elif op == '&&':
-            # Logical AND: both must be non-zero
-            code.append(f"    tst.l d0")
-            code.append(f"    beq .skip_and_{self.label_counter}")
-            code.append(f"    tst.l d1")
-            code.append(f"    beq .skip_and_{self.label_counter}")
-            code.append(f"    bra {true_label}")
-            code.append(f".skip_and_{self.label_counter}:")
-            self.label_counter += 1
-        elif op == '||':
-            # Logical OR: at least one must be non-zero
-            code.append(f"    tst.l d0")
-            code.append(f"    bne {true_label}")
-            code.append(f"    tst.l d1")
-            code.append(f"    bne {true_label}")
         else:
             # Not a comparison operator we can optimize
             return None
@@ -2089,6 +2120,32 @@ class CodeGen:
             elif swapped_op == '>=':
                 code.append(f"    blt {false_label}")  # < -> false
             
+            return code
+        
+        # SHORT-CIRCUIT EVALUATION for && and ||
+        # Handle these before general evaluation to avoid evaluating both sides
+        if expr.op == '&&':
+            # Logical AND: if left is false, jump to false_label without evaluating right
+            code += self._emit_expr(expr.left, params, locals_info, "d0", "d1", target_type=None, frame_reg=frame_reg)
+            code.append(f"    tst.l d0")
+            code.append(f"    beq {false_label}")  # Left is false -> whole expression is false
+            # Left is true, evaluate right
+            code += self._emit_expr(expr.right, params, locals_info, "d0", "d1", target_type=None, frame_reg=frame_reg)
+            code.append(f"    tst.l d0")
+            code.append(f"    beq {false_label}")  # Right is false -> whole expression is false
+            # Both true -> fall through (don't branch to false_label)
+            return code
+        elif expr.op == '||':
+            # Logical OR: if left is true, skip right evaluation and don't branch to false_label
+            code += self._emit_expr(expr.left, params, locals_info, "d0", "d1", target_type=None, frame_reg=frame_reg)
+            code.append(f"    tst.l d0")
+            code.append(f"    bne .or_skip_{self.label_counter}")  # Left is true -> skip right, don't jump to false
+            # Left is false, evaluate right
+            code += self._emit_expr(expr.right, params, locals_info, "d0", "d1", target_type=None, frame_reg=frame_reg)
+            code.append(f"    tst.l d0")
+            code.append(f"    beq {false_label}")  # Right is also false -> whole expression is false
+            code.append(f".or_skip_{self.label_counter}:")
+            self.label_counter += 1
             return code
         
         # Evaluate left side
@@ -2139,18 +2196,6 @@ class CodeGen:
             else:
                 code.append(f"    cmp.l d1,d0")
                 code.append(f"    blt {false_label}")
-        elif op == '&&':
-            code.append(f"    tst.l d0")
-            code.append(f"    beq {false_label}")
-            code.append(f"    tst.l d1")
-            code.append(f"    beq {false_label}")
-        elif op == '||':
-            code.append(f"    tst.l d0")
-            code.append(f"    bne .or_skip_{self.label_counter}")
-            code.append(f"    tst.l d1")
-            code.append(f"    beq {false_label}")
-            code.append(f".or_skip_{self.label_counter}:")
-            self.label_counter += 1
         else:
             return None
         

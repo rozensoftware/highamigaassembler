@@ -1,0 +1,75 @@
+// Demonstracja short-circuit evaluation
+// Pokazuje różnicę między starym i nowym zachowaniem
+
+data demo_data:
+    test_array[5] = {10, 20, 30, 40, 50}
+
+code demo:
+
+    // PRZYKŁAD 1: Bezpieczny dostęp do tablicy
+    proc safe_array_access(index: long) -> long {
+        // BEZPIECZNE: jeśli index < 0, test_array[index] NIE jest wykonywane
+        // Stare zachowanie: CRASH! (dostęp do pamięci sprzed tablicy)
+        // Nowe zachowanie: BEZPIECZNE (warunek index >= 0 jest sprawdzany pierwszy)
+        if (index >= 0 && index < 5 && test_array[index] == 20) {
+            return 1;  // Znaleziono wartość 20
+        }
+        return 0;
+    }
+
+    // PRZYKŁAD 2: Unikanie dzielenia przez zero
+    proc safe_division(a: long, b: long) -> long {
+        // BEZPIECZNE: jeśli b == 0, dzielenie a/b NIE jest wykonywane
+        // Stare zachowanie: CRASH! (dzielenie przez 0)
+        // Nowe zachowanie: BEZPIECZNE (warunek b != 0 jest sprawdzany pierwszy)
+        if (b != 0 && a / b > 10) {
+            return 1;
+        }
+        return 0;
+    }
+
+    // PRZYKŁAD 3: Łańcuch warunków
+    proc check_range(x: long, y: long, z: long) -> long {
+        // Sprawdza warunki od lewej do prawej, zatrzymuje się przy pierwszym FALSE
+        if (x > 0 && y > 0 && z > 0) {
+            return 1;  // Wszystkie dodatnie
+        }
+        return 0;
+    }
+
+    // PRZYKŁAD 4: Operator OR
+    proc has_positive(a: long, b: long, c: long) -> long {
+        // Sprawdza warunki od lewej do prawej, zatrzymuje się przy pierwszym TRUE
+        if (a > 0 || b > 0 || c > 0) {
+            return 1;  // Przynajmniej jeden dodatni
+        }
+        return 0;
+    }
+
+    proc main() -> int {
+        var result: long;
+        
+        // Test 1: index = -1 (ujemny)
+        // Przed: CRASH na test_array[-1]
+        // Teraz: SAFE - warunek index >= 0 jest FALSE, więc test_array[-1] nie jest wykonywane
+        result = safe_array_access(-1);
+        
+        // Test 2: index = 1 (poprawny)
+        // test_array[1] = 20, więc powinno zwrócić 1
+        result = safe_array_access(1);
+        
+        // Test 3: dzielenie przez 0
+        // Przed: CRASH na 10 / 0
+        // Teraz: SAFE - warunek b != 0 jest FALSE, więc 10 / 0 nie jest wykonywane
+        result = safe_division(10, 0);
+        
+        // Test 4: łańcuch warunków
+        // x=5, y=-1, z=3: drugi warunek FALSE, więc trzeci nie jest sprawdzany
+        result = check_range(5, -1, 3);
+        
+        // Test 5: operator OR
+        // a=5: pierwszy warunek TRUE, więc b i c nie są sprawdzane
+        result = has_positive(5, -2, -3);
+        
+        return 0;
+    }
