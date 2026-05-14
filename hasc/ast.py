@@ -1,5 +1,5 @@
 from dataclasses import dataclass, field
-from typing import List, Optional, Any
+from typing import List, Optional, Any, Union
 
 
 # Type system definitions
@@ -116,7 +116,8 @@ class GlobalVarDecl:
     size: Optional[str] = None   # 'b', 'w', 'l' for data or byte count string for bss
     # Array support
     is_array: bool = False       # True if this is an array
-    dimensions: Optional[List[int]] = None  # [size] for 1D, [size1, size2] for 2D, etc.
+    # LOW FIX: Allow dimensions to be int or str (named constants)
+    dimensions: Optional[List[Union[int, str]]] = None  # [size] for 1D, [size1, size2] for 2D, etc.
     values: Optional[List[Any]] = None      # For data arrays: list of initial values
     size_suffix: Optional[str] = None       # 'b', 'w', 'l' - element size for bss arrays/vars
 
@@ -132,7 +133,8 @@ class StructVarDecl:
     """Struct stored in data/bss sections (optionally array of structs)."""
     name: str
     fields: List[StructField]
-    dimensions: Optional[List[int]] = None  # e.g., [N] for 1D array of structs
+    # LOW FIX: Allow dimensions to be int or str (named constants)
+    dimensions: Optional[List[Union[int, str]]] = None  # e.g., [N] for 1D array of structs
     init_values: Optional[List[int]] = None  # flat list of numeric initializers (data only)
     is_array: bool = False
     is_bss: bool = False

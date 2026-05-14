@@ -1027,28 +1027,6 @@ class ASTBuilder(Transformer):
         # No arguments needed
         return ast.PopRegs()
 
-    def for_stmt(self, items):
-        # for_stmt: "for" CNAME = expr "to" expr ["by" expr] stmt_or_block
-        # items: [var_name, start_expr, end_expr, (optional: step_expr or None), body_stmts]
-        var = self._val(items[0])
-        start = items[1]
-        end = items[2]
-
-        # Last element is always the loop body; the optional step may be a None placeholder
-        body_item = items[-1]
-        step = ast.Number(value=1)
-        if len(items) >= 5 and items[3] is not None:
-            step = items[3]
-
-        body = body_item if isinstance(body_item, list) else [body_item]
-        # Defensive: if body is [None], treat as empty
-        if body == [None] or body is None:
-            body = []
-        import sys
-        if self.print_debug:
-            print(f"[DEBUG] for_stmt: var={var} start={start} end={end} step={step} body={body}", file=sys.stderr)
-        return ast.ForLoop(var=var, start=start, end=end, step=step, body=body)
-
     def repeat_stmt(self, items):
         # repeat_stmt: "repeat" expr stmt_block
         # items: [count_expr, body_stmts]
@@ -1197,6 +1175,14 @@ def parse(text: str, base_dir: str = None) -> ast.Module:
             # Recursively restore in while body
             for stmt in _as_list(node.body):
                 restore_blocks(stmt)
+        elif isinstance(node, ast.DoWhile):
+            # MEDIUM FIX: Handle DoWhile blocks - was missing!
+            # Recursively restore in do-while body and condition
+            for stmt in _as_list(node.body):
+                restore_blocks(stmt)
+            # Condition is an expr, restore if needed
+            if node.cond:
+                restore_blocks(node.cond)
         elif isinstance(node, ast.ForLoop):
             for stmt in _as_list(node.body):
                 restore_blocks(stmt)

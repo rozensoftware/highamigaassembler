@@ -459,17 +459,19 @@ class CodeGen:
         # CRITICAL FIX: Allocate stack space for data register parameters (d0-d7)
         # These must be saved immediately in prologue before they can be clobbered
         # EXCEPT for native functions - they use registers directly without stack
+        # IMPORTANT: All register params use fixed 4-byte slots (move.l always stores 4 bytes)
+        # regardless of their declared type (byte/word/long). This prevents overwriting adjacent frame data.
         saved_reg_params = {}  # Maps param name -> (register, offset)
         if not proc.native:
             for param in params:
                 reg = param.register
                 if reg and reg != 'None' and reg.startswith('d'):
-                    # Data register parameter - needs stack slot to prevent clobbering
-                    size = ast.type_size(param.ptype) if param.ptype else 4
-                    offset += size
-                    # Align offset to even boundary
-                    if offset & 1:
-                        offset += 1
+                    # Data register parameter - needs 4-byte stack slot (always, for safety)
+                    # We store via move.l regardless of type, so always reserve 4 bytes
+                    offset += 4  # Fixed 4-byte allocation for register params
+                    # Align offset to 4-byte boundary for safety
+                    if offset & 3:
+                        offset += (4 - (offset & 3))
                     saved_reg_params[param.name] = (reg, offset)
                     # Add to locals_info so VarRef lookups find it
                     locals_info.append((param.name, param.ptype, offset))
@@ -2844,9 +2846,23 @@ class CodeGen:
                 for sub in str(l).splitlines():
                     self.emit(sub if sub.startswith(indent) else indent + sub)
             
-            # Compare and branch if var > end (assuming ascending)
+            # Compare and branch based on loop direction
+            # CRITICAL FIX: Handle direction-aware loop termination (ascending vs descending)
+            # Determine direction at compile time if step is a constant
+            branch_instr = "bgt"  # Default: ascending (var > end)
+            
+            if isinstance(stmt.step, ast.Number):
+                step_val = stmt.step.value
+                if step_val == 0:
+                    self.emit(indent + "; ERROR: for-loop step is zero (infinite loop)")
+                elif step_val < 0:
+                    # Descending loop: use blt (branch if var < end)
+                    branch_instr = "blt"
+            # else: dynamic step at runtime - for now use ascending (conservative fallback)
+            # TODO: emit runtime sign check to branch to ascending/descending paths
+            
             self.emit(indent + f"cmp{suffix} d1,d0")
-            self.emit(indent + f"bgt {end_label}")
+            self.emit(indent + f"{branch_instr} {end_label}")
             
             # Emit loop body
             for s in stmt.body:
@@ -2935,7 +2951,8 @@ class CodeGen:
                 macro = self.macros[stmt.name]
                 expanded_stmts = self._expand_macro(macro, stmt.args, params, locals_info)
                 for expanded_stmt in expanded_stmts:
-                    self._emit_stmt(expanded_stmt, params, locals_info, proc, indent, is_void)
+                    # CRITICAL FIX: Pass frame_reg through to expanded statements for correct addressing
+                    self._emit_stmt(expanded_stmt, params, locals_info, proc, indent, is_void, frame_reg=frame_reg)
             elif stmt.name in self.proc_sigs or stmt.name in self.extern_funcs:
                 # It's a function call without 'call' keyword - treat as CallStmt
                 call_stmt = ast.CallStmt(name=stmt.name, args=stmt.args if stmt.args else [])
@@ -2990,7 +3007,8 @@ class CodeGen:
                                     for code_item in item.items:
                                         if isinstance(code_item, ast.Proc):
                                             for stmt_item in code_item.body:
-                                                self._emit_stmt(stmt_item, params, locals_info, proc, indent, is_void)
+                                                # CRITICAL FIX: Pass frame_reg through to generated statements
+                                                self._emit_stmt(stmt_item, params, locals_info, proc, indent, is_void, frame_reg=frame_reg)
                     elif isinstance(generated, list):
                         # List of HAS statements
                         for gen_stmt in generated:
@@ -3005,7 +3023,8 @@ class CodeGen:
                                             for code_item in item.items:
                                                 if isinstance(code_item, ast.Proc):
                                                     for stmt_item in code_item.body:
-                                                        self._emit_stmt(stmt_item, params, locals_info, proc, indent, is_void)
+                                                        # CRITICAL FIX: Pass frame_reg through to generated statements
+                                                        self._emit_stmt(stmt_item, params, locals_info, proc, indent, is_void, frame_reg=frame_reg)
             except Exception as e:
                 self.emit(indent + f"; ERROR in @python execution: {str(e)}")
         else:
@@ -3311,10 +3330,13 @@ class CodeGen:
                             total_bytes = struct_size * count
                             self.emit(f"{var.name}: ds.b {total_bytes}  ; struct size={struct_size}, count={count}")
                         else:
-                            # Can't compute statically - use symbolic expression
-                            # This is problematic for vasm, which expects a constant
-                            self.emit(f"; ERROR: struct {var.name} has non-constant dimensions")
-                            self.emit(f"{var.name}: ds.b 1  ; FIXME: should be {count}")
+                            # CRITICAL FIX: Raise hard error instead of silent degradation
+                            # Unresolved symbolic dimensions must be fixed by user (e.g., add const declaration)
+                            raise CodeGenError(
+                                f"Cannot allocate BSS struct '{var.name}' with unresolved dimensions: {count}\n"
+                                f"Please define missing constants or use numeric dimensions.",
+                                0
+                            )
                         self.emit(f"{var.name}__size equ {struct_size}")
                         if var.is_array or (var.dimensions and len(var.dimensions)>0):
                             self.emit(f"{var.name}__stride equ {struct_size}")

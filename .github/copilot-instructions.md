@@ -21,6 +21,19 @@
 - **Amiga-specific**: Hardware registers, copper lists, HAM6 graphics, blitter objects
 - **Documentation-driven**: 30+ markdown files document features, pitfalls, and implementation details
 
+### Agent and Skill Standards (2026 Update)
+- **Evidence-first outputs**: Reviews and diagnostics should cite concrete file/line evidence.
+- **Findings before summary**: For review tasks, list issues ordered by severity first.
+- **Deterministic workflows**: Prefer reproducible commands and stable test steps.
+- **Behavior over style**: Prioritize correctness, regressions, ABI, and codegen safety.
+- **Minimal invasive edits**: Keep changes focused and avoid unrelated rewrites.
+
+### Workspace Custom Agents and Skill
+- **Docs agent**: `.github/agents/docs.agent.md` for documentation sync, drift reduction, and changelog quality.
+- **Review agent**: `.github/agents/review.agent.md` for severity-based compiler/codegen risk review.
+- **Tests agent**: `.github/agents/tests.agent.md` for tiered example-driven validation and triage.
+- **Assembly validator skill**: `.github/skills/assembly-validator/SKILL.md` for 68000 assembly correctness and optimization guidance.
+
 ---
 
 ## Build & Test Commands
