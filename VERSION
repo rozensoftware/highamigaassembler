@@ -1,9 +1,9 @@
 HAS - High Assembler for Motorola 68000 (Amiga)
-Version 0.4
+Version 0.5
 
-Status: In Constant Development
+Status: Active Development
 
-Release Date: January 29, 2026
+Release Date: May 14, 2026
 
 Major Features in This Version:
 - Complete 68000 assembly code generation

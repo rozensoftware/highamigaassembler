@@ -1,12 +1,8 @@
 # HAS - High Assembler for Motorola 68000 (Amiga)
 
-**Version:** 0.4 (In Constant Development)
+**Version:** 0.5
 
-> ⚠️ **NOT PRODUCTION READY** ⚠️
->
-> This project is currently in active development and is **not ready for production use**. While many features are functional, the compiler is still evolving and may contain bugs, incomplete features, or breaking changes between versions.
->
-> **We invite you to join the community!** If you're interested in Amiga development, compiler design, or just want to contribute to an exciting project, we'd love to have you on board. Whether you're fixing bugs, adding features, improving documentation, or testing - all contributions are welcome!
+**We invite you to join the community!** If you're interested in Amiga development, compiler design, or just want to contribute to an exciting project, we'd love to have you on board. Whether you're fixing bugs, adding features, improving documentation, or testing - all contributions are welcome!
 
 **HAS (High Assembler)** is a Python-based compiler that translates a high-level assembly language targeting the Motorola 68000 processor (Amiga). It provides modern programming constructs while maintaining full control over the generated assembly code.
 
@@ -170,9 +166,11 @@ The `examples/` directory contains numerous demonstrations:
 - `heap_test.has` - Memory allocation
 - `getreg_setreg_test.has` - Hardware register access
 
-### Complete Game Examples
+### Known Semi-Projects
 
-- `games/launchers/` - **Launchers**: A complete space shooter game demonstrating:
+These examples demonstrate game-related concepts and systems, but they are not ready-to-play games.
+
+- `games/launchers/` - **Launchers**: A space shooter concept demonstrating:
   - HAM6 background graphics
   - Hardware sprites for player targeting pointer
   - Blitter objects (BOBs) for ships, projectiles, launchers, background and explosions
@@ -182,6 +180,11 @@ The `examples/` directory contains numerous demonstrations:
   - Game state management
   - Collision detection
   - Full game loop with multiple screens
+- `games/robots/` - **Robot**: A gameplay concept demonstrating:
+    - Game logic and screen flow
+    - Asset handling and rendering patterns
+    - Input-driven interactions
+    - Compiler feature integration in a larger example
 
 ### Code Generation
 
@@ -259,8 +262,9 @@ vscode-highamigassembler/  # VS Code extension
 
 examples/              # Example programs and games
 ├── *.has              # Basic example programs
-└── games/             # Complete game examples
-    └── launchers/     # Space shooter game demo
+└── games/             # Known semi-projects and game concepts
+    ├── launchers/     # Space shooter concept demo
+    └── robots/        # Robot concept demo
 
 lib/                   # Standard library modules
 scripts/               # Build and utility scripts
@@ -482,7 +486,7 @@ HAS follows Motorola 68000 standard calling convention:
 
 ## 🛠️ Development Status
 
-**Version 0.4** - In Constant Development
+**Version 0.4** - Active Development
 
 This compiler is actively being developed. Current focus areas:
 

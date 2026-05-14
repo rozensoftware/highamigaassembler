@@ -21,6 +21,9 @@ All notable changes to the HAS (High Assembler) project will be documented in th
 - Updated README with Q16.16 fixed-point feature
 - Added example files demonstrating float to Q16 conversion
 
+### Fixed
+- Documented that `extern func` calls are currently emitted with stack-based argument passing even when `__reg(...)` annotations are present, matching the existing hand-written routines in `lib/`
+
 ## [0.3] - 2026-01-29
 
 ### New Features

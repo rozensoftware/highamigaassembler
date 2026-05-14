@@ -215,7 +215,8 @@ proc internal_helper() -> int {
 1. **Type checking**: External function signatures are not verified at link time
 2. **Name mangling**: None - function names must match exactly
 3. **Calling convention**: Must match between HAS and external code
-4. **No C++ support**: No support for C++ name mangling or overloading
+4. **Register annotations on extern funcs**: The compiler currently emits `extern func` calls using stack-based argument passing, even when parameters are annotated with `__reg(...)`. This matches the hand-written stack-frame routines in `lib/` such as [bob.s](../lib/bob.s) and [graphics.s](../lib/graphics.s).
+5. **No C++ support**: No support for C++ name mangling or overloading
 
 ## Future Enhancements
 
