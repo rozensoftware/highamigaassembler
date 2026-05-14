@@ -1,0 +1,228 @@
+#pragma lockreg(a5);
+
+const MAP_WIDTH = 40;
+const MAP_HEIGHT = 32;
+const TILE_WIDTH = 8;
+const TILE_HEIGHT = 8;
+
+const TILE_WALKABLE1 = 15;
+const TILE_WALKABLE2 = 61;
+const TILE_WALKABLE3 = 18;
+
+const MAX_LEVELS = 1;
+
+#include "includes/robots_defs.has";
+
+extern var tileset_Robot:int;
+extern var gfx_current_screen_ptr:int;
+
+    public CreateMap;
+    public CopyLevelBuffer;
+    public IsPositionWalkable;
+
+    public level_start_x;
+    public level_start_y;
+
+code level_code:
+
+    proc GetTileAt(x:u8, y:u8) -> u8
+    {
+        // Bounds check
+        if (x >= MAP_WIDTH || y >= MAP_HEIGHT)
+        {
+            return 255;  // Out of bounds - treat as obstacle
+        }
+        
+        // Get tile from map (assuming map1 for now)
+        return map_data[y * MAP_WIDTH + x];
+    }
+
+    proc IsPositionWalkable(x:u16, y:u16, area:u8) -> u8
+    {
+        var tile:u8;
+        var check_x:u8;
+        var check_y:u8;
+        var tx:u8;
+        var ty:u8;
+        
+        check_x = (x >> 3);  // x / 8
+        check_y = (y >> 3);  // y / 8
+
+        for ty = 0 to area
+        {
+            for tx = 0 to area
+            {
+                tile = GetTileAt(check_x + tx, check_y + ty);
+                
+                // Define which tiles are obstacles
+                // Adjust these values based on your tileset
+                if (tile != TILE_WALKABLE1 && tile != TILE_WALKABLE2 && tile != TILE_WALKABLE3)
+                {
+                    return 0;  // Not walkable
+                }
+            }
+        }
+        
+        return 1;  // Walkable
+    }
+
+    proc CreateMap(level:byte) -> void
+    {
+        var x:u16;
+        var y:u16;
+        var tile:u8;
+        var map_ptr:byte*;
+
+        call ClearLevelBuffer();
+
+        // Select map data based on level
+        if (level == 1)
+        {
+            map_data = &map1;
+            level_start_x = 13; // Example start position for level 1
+            level_start_y = 5;
+        }
+        else
+        {
+            // Default to map1 if level not recognized
+            map_data = &map1;
+            level_start_x = 13; // Example start position for level 1
+            level_start_y = 5;
+        }
+
+        // Load global into typed local for array access
+        map_ptr = map_data;
+
+        // Create the map
+        for y = 0 to MAP_HEIGHT - 1
+        {
+            for x = 0 to MAP_WIDTH - 1
+            {
+                tile = map_ptr[y * MAP_WIDTH + x];
+                if( tile == 0)
+                {
+                    continue; // Skip empty tiles (this extends d0 to long!)
+                }
+
+                asm {
+                    ; Get tile code from map_data (is now in d0)
+                    ;clr.l d0
+                    ;move.b @tile,d0
+                    
+                   ; Get tile index (already in d0 from the tile variable)
+                    subq.l #1,d0            ; Adjust tile index (tiles start from 1 in map)
+                    
+                    ; Clamp to valid range (0-81)
+                    cmp.l #82,d0
+                    blt.s .tile_valid
+                    moveq #0,d0             ; Out of range - use tile 0
+.tile_valid:
+
+                    ; Calculate source tile address
+                    ; Each tile is 8 rows × 5 planes = 40 bytes
+                    ; Format: row0[plane0,plane1,plane2,plane3,plane4], row1[...], ...
+                    move.l #tileset_Robot,a1
+                    mulu.w #40,d0           ; tile * 40 bytes per tile
+                    add.l d0,a1             ; a1 = source tile address
+                    
+                    ; Calculate screen destination address
+                    ; Screen is line-interleaved: 320 pixels (40 bytes) wide, 5 bitplanes
+                    ; Each screen row = 40 bytes × 5 planes = 200 bytes
+                    move.l #level_screen,a0
+                    move.w @y,d0
+                    ext.l d0
+                    mulu.w #(8*40*5),d0     ; y * 1600 bytes (8 pixel rows per tile * 200 bytes per screen row)
+                    
+                    move.w @x,d1
+                    ext.l d1
+                    add.l d1,d0             ; add x byte position (1 byte per tile horizontally)
+                    add.l d0,a0             ; a0 = screen base address for this tile
+                    
+                    ; Copy 8 rows of 5 interleaved plane bytes (40 bytes total)
+                    ; Tileset: row-interleaved per tile
+                    ; Screen: line-interleaved
+                    moveq #(8-1),d7         ; 8 rows
+                    
+.draw_row_loop:
+                    ; Read 5 consecutive plane bytes from tileset
+                    move.b (a1)+,d0         ; plane 0
+                    move.b d0,(a0)
+                    move.b (a1)+,d0         ; plane 1
+                    move.b d0,40(a0)
+                    move.b (a1)+,d0         ; plane 2
+                    move.b d0,80(a0)
+                    move.b (a1)+,d0         ; plane 3
+                    move.b d0,120(a0)
+                    move.b (a1)+,d0         ; plane 4
+                    move.b d0,160(a0)
+                    
+                    add.l #200,a0           ; Move to next screen row (5 planes * 40 bytes)
+                    
+                    dbf d7,.draw_row_loop
+                }
+            }
+        }
+    }
+
+    proc ClearLevelBuffer() -> void
+    {
+        asm {
+            move.l #level_screen,a0
+            move.l #320*256/32*5-1,d0
+            moveq #0,d1
+.l1:        move.l d1,(a0)+
+            dbra d0,.l1
+        }
+    }
+
+    proc CopyLevelBuffer() -> void
+    {
+        asm {
+            move.l #level_screen,a0
+            move.l gfx_current_screen_ptr,a1
+            move.l #320*256/32*5-1,d0
+.copy_loop:
+            move.l (a0)+,(a1)+
+            dbra d0,.copy_loop
+        }
+    }
+
+data data_map1:
+    map1.b = {3,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,3,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+3,12,12,12,12,29,12,33,12,12,12,12,12,12,12,12,42,29,12,33,3,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+3,14,14,14,14,34,14,14,14,14,14,14,14,14,14,14,14,7,14,14,3,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+3,15,15,15,15,15,15,15,15,15,15,15,15,15,15,15,15,15,15,15,3,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+3,71,71,71,71,71,55,15,15,15,15,15,15,15,15,15,15,15,15,15,3,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+3,75,75,75,75,75,72,15,15,15,15,15,15,15,15,15,15,15,15,15,3,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+3,15,15,15,15,15,15,15,15,15,61,15,15,15,15,15,15,15,15,15,3,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+3,15,15,15,15,15,15,15,15,15,15,61,61,15,15,15,15,15,15,15,3,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+3,15,15,15,15,15,15,15,15,15,15,15,15,15,15,15,18,18,15,15,3,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+3,15,15,15,15,15,15,15,15,15,15,15,15,15,15,15,15,15,15,15,3,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+41,78,78,78,78,78,78,78,30,15,15,15,15,30,78,78,78,78,78,78,41,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+23,23,23,23,23,23,23,23,3,15,15,15,15,5,1,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+23,23,23,23,23,23,23,23,3,15,15,15,15,5,1,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+0,0,0,0,0,0,0,1,3,15,15,15,15,4,4,4,4,4,4,4,4,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+0,0,0,0,0,0,0,0,3,15,15,15,15,11,11,11,32,11,11,11,16,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+0,0,0,0,0,0,0,0,3,15,15,15,15,15,15,15,15,15,15,15,3,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+0,0,0,0,0,0,0,0,3,15,15,15,15,15,15,15,15,15,15,15,4,5,4,4,4,4,4,4,4,4,4,4,4,4,4,4,3,0,0,0,
+0,0,0,0,0,0,0,0,3,15,15,15,15,15,15,15,15,15,15,15,3,44,44,50,44,44,44,6,6,6,12,6,45,6,6,6,3,0,0,0,
+0,0,0,0,0,0,3,3,41,15,15,15,15,15,61,15,15,15,15,15,41,44,44,32,44,44,44,6,6,6,6,6,14,6,6,6,3,0,0,0,
+0,0,0,0,0,0,3,12,12,15,15,15,15,15,15,15,15,15,15,15,15,15,15,15,15,15,15,15,15,15,15,15,15,15,15,15,3,0,0,0,
+0,0,0,0,0,0,3,12,12,15,15,15,15,15,15,15,15,18,15,15,15,15,15,15,15,15,15,15,15,15,15,15,15,15,15,15,3,0,0,0,
+0,0,0,0,0,0,3,47,47,15,15,15,15,15,15,15,15,15,15,15,15,15,15,15,15,15,15,15,15,15,15,15,15,15,15,15,3,0,0,0,
+0,0,0,0,0,0,3,34,34,15,15,15,15,15,15,15,15,15,15,15,15,15,15,15,15,15,15,15,15,15,15,15,15,15,15,61,3,0,0,0,
+0,0,0,0,0,0,3,3,3,15,15,15,15,15,15,15,15,15,15,15,3,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,0,0,0,
+0,0,0,0,0,0,6,6,3,3,3,3,3,3,3,15,15,15,15,3,3,6,6,6,6,6,6,6,6,6,6,6,6,13,14,6,12,0,0,0,
+0,0,0,0,0,0,1,1,6,6,6,6,6,6,3,15,15,15,15,3,6,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0,0,0,
+0,0,0,0,0,0,0,0,0,0,0,0,0,0,3,15,15,15,15,3,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+0,0,0,0,0,0,0,0,0,0,0,0,0,0,3,15,15,15,15,3,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+0,0,0,0,0,0,0,0,0,0,0,0,0,0,3,15,15,15,15,3,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+0,0,0,0,0,0,0,0,0,0,0,0,0,0,3,15,15,15,15,3,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+0,0,0,0,0,0,0,0,0,0,0,0,0,0,3,4,4,4,4,4,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+0,0,0,0,0,0,0,0,0,0,0,0,0,0,25,6,6,6,9,6,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0}
+
+bss level_bss:
+    level_start_x.b: 1
+    level_start_y.b: 1
+    map_data.l: 1  // u8* pointer (4 bytes, untyped)
+    level_screen.b[51200]   // 320 * 256 / 8 * 5 bitplanes

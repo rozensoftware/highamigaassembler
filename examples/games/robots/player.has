@@ -1,0 +1,254 @@
+#pragma lockreg(a5);
+
+#include "includes/robots_defs.has";
+
+const PLAYER_SPEED = 3;
+
+    extern func ReadJoystick() -> u32;
+    extern func ReadJoystickFire() -> byte;
+    extern func CreateBullet(x:word, y:word, direction:byte) -> void;
+    extern func IsPositionWalkable(x:u16, y:u16, area:u8) -> u8;
+
+    extern var bob_frame000_Robot1_front_frame_000: int;
+    extern var bob_frame001_Robot1_front_frame_001: int;
+    extern var bob_frame002_Robot1_front_frame_002: int;
+    extern var bob_frame003_Robot1_front_frame_003: int;
+
+    extern var bob_frame000_Robot1_back_frame_000: int;
+    extern var bob_frame001_Robot1_back_frame_001: int;
+    extern var bob_frame002_Robot1_back_frame_002: int;
+    extern var bob_frame003_Robot1_back_frame_003: int;
+
+    extern var bob_frame000_Robot1_left_frame_000: int;
+    extern var bob_frame001_Robot1_left_frame_001: int;
+    extern var bob_frame002_Robot1_left_frame_002: int;
+    extern var bob_frame003_Robot1_left_frame_003: int;
+
+    extern var bob_frame000_Robot1_right_frame_000: int;
+    extern var bob_frame001_Robot1_right_frame_001: int;
+    extern var bob_frame002_Robot1_right_frame_002: int;
+    extern var bob_frame003_Robot1_right_frame_003: int;
+
+    public InitPlayer;
+    public LoadPlayerShapes;
+    public MovePlayer;
+
+code player_code:
+
+    native proc peek_w(__reg(a0) a:long) -> int {
+        // Read a 16-bit word from memory address
+        // addr is passed in a0, result returned in d0
+        asm {
+            move.w (a0),d0         ; d0 = word at addr
+            ext.l d0               ; sign-extend to 32-bit
+        }
+    }
+
+    proc InitPlayer(start_x:word, start_y:word) -> void
+    {
+        var p:player*;
+        p = &player[0];
+
+        p->x = start_x;
+        p->y = start_y;
+        p->anim_delay = ANIM_DELAY;
+        p->active = 1;
+        p->frame = 0;
+        p->direction = ROBOT_DIR_DOWN;
+    }
+
+    proc LoadPlayerShapes() -> int
+    {
+        var i:int;
+        var pal:int;
+        var id:long;
+
+        id = CreateBob(&bob_frame000_Robot1_front_frame_000, 0);
+        if(id == -1) { return -1; }
+        player_down[0] = id;
+        id = CreateBob(&bob_frame001_Robot1_front_frame_001, 0);
+        if(id == -1) { return -1; }
+        player_down[1] = id;
+        id = CreateBob(&bob_frame002_Robot1_front_frame_002, 0);
+        if(id == -1) { return -1; }
+        player_down[2] = id;
+        id = CreateBob(&bob_frame003_Robot1_front_frame_003, 0);
+        if(id == -1) { return -1; }
+        player_down[3] = id;
+
+        id = CreateBob(&bob_frame000_Robot1_back_frame_000, 0);
+        if(id == -1) { return -1; }
+        player_up[0] = id;
+        id = CreateBob(&bob_frame001_Robot1_back_frame_001, 0);
+        if(id == -1) { return -1; }
+        player_up[1] = id;
+        id = CreateBob(&bob_frame002_Robot1_back_frame_002, 0);
+        if(id == -1) { return -1; }
+        player_up[2] = id;
+        id = CreateBob(&bob_frame003_Robot1_back_frame_003, 0);
+        if(id == -1) { return -1; }
+        player_up[3] = id;
+
+        id = CreateBob(&bob_frame000_Robot1_left_frame_000, 0);
+        if(id == -1) { return -1; }
+        player_left[0] = id;
+        id = CreateBob(&bob_frame001_Robot1_left_frame_001, 0);
+        if(id == -1) { return -1; }
+        player_left[1] = id;
+        id = CreateBob(&bob_frame002_Robot1_left_frame_002, 0);
+        if(id == -1) { return -1; }
+        player_left[2] = id;
+        id = CreateBob(&bob_frame003_Robot1_left_frame_003, 0);
+        if(id == -1) { return -1; }
+        player_left[3] = id;
+
+        id = CreateBob(&bob_frame000_Robot1_right_frame_000, 0);
+        if(id == -1) { return -1; }
+        player_right[0] = id;
+        id = CreateBob(&bob_frame001_Robot1_right_frame_001, 0);
+        if(id == -1) { return -1; }
+        player_right[1] = id;
+        id = CreateBob(&bob_frame002_Robot1_right_frame_002, 0);
+        if(id == -1) { return -1; }
+        player_right[2] = id;
+        id = CreateBob(&bob_frame003_Robot1_right_frame_003, 0);
+        if(id == -1) { return -1; }
+        player_right[3] = id;
+
+        pal = GetBobPalette(player_down);
+        i = 0;
+        while (i < MAX_COLORS)
+        {
+            call SetColor(i, peek_w(pal + (i<<1)));
+            i = i + 1;
+        }
+        return 0;
+    }
+
+    proc DrawPlayer(move:bool) -> void
+    {
+        var x:u16;
+        var y:u16;
+        var frame:u8;
+        var bob_id:int;
+        var delay:u8;
+
+        delay = player.anim_delay;
+        frame = player.frame;
+
+        if(move == TRUE)
+        {
+            if (delay > 0)
+            {
+                player.anim_delay = delay - 1;
+            }
+            else
+            {
+                player.anim_delay = ANIM_DELAY;
+                frame = (frame + 1) & (ROBOT_FRAMES - 1);
+            }
+        }
+        else
+        {
+            frame = 0;
+        }
+
+        player.frame = frame;
+        x = player.x;
+        y = player.y;
+
+        if(player.direction == ROBOT_DIR_UP)
+        {
+            bob_id = player_up[frame];
+        }
+        if(player.direction == ROBOT_DIR_LEFT)
+        {
+            bob_id = player_left[frame];
+        }
+        if(player.direction == ROBOT_DIR_RIGHT)
+        {
+            bob_id = player_right[frame];
+        }
+        if(player.direction == ROBOT_DIR_DOWN)
+        {
+            bob_id = player_down[frame];
+        }
+
+        PasteBob(bob_id, x, y, 1);
+        return;
+    }
+
+    proc MovePlayer() -> void
+    {
+        var joy:u32;
+        var fire:u8;
+        var x:word;
+        var y:word;
+        var offset_x:word;
+        var offset_y:word;
+        var dir:byte = player.direction;
+        var move:bool = FALSE;
+
+        x = player.x; y = player.y;
+
+        joy = ReadJoystick();
+
+        if(joy & (1<<9))  { x = x - PLAYER_SPEED; dir = ROBOT_DIR_LEFT; move = TRUE; }
+        if(joy & 2)  { x = x + PLAYER_SPEED; dir = ROBOT_DIR_RIGHT; move = TRUE; }
+        if(joy & 4)  { y = y + PLAYER_SPEED; dir = ROBOT_DIR_DOWN; move = TRUE; }
+        if(joy & (1<<10))  { y = y - PLAYER_SPEED; dir = ROBOT_DIR_UP; move = TRUE; }
+
+        if(x < 0) { x = 0; }
+        if(y < 0) { y = 0; }
+        if(x > SCREEN_WIDTH - 48) { x = SCREEN_WIDTH - 48; }
+        if(y > SCREEN_HEIGHT - 32) { y = SCREEN_HEIGHT - 32; }
+        
+        fire = ReadJoystickFire();
+        if(fire_clicked == 0)
+        {
+            if(fire != 0)
+            {
+                if(dir == ROBOT_DIR_UP)      
+                {
+                    offset_x = 16; offset_y = 0;
+                }
+                else if(dir == ROBOT_DIR_DOWN) 
+                { offset_x = 10; offset_y = 32-7; }
+                else if(dir == ROBOT_DIR_LEFT) { offset_x = 0; offset_y = 16; }
+                else
+                { 
+                    offset_x = 32-8; offset_y = 16; 
+                }
+
+                call CreateBullet(x + offset_x, y + offset_y, dir);
+                fire_clicked = 1;
+            }
+        }
+        else
+        {
+            if(fire == 0)
+            {
+                fire_clicked = 0;
+            }
+        }
+
+        if(IsPositionWalkable(x, y, 3) == 1)
+        {
+            player.x = x;
+            player.y = y;
+        }
+
+        player.direction = dir;
+        call DrawPlayer(move);
+    }
+
+data player_data:
+    fire_clicked.b = 0
+
+bss player_bss:
+    player_up.l[ROBOT_FRAMES]
+    player_down.l[ROBOT_FRAMES]
+    player_left.l[ROBOT_FRAMES]
+    player_right.l[ROBOT_FRAMES]
+
+    struct player { x.w, y.w, anim_delay.b, active.b, frame.b, direction.b }

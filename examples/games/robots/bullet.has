@@ -1,0 +1,142 @@
+#pragma lockreg(a5);
+
+#include "includes/robots_defs.has";
+
+const MAX_BULLETS = 10;
+const MAX_BULLET_FRAMES = 4;
+const BULLET_SPEED = 7;
+
+    extern func IsPositionWalkable(x:u16, y:u16, area:u8) -> u8;
+
+    extern var bob_frame000_Bullet1_frame_000: int;
+    extern var bob_frame001_Bullet1_frame_001: int;
+    extern var bob_frame002_Bullet1_frame_002: int;
+    extern var bob_frame003_Bullet1_frame_003: int;
+
+    public LoadBulletShapes;
+    public InitBullets;
+    public CreateBullet;
+    public MoveBullets;
+
+code bullet_code:
+
+    proc InitBullets() -> void
+    {
+        var i:int;
+        var p:bullet*;
+
+        for i = 0 to MAX_BULLETS - 1
+        {
+            p = &bullet[i];
+            p->x = 0;
+            p->y = 0;
+            p->anim_delay = 0;
+            p->active = 0;
+            p->frame = 0;
+            p->direction = 0;
+        }
+    }
+
+    proc LoadBulletShapes() -> int
+    {
+        var id:int;
+        id = CreateBob(&bob_frame000_Bullet1_frame_000, 0);
+        if(id == -1) { return -1; }
+        bullet_anim[0] = id;
+        id = CreateBob(&bob_frame001_Bullet1_frame_001, 0);
+        if(id == -1) { return -1; }
+        bullet_anim[1] = id;
+        id = CreateBob(&bob_frame002_Bullet1_frame_002, 0);
+        if(id == -1) { return -1; }
+        bullet_anim[2] = id;
+        id = CreateBob(&bob_frame003_Bullet1_frame_003, 0);
+        if(id == -1) { return -1; }
+        bullet_anim[3] = id;
+        return 0;
+    }
+
+    proc MoveBullets() -> void
+    {
+        var i:int;
+        var frame:byte;
+        var p:bullet*;
+        var new_x:word;
+        var new_y:word;
+
+        for i = 0 to MAX_BULLETS - 1
+        {
+            p = &bullet[i];
+            if (p->active == 1)
+            {
+                // Calculate new bullet position based on direction
+                new_x = p->x;
+                new_y = p->y;
+                
+                if (p->direction == ROBOT_DIR_UP)
+                {
+                    new_y = new_y - BULLET_SPEED;
+                }
+                else if (p->direction == ROBOT_DIR_DOWN)
+                {
+                    new_y = new_y + BULLET_SPEED;
+                }
+                else if (p->direction == ROBOT_DIR_LEFT)
+                {
+                    new_x = new_x - BULLET_SPEED;
+                }
+                else if (p->direction == ROBOT_DIR_RIGHT)
+                {
+                    new_x = new_x + BULLET_SPEED;
+                }
+
+                // Deactivate bullet if it goes off-screen
+                if (new_x < 0 || new_x > SCREEN_WIDTH - 24 || new_y < 0 || new_y > SCREEN_HEIGHT - 8)
+                {
+                    p->active = 0; 
+                    continue;
+                }
+
+                // Check for collision with walls at NEW position
+                if (IsPositionWalkable(new_x, new_y, 0) == 0)
+                {
+                    p->active = 0; 
+                    continue;
+                }
+                
+                // Only update position if checks passed
+                p->x = new_x;
+                p->y = new_y;
+
+                frame = p->frame;
+                frame = (frame + 1) % MAX_BULLET_FRAMES;
+                p->frame = frame;
+
+                call PasteBob(bullet_anim[frame], p->x, p->y, 1);
+            }
+        }
+    }
+
+    proc CreateBullet(start_x:word, start_y:word, direction:byte) -> void
+    {
+        var i:int;
+        var p:bullet*;
+
+        for i = 0 to MAX_BULLETS - 1
+        {
+            p = &bullet[i];
+            if (p->active == 0)
+            {
+                p->x = start_x;
+                p->y = start_y;
+                p->anim_delay = ANIM_DELAY;
+                p->active = 1;
+                p->frame = 0;
+                p->direction = direction;
+                break;
+            }
+        }
+    }
+
+bss bullet_bss:
+    bullet_anim.l[MAX_BULLET_FRAMES]
+    struct bullet[MAX_BULLETS] { x.w, y.w, anim_delay.b, active.b, frame.b, direction.b }
