@@ -34,6 +34,17 @@ class CodeGen:
         """Abort codegen with a clear, user-facing error."""
         raise CodeGenError(message)
 
+    def _fits_signed_word(self, value: int) -> bool:
+        return -32768 <= value <= 32767
+
+    def _require_signed_word_const(self, expr, op_name: str, side: str):
+        """Ensure constant arithmetic operands fit 68000 word-based MULS/DIVS ops."""
+        if isinstance(expr, ast.Number) and not self._fits_signed_word(expr.value):
+            self._fail(
+                f"{op_name} uses 68000 word arithmetic; {side} constant {expr.value} "
+                f"is outside signed 16-bit range (-32768..32767)."
+            )
+
     def _is_unsigned_expr(self, expr, locals_info, params=None) -> bool:
         """Best-effort check if expr should be treated as unsigned for comparisons.
         Uses declared local/parameter types (u8/u16/u32/UBYTE/UWORD/ULONG).
@@ -1352,35 +1363,25 @@ class CodeGen:
             elif expr.op == '*':
                 # Use signed 16x16 -> 32 multiply for int arithmetic on 68000
                 # Assumes operands fit in 16 bits; result in reg_left (32-bit)
+                self._require_signed_word_const(expr.left, 'multiplication', 'left')
+                self._require_signed_word_const(expr.right, 'multiplication', 'right')
+                code.append(f"    ext.l {reg_left}  ; normalize to signed 16-bit source semantics")
+                code.append(f"    ext.l {reg_right}  ; normalize to signed 16-bit source semantics")
                 code.append(f"    muls.w {reg_right},{reg_left}")
             elif expr.op == '/':
-                # Division: try to optimize constant divisions as shifts
-                is_const, const_val = self._fold_constant(expr.right)
-                if is_const and const_val > 0 and (const_val & (const_val - 1)) == 0:
-                    # Power of 2: convert to arithmetic shift (68000: asr.l #imm,reg)
-                    # This is much faster than divs.w for powers of 2
-                    shift_amount = 0
-                    tmp = const_val
-                    while tmp > 1:
-                        shift_amount += 1
-                        tmp >>= 1
-                    # asr.l #shift_amount,reg_left (68000 immediate shift 1-8)
-                    if shift_amount <= 8:
-                        code.append(f"    asr.l #{shift_amount},{reg_left}  ; divide by {const_val}")
-                    else:
-                        # Multiple shifts for rare cases where shift > 8
-                        for _ in range(shift_amount // 8):
-                            code.append(f"    asr.l #8,{reg_left}")
-                        remainder = shift_amount % 8
-                        if remainder:
-                            code.append(f"    asr.l #{remainder},{reg_left}")
-                    return code
-                else:
-                    # Non-power-of-2 or non-constant: use divs.w (16-bit signed, 68000)
-                    # Right operand is already evaluated into reg_right above.
-                    code.append(f"    divs.w {reg_right},{reg_left}")
+                # Use DIVS.W for signed division. Do not rewrite to ASR for powers
+                # of two because ASR rounds negative values differently than DIVS.
+                self._require_signed_word_const(expr.right, 'division', 'right')
+                if isinstance(expr.right, ast.Number) and expr.right.value == 0:
+                    self._fail("Division by zero constant in expression.")
+                code.append(f"    ext.l {reg_right}  ; normalize divisor to signed 16-bit semantics")
+                code.append(f"    divs.w {reg_right},{reg_left}")
             elif expr.op == '%':
                 # Modulo - after divs.w, remainder is in upper word
+                self._require_signed_word_const(expr.right, 'modulo', 'right')
+                if isinstance(expr.right, ast.Number) and expr.right.value == 0:
+                    self._fail("Modulo by zero constant in expression.")
+                code.append(f"    ext.l {reg_right}  ; normalize divisor to signed 16-bit semantics")
                 code.append(f"    divs.w {reg_right},{reg_left}")
                 code.append(f"    swap {reg_left}  ; get remainder")
                 code.append(f"    ext.l {reg_left}  ; sign-extend")
