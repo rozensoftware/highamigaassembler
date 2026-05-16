@@ -14,8 +14,10 @@ BUILD_DIR := $(BUILD_ROOT)/build
 SRC_DIR := .
 
 # Python / tools (Linux)
-ifneq (,$(wildcard $(PROJ_ROOT)venv/bin/python))
-	PYTHON := $(PROJ_ROOT)venv/bin/python
+ifneq (,$(wildcard $(PROJ_ROOT)/.venv/bin/python))
+	PYTHON := $(PROJ_ROOT)/.venv/bin/python
+else ifneq (,$(wildcard $(PROJ_ROOT)/venv/bin/python))
+	PYTHON := $(PROJ_ROOT)/venv/bin/python
 else
 	PYTHON := python3
 endif
@@ -64,11 +66,11 @@ $(EXE_FILE): $(HAS_OBJS) $(LIB_OBJS) $(GAME_OBJS)
 $(BUILD_DIR)/%.o: %.has | $(BUILD_DIR)
 	@echo "Compiling and assembling $< -> $(notdir $@)"
 	@mkdir -p $(dir $@) 2>/dev/null || true
-	@if ! command -v $(PYTHON) >/dev/null 2>&1; then \
+	@if ! command -v "$(PYTHON)" >/dev/null 2>&1; then \
 		 echo "Error: Python interpreter '$(PYTHON)' not found. Set up venv or install python3."; \
 		 exit 1; \
 	fi
-	PYTHONPATH=$(PYTHONPATH) $(PYTHON) -m hasc.cli "$(abspath $<)" -o "$(abspath $(BUILD_DIR)/$*.s)"
+	PYTHONPATH="$(PYTHONPATH)" "$(PYTHON)" -m hasc.cli "$(abspath $<)" -o "$(abspath $(BUILD_DIR)/$*.s)"
 	$(VASM) $(VASM_FLAGS) -L $(BUILD_DIR)/$*.lst -o $@ $(BUILD_DIR)/$*.s
 
 $(MAIN_OBJ): $(MAIN_HAS) | $(BUILD_DIR)

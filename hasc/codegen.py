@@ -4,6 +4,8 @@ from . import peepholeopt
 from . import ast
 from .register_allocator import RegisterAllocator
 from . import codegen_utils
+from .macro_expander import MacroExpander
+from .asm_substitution import substitute_asm_vars
 
 
 class CodeGenError(Exception):
@@ -18,7 +20,8 @@ class CodeGen:
         self.lines = []
         self.proc_sigs = self._build_proc_signatures(module)
         self.array_dims = self._build_array_dimensions(module)
-        self.macros = self._build_macros(module)  # Collect macro definitions
+        self.macro_expander = MacroExpander(module, ast, self._normalize_expr)
+        self.macros = self.macro_expander.macros  # Keep compatibility with existing call sites
         self.constants = self._build_constants(module)  # Collect constant definitions
         self.globals = self._build_globals(module)  # Collect global definitions
         self.struct_info = self._build_struct_info(module)  # Struct sizes and field layouts
@@ -161,11 +164,7 @@ class CodeGen:
         """Collect macro definitions from module.
         Returns dict: {name: MacroDef}
         """
-        macros = {}
-        for item in module.items:
-            if isinstance(item, ast.MacroDef):
-                macros[item.name] = item
-        return macros
+        return MacroExpander.build_macros(module, ast)
 
     def _build_constants(self, module: ast.Module):
         """Collect constant definitions from module.
@@ -306,195 +305,15 @@ class CodeGen:
         """Expand a macro by substituting arguments into the macro body.
         Returns list of expanded statements.
         """
-        expanded = []
-        
-        # Create substitution map: parameter name -> argument
-        substitutions = {}
-        for i, param_name in enumerate(macro.params):
-            if i < len(args):
-                substitutions[param_name] = args[i]
-        
-        if self.print_debug:
-            print(f"DEBUG: Expanding macro '{macro.name}' with substitutions: {substitutions}")
-        
-        # Process each statement in macro body, substituting arguments
-        for stmt in macro.body:
-            expanded_stmt = self._substitute_in_stmt(stmt, substitutions)
-            if self.print_debug:
-                print(f"DEBUG: Expanded statement: {expanded_stmt}")
-            expanded.append(expanded_stmt)
-        
-        return expanded
+        return self.macro_expander.expand_macro(macro, args, print_debug=self.print_debug)
 
     def _substitute_in_stmt(self, stmt, substitutions):
         """Recursively substitute macro parameters in statements."""
-        import copy
-        
-        # Deep copy the statement to avoid modifying the original
-        stmt = copy.deepcopy(stmt)
-        
-        if self.print_debug:
-            print(f"DEBUG: Substituting in stmt type={type(stmt).__name__}, target={getattr(stmt, 'target', None)}")
-            print(f"DEBUG: Substitutions map: {substitutions}")
-        
-        # Recursively substitute in expressions and nested statements
-        if isinstance(stmt, ast.Assign):
-            # Substitute in target if it's a simple variable reference
-            if isinstance(stmt.target, str) and stmt.target in substitutions:
-                if self.print_debug:
-                    print(f"DEBUG: Target '{stmt.target}' is in substitutions")
-                # Get the substituted value
-                sub_val = substitutions[stmt.target]
-                # If it's a VarRef, extract the name string
-                if isinstance(sub_val, ast.VarRef):
-                    stmt.target = sub_val.name
-                    if self.print_debug:
-                        print(f"DEBUG: Substituted target to VarRef.name: {stmt.target}")
-                elif isinstance(sub_val, str):
-                    stmt.target = sub_val
-                    if self.print_debug:
-                        print(f"DEBUG: Substituted target to string: {stmt.target}")
-                else:
-                    # For complex expressions, keep as expression type
-                    stmt.target = self._substitute_in_expr(sub_val, substitutions)
-                    if self.print_debug:
-                        print(f"DEBUG: Substituted target to expression: {stmt.target}")
-            elif isinstance(stmt.target, ast.VarRef) and stmt.target.name in substitutions:
-                sub_val = substitutions[stmt.target.name]
-                if isinstance(sub_val, ast.VarRef):
-                    stmt.target = sub_val.name
-                elif isinstance(sub_val, str):
-                    stmt.target = sub_val
-                else:
-                    stmt.target = self._substitute_in_expr(sub_val, substitutions)
-            elif isinstance(stmt.target, ast.ArrayAccess):
-                stmt.target = self._substitute_in_expr(stmt.target, substitutions)
-            elif isinstance(stmt.target, ast.MemberAccess):
-                stmt.target = self._substitute_in_expr(stmt.target, substitutions)
-            
-            # Substitute in the expression
-            stmt.expr = self._substitute_in_expr(stmt.expr, substitutions)
-            
-        elif isinstance(stmt, ast.CompoundAssign):
-            # Substitute in target
-            if isinstance(stmt.target, str) and stmt.target in substitutions:
-                sub_val = substitutions[stmt.target]
-                if isinstance(sub_val, ast.VarRef):
-                    stmt.target = sub_val.name
-                elif isinstance(sub_val, str):
-                    stmt.target = sub_val
-                else:
-                    stmt.target = self._substitute_in_expr(sub_val, substitutions)
-            elif isinstance(stmt.target, ast.VarRef) and stmt.target.name in substitutions:
-                sub_val = substitutions[stmt.target.name]
-                if isinstance(sub_val, ast.VarRef):
-                    stmt.target = sub_val.name
-                elif isinstance(sub_val, str):
-                    stmt.target = sub_val
-                else:
-                    stmt.target = self._substitute_in_expr(sub_val, substitutions)
-            stmt.expr = self._substitute_in_expr(stmt.expr, substitutions)
-            
-        elif isinstance(stmt, ast.VarDecl):
-            # Substitute in initialization expression if present
-            if stmt.init_expr:
-                stmt.init_expr = self._substitute_in_expr(stmt.init_expr, substitutions)
-                
-        elif isinstance(stmt, ast.Return):
-            if stmt.expr:
-                stmt.expr = self._substitute_in_expr(stmt.expr, substitutions)
-                
-        elif isinstance(stmt, ast.If):
-            stmt.cond = self._substitute_in_expr(stmt.cond, substitutions)
-            stmt.then_body = [self._substitute_in_stmt(s, substitutions) for s in stmt.then_body]
-            if stmt.else_body:
-                stmt.else_body = [self._substitute_in_stmt(s, substitutions) for s in stmt.else_body]
-                
-        elif isinstance(stmt, ast.While):
-            stmt.cond = self._substitute_in_expr(stmt.cond, substitutions)
-            stmt.body = [self._substitute_in_stmt(s, substitutions) for s in stmt.body]
-            
-        elif isinstance(stmt, ast.DoWhile):
-            stmt.cond = self._substitute_in_expr(stmt.cond, substitutions)
-            stmt.body = [self._substitute_in_stmt(s, substitutions) for s in stmt.body]
-            
-        elif isinstance(stmt, ast.ForLoop):
-            stmt.start = self._substitute_in_expr(stmt.start, substitutions)
-            stmt.end = self._substitute_in_expr(stmt.end, substitutions)
-            stmt.step = self._substitute_in_expr(stmt.step, substitutions)
-            stmt.body = [self._substitute_in_stmt(s, substitutions) for s in stmt.body]
-            
-        elif isinstance(stmt, ast.RepeatLoop):
-            stmt.count = self._substitute_in_expr(stmt.count, substitutions)
-            stmt.body = [self._substitute_in_stmt(s, substitutions) for s in stmt.body]
-            
-        elif isinstance(stmt, ast.ExprStmt):
-            stmt.expr = self._substitute_in_expr(stmt.expr, substitutions)
-            
-        elif isinstance(stmt, ast.CallStmt):
-            if stmt.args:
-                stmt.args = [self._substitute_in_expr(arg, substitutions) for arg in stmt.args]
-                
-        elif isinstance(stmt, ast.MacroCall):
-            if stmt.args:
-                stmt.args = [self._substitute_in_expr(arg, substitutions) for arg in stmt.args]
-        
-        return stmt
+        return self.macro_expander.substitute_in_stmt(stmt, substitutions, print_debug=self.print_debug)
     
     def _substitute_in_expr(self, expr, substitutions):
         """Recursively substitute macro parameters in expressions."""
-        import copy
-        
-        if expr is None:
-            return None
-        
-        # Normalize Lark Tree objects first
-        expr = self._normalize_expr(expr)
-        
-        # Deep copy to avoid modifying the original
-        expr = copy.deepcopy(expr)
-        
-        # Substitute variable references
-        if isinstance(expr, ast.VarRef):
-            if expr.name in substitutions:
-                # Return the substitution (could be another expression)
-                return copy.deepcopy(substitutions[expr.name])
-            return expr
-            
-        elif isinstance(expr, ast.BinOp):
-            expr.left = self._substitute_in_expr(expr.left, substitutions)
-            expr.right = self._substitute_in_expr(expr.right, substitutions)
-            return expr
-            
-        elif isinstance(expr, ast.UnaryOp):
-            expr.operand = self._substitute_in_expr(expr.operand, substitutions)
-            return expr
-            
-        elif isinstance(expr, ast.Call):
-            if expr.args:
-                expr.args = [self._substitute_in_expr(arg, substitutions) for arg in expr.args]
-            return expr
-            
-        elif isinstance(expr, ast.ArrayAccess):
-            if expr.name in substitutions:
-                # If the array base is substituted, handle it
-                sub = substitutions[expr.name]
-                if isinstance(sub, ast.VarRef):
-                    expr.name = sub.name
-            if expr.indices:
-                expr.indices = [self._substitute_in_expr(idx, substitutions) for idx in expr.indices]
-            return expr
-            
-        elif isinstance(expr, ast.MemberAccess):
-            expr.base = self._substitute_in_expr(expr.base, substitutions)
-            return expr
-            
-        elif isinstance(expr, (ast.Number, ast.PreIncr, ast.PreDecr, ast.PostIncr, ast.PostDecr)):
-            # These don't need substitution
-            return expr
-            
-        # For anything else, return as-is
-        return expr
+        return self.macro_expander.substitute_in_expr(expr, substitutions)
 
     def emit(self, s=""):
         self.lines.append(s)
@@ -598,64 +417,15 @@ class CodeGen:
         
         Returns tuple of (substituted_content, comments) where comments document substitutions.
         """
-        import re
-        
-        # Find all @varname patterns
-        pattern = r'@([a-zA-Z_]\w*)'
-        matches = re.finditer(pattern, asm_content)
-        substitutions = []
-        
-        # Collect all matches first to avoid iterator issues during replacement
-        matches_list = list(re.finditer(pattern, asm_content))
-        
-        # Process substitutions in reverse order (to maintain string positions)
-        for match in reversed(matches_list):
-            var_name = match.group(1)
-            start = match.start()
-            end = match.end()
-            
-            # Check if it's a parameter (register or stack)
-            param_obj = next((p for p in params if p.name == var_name), None)
-            if param_obj:
-                if param_obj.register and param_obj.register != 'None':
-                    # Register parameter
-                    replacement = param_obj.register
-                    substitutions.insert(0, (var_name, replacement, "register parameter"))
-                else:
-                    # Stack parameter - calculate offset
-                    stack_params = [p for p in params if not (p.register and p.register != 'None')]
-                    if param_obj in stack_params:
-                        idx = stack_params.index(param_obj)
-                        offset = 8 + 4 * idx
-                        replacement = f"{offset}({frame_reg})"
-                        substitutions.insert(0, (var_name, replacement, "stack parameter"))
-                    else:
-                        # Should not happen, but fallback
-                        asm_content = asm_content[:start] + f"???{var_name}???" + asm_content[end:]
-                        continue
-                asm_content = asm_content[:start] + replacement + asm_content[end:]
-            else:
-                # Check if it's a local variable
-                local_info = next((l for l in locals_info if l[0] == var_name), None)
-                if local_info:
-                    name, vtype, offset = local_info
-                    replacement = f"-{offset}({frame_reg})"
-                    substitutions.insert(0, (var_name, replacement, "local variable"))
-                    asm_content = asm_content[:start] + replacement + asm_content[end:]
-                else:
-                    # Check if it's a global
-                    if var_name in self.globals:
-                        replacement = var_name
-                        substitutions.insert(0, (var_name, replacement, "global variable"))
-                        asm_content = asm_content[:start] + replacement + asm_content[end:]
-                    elif var_name in self.extern_vars:
-                        replacement = var_name
-                        substitutions.insert(0, (var_name, replacement, "external variable"))
-                        asm_content = asm_content[:start] + replacement + asm_content[end:]
-                    else:
-                        self._fail(f"Undefined symbol '{var_name}' in inline asm block")
-        
-        return asm_content, substitutions
+        return substitute_asm_vars(
+            asm_content,
+            params,
+            locals_info,
+            self.globals,
+            self.extern_vars,
+            frame_reg,
+            self._fail,
+        )
 
     def _emit_expr(self, expr, params, locals_info, reg_left="d0", reg_right="d1", target_type=None, frame_reg="a6"):
         # Evaluate expr into reg_left (d0). If needing second register, use reg_right (d1).
