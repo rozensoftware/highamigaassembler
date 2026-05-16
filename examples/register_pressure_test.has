@@ -1,0 +1,12 @@
+code register_pressure:
+
+// Stress nested arithmetic to expose register pressure and restore issues.
+proc stress_sum(a: int, b: int, c: int, d: int, e: int, f: int, g: int, h: int) -> int {
+    return ((a + b) + (c + d)) + ((e + f) + (g + h));
+}
+
+proc chained_mix(a: int, b: int, c: int, d: int, e: int, f: int) -> int {
+    var left: int = (a * b) + (c * d);
+    var right: int = (e * f) + (a * c);
+    return left + right;
+}

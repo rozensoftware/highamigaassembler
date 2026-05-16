@@ -172,7 +172,11 @@ def _optimize_immediate_ops(lines):
 
 
 def _eliminate_clr_move(lines):
-    """Remove CLR.L followed by MOVE to same register."""
+    """Remove CLR.L only when the next instruction fully overwrites the register.
+
+    On 68000, MOVE.B and MOVE.W to a data register do not clear the upper bytes,
+    so the CLR.L must be preserved for zero-extension patterns.
+    """
     optimized = []
     i = 0
     
@@ -181,11 +185,13 @@ def _eliminate_clr_move(lines):
             base1 = lines[i].split(';', 1)[0].rstrip()
             base2 = lines[i + 1].split(';', 1)[0].rstrip()
             
-            # CLR.L dN followed by any move to dN
+            # CLR.L dN followed by a full-width write to the same register.
             m1 = re.match(r"\s*clr\.l\s+(d\d+)$", base1)
-            m2 = re.match(r"\s*move(\.[bwl])?\s+\S+,\1$", base2) if m1 else None
+            target_reg = m1.group(1) if m1 else None
+            move_long = re.match(rf"\s*move\.l\s+\S+,{re.escape(target_reg)}$", base2) if target_reg else None
+            moveq = re.match(rf"\s*moveq\s+#-?\d+,{re.escape(target_reg)}$", base2) if target_reg else None
             
-            if m1 and m2:
+            if m1 and (move_long or moveq):
                 # The move will overwrite the CLR, so skip CLR
                 i += 1
                 continue
@@ -411,6 +417,7 @@ def _optimize_branch_to_branch(lines):
     labelA:
     
     Where INV_CC is the inverted condition (e.g., bge->blt, blt->bge, etc.)
+    while preserving any explicit branch size suffix such as .s.
     """
     optimized = []
     i = 0
@@ -432,17 +439,18 @@ def _optimize_branch_to_branch(lines):
             line2 = lines[i + 1].split(';', 1)[0].rstrip()
             line3 = lines[i + 2].split(';', 1)[0].rstrip()
             
-            # Match: b<cond> label1
-            m1 = re.match(r"\s*(b\w+)\s+(\w+)$", line1)
-            # Match: bra label2
-            m2 = re.match(r"\s*bra\s+(\w+)$", line2)
+            # Match: b<cond>[.size] label1
+            m1 = re.match(r"\s*(b[a-z]+)(\.[a-z]+)?\s+([._$A-Za-z]\w*)$", line1)
+            # Match: bra[.size] label2
+            m2 = re.match(r"\s*bra(\.[a-z]+)?\s+([._$A-Za-z]\w*)$", line2)
             # Match: label1:
-            m3 = re.match(r"^(\w+):$", line3)
+            m3 = re.match(r"^([._$A-Za-z]\w*):$", line3)
             
             if m1 and m2 and m3:
                 cond_branch = m1.group(1)
-                label1 = m1.group(2)
-                label2 = m2.group(1)
+                cond_suffix = m1.group(2) or ""
+                label1 = m1.group(3)
+                label2 = m2.group(2)
                 actual_label = m3.group(1)
                 
                 # Verify that label1 matches the actual label on line3
@@ -455,7 +463,7 @@ def _optimize_branch_to_branch(lines):
                     if ';' in lines[i]:
                         comment = " ; " + lines[i].split(';', 1)[1].strip()
                     
-                    optimized.append(f"    {inverted} {label2}{comment}")
+                    optimized.append(f"    {inverted}{cond_suffix} {label2}{comment}")
                     # Skip the bra instruction
                     i += 1
                     # Keep the label

@@ -58,7 +58,7 @@ class RegisterAllocator:
         """Allocate a data register. Returns (register, spilled_code).
         If preferred register is available, use it.
         Otherwise find first available, or spill least recently used."""
-        if preferred and preferred not in self.data_in_use:
+        if preferred in self.data_regs and preferred not in self.data_in_use:
             self.data_in_use.add(preferred)
             return (preferred, [])
         
@@ -78,7 +78,7 @@ class RegisterAllocator:
     
     def allocate_addr(self, preferred=None):
         """Allocate an address register. Returns (register, spilled_code)."""
-        if preferred and preferred not in self.addr_in_use:
+        if preferred in self.addr_regs and preferred not in self.addr_in_use:
             self.addr_in_use.add(preferred)
             return (preferred, [])
         
@@ -109,6 +109,10 @@ class RegisterAllocator:
             return (None, [])
         
         reg = self.spilled_stack.pop()
+        if reg.startswith('d'):
+            self.data_in_use.add(reg)
+        elif reg.startswith('a'):
+            self.addr_in_use.add(reg)
         code = [f"    move.l (a7)+,{reg}  ; restore {reg}"]
         return (reg, code)
     

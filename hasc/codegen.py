@@ -2603,6 +2603,17 @@ class CodeGen:
                 name, vtype, offset = local_info
                 size = ast.type_size(vtype) if vtype else 4
                 suffix = ast.size_suffix(size)
+
+                # Reuse the normal binary-expression lowering for operators that
+                # need 68000-specific handling (e.g. muls.w/divs.w instead of .l).
+                if stmt.op in ('*=', '/=', '%='):
+                    compound_expr = ast.BinOp(stmt.op[:-1], ast.VarRef(target), stmt.expr)
+                    code = self._emit_expr(compound_expr, params, locals_info, reg_left="d0", reg_right="d1", target_type=vtype, frame_reg=frame_reg)
+                    for l in code:
+                        for sub in str(l).splitlines():
+                            self.emit(sub if sub.startswith(indent) else indent + sub)
+                    self.emit(indent + f"move{suffix} d0,{-offset}({frame_reg})")
+                    return
                 
                 # Evaluate right side into d1
                 code = self._emit_expr(stmt.expr, params, locals_info, reg_left="d1", target_type=vtype, frame_reg=frame_reg)
