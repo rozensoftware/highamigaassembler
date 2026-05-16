@@ -34,16 +34,16 @@ class CodeGen:
         """Abort codegen with a clear, user-facing error."""
         raise CodeGenError(message)
 
-    def _is_unsigned_expr(self, expr, locals_info) -> bool:
+    def _is_unsigned_expr(self, expr, locals_info, params=None) -> bool:
         """Best-effort check if expr should be treated as unsigned for comparisons.
-        Uses declared local variable types (u8/u16/u32/UBYTE/UWORD/ULONG).
+        Uses declared local/parameter types (u8/u16/u32/UBYTE/UWORD/ULONG).
         Globals lack signedness metadata, so default to signed there.
         """
         try:
-            from .ast import is_signed, type_size
+            from .ast import is_signed
         except Exception:
             return False
-        # Local variable with explicit unsigned type
+        # Variable with explicit unsigned type in locals/params.
         if isinstance(expr, ast.VarRef):
             name = expr.name
             local_info = next((l for l in locals_info if l[0] == name), None)
@@ -52,6 +52,11 @@ class CodeGen:
                 if vtype is None:
                     return False
                 return not is_signed(vtype)
+
+            if params:
+                param_info = next((p for p in params if p.name == name), None)
+                if param_info and param_info.ptype:
+                    return not is_signed(param_info.ptype)
             return False
         # For now, other expressions default to signed behavior
         return False
@@ -1088,13 +1093,25 @@ class CodeGen:
                         param_size = ast.type_size(param_type) if param_type else 4
                         
                         if param_size == 1:
-                            # Byte parameter - zero extend
+                            # Byte parameter packed in low byte of pushed long.
+                            # Use signed/unsigned extension based on declared type.
+                            if param_type and ast.is_signed(param_type):
+                                return [
+                                    f"    move.l {off}(a6),{reg_left}",
+                                    f"    ext.w {reg_left}",
+                                    f"    ext.l {reg_left}"
+                                ]
                             return [
                                 f"    move.l {off}(a6),{reg_left}",
                                 f"    andi.l #$FF,{reg_left}"
                             ]
                         elif param_size == 2:
-                            # Word parameter - zero extend
+                            # Word parameter packed in low word of pushed long.
+                            if param_type and ast.is_signed(param_type):
+                                return [
+                                    f"    move.l {off}(a6),{reg_left}",
+                                    f"    ext.l {reg_left}"
+                                ]
                             return [
                                 f"    move.l {off}(a6),{reg_left}",
                                 f"    andi.l #$FFFF,{reg_left}"
@@ -1171,7 +1188,7 @@ class CodeGen:
                 code += self._emit_expr(expr.right, params, locals_info, reg_left, reg_right, target_type=target_type, frame_reg=frame_reg)
                 code.append(f"    cmp.l #{const_val},{reg_left}")
                 # Reverse the condition: < becomes >, <= becomes >=, etc.
-                unsigned_right = self._is_unsigned_expr(expr.right, locals_info)
+                unsigned_right = self._is_unsigned_expr(expr.right, locals_info, params)
                 if expr.op == '<':  # const < x => x > const
                     if unsigned_right:
                         code.append(f"    shi {reg_left}  ; set byte if higher (unsigned)")
@@ -1360,7 +1377,7 @@ class CodeGen:
                     return code
                 else:
                     # Non-power-of-2 or non-constant: use divs.w (16-bit signed, 68000)
-                    code += self._emit_expr(expr.right, params, locals_info, reg_right, "d2", target_type=target_type, frame_reg=frame_reg)
+                    # Right operand is already evaluated into reg_right above.
                     code.append(f"    divs.w {reg_right},{reg_left}")
             elif expr.op == '%':
                 # Modulo - after divs.w, remainder is in upper word
@@ -1382,7 +1399,7 @@ class CodeGen:
             elif expr.op == '<':
                 # Less than (signed/unsigned)
                 code.append(f"    cmp.l {reg_right},{reg_left}")
-                if self._is_unsigned_expr(expr.left, locals_info) or self._is_unsigned_expr(expr.right, locals_info):
+                if self._is_unsigned_expr(expr.left, locals_info, params) or self._is_unsigned_expr(expr.right, locals_info, params):
                     code.append(f"    slo {reg_left}  ; set byte if lower (unsigned)")
                 else:
                     code.append(f"    slt {reg_left}  ; set byte if less")
@@ -1391,7 +1408,7 @@ class CodeGen:
             elif expr.op == '<=':
                 # Less or equal (signed/unsigned)
                 code.append(f"    cmp.l {reg_right},{reg_left}")
-                if self._is_unsigned_expr(expr.left, locals_info) or self._is_unsigned_expr(expr.right, locals_info):
+                if self._is_unsigned_expr(expr.left, locals_info, params) or self._is_unsigned_expr(expr.right, locals_info, params):
                     code.append(f"    sls {reg_left}  ; set byte if lower or same (unsigned)")
                 else:
                     code.append(f"    sle {reg_left}  ; set byte if less or equal")
@@ -1400,7 +1417,7 @@ class CodeGen:
             elif expr.op == '>':
                 # Greater than (signed/unsigned)
                 code.append(f"    cmp.l {reg_right},{reg_left}")
-                if self._is_unsigned_expr(expr.left, locals_info) or self._is_unsigned_expr(expr.right, locals_info):
+                if self._is_unsigned_expr(expr.left, locals_info, params) or self._is_unsigned_expr(expr.right, locals_info, params):
                     code.append(f"    shi {reg_left}  ; set byte if higher (unsigned)")
                 else:
                     code.append(f"    sgt {reg_left}  ; set byte if greater")
@@ -1409,7 +1426,7 @@ class CodeGen:
             elif expr.op == '>=':
                 # Greater or equal (signed/unsigned)
                 code.append(f"    cmp.l {reg_right},{reg_left}")
-                if self._is_unsigned_expr(expr.left, locals_info) or self._is_unsigned_expr(expr.right, locals_info):
+                if self._is_unsigned_expr(expr.left, locals_info, params) or self._is_unsigned_expr(expr.right, locals_info, params):
                     code.append(f"    shs {reg_left}  ; set byte if same or higher (unsigned)")
                 else:
                     code.append(f"    sge {reg_left}  ; set byte if greater or equal")
@@ -1979,6 +1996,7 @@ class CodeGen:
             const_val = expr.left.value
             swap_map = {'<': '>', '<=': '>=', '>': '<', '>=': '<=', '==': '==', '!=': '!='}
             swapped_op = swap_map[expr.op]
+            unsigned_right = self._is_unsigned_expr(expr.right, locals_info, params)
             
             # Evaluate right side (now the left operand) into d0
             code += self._emit_expr(expr.right, params, locals_info, "d0", "d1", target_type=None, frame_reg=frame_reg)
@@ -1992,13 +2010,13 @@ class CodeGen:
             elif swapped_op == '!=':
                 code.append(f"    bne {true_label}")
             elif swapped_op == '<':
-                code.append(f"    blt {true_label}")
+                code.append(f"    blo {true_label}" if unsigned_right else f"    blt {true_label}")
             elif swapped_op == '<=':
-                code.append(f"    ble {true_label}")
+                code.append(f"    bls {true_label}" if unsigned_right else f"    ble {true_label}")
             elif swapped_op == '>':
-                code.append(f"    bgt {true_label}")
+                code.append(f"    bhi {true_label}" if unsigned_right else f"    bgt {true_label}")
             elif swapped_op == '>=':
-                code.append(f"    bge {true_label}")
+                code.append(f"    bcc {true_label}" if unsigned_right else f"    bge {true_label}")
             
             return code
         
@@ -2042,6 +2060,7 @@ class CodeGen:
         
         # Emit comparison with branch
         op = expr.op
+        unsigned_cmp = self._is_unsigned_expr(expr.left, locals_info, params) or self._is_unsigned_expr(expr.right, locals_info, params)
         if op == '==':
             if right_is_imm:
                 code.append(f"    beq {true_label}")
@@ -2056,28 +2075,28 @@ class CodeGen:
                 code.append(f"    bne {true_label}")
         elif op == '<':
             if right_is_imm:
-                code.append(f"    blt {true_label}")
+                code.append(f"    blo {true_label}" if unsigned_cmp else f"    blt {true_label}")
             else:
                 code.append(f"    cmp.l d1,d0")
-                code.append(f"    blt {true_label}")
+                code.append(f"    blo {true_label}" if unsigned_cmp else f"    blt {true_label}")
         elif op == '<=':
             if right_is_imm:
-                code.append(f"    ble {true_label}")
+                code.append(f"    bls {true_label}" if unsigned_cmp else f"    ble {true_label}")
             else:
                 code.append(f"    cmp.l d1,d0")
-                code.append(f"    ble {true_label}")
+                code.append(f"    bls {true_label}" if unsigned_cmp else f"    ble {true_label}")
         elif op == '>':
             if right_is_imm:
-                code.append(f"    bgt {true_label}")
+                code.append(f"    bhi {true_label}" if unsigned_cmp else f"    bgt {true_label}")
             else:
                 code.append(f"    cmp.l d1,d0")
-                code.append(f"    bgt {true_label}")
+                code.append(f"    bhi {true_label}" if unsigned_cmp else f"    bgt {true_label}")
         elif op == '>=':
             if right_is_imm:
-                code.append(f"    bge {true_label}")
+                code.append(f"    bcc {true_label}" if unsigned_cmp else f"    bge {true_label}")
             else:
                 code.append(f"    cmp.l d1,d0")
-                code.append(f"    bge {true_label}")
+                code.append(f"    bcc {true_label}" if unsigned_cmp else f"    bge {true_label}")
         else:
             # Not a comparison operator we can optimize
             return None
@@ -2101,6 +2120,7 @@ class CodeGen:
             const_val = expr.left.value
             swap_map = {'<': '>', '<=': '>=', '>': '<', '>=': '<=', '==': '==', '!=': '!='}
             swapped_op = swap_map[expr.op]
+            unsigned_right = self._is_unsigned_expr(expr.right, locals_info, params)
             
             # Evaluate right side (now the left operand) into d0
             code += self._emit_expr(expr.right, params, locals_info, "d0", "d1", target_type=None, frame_reg=frame_reg)
@@ -2114,13 +2134,13 @@ class CodeGen:
             elif swapped_op == '!=':
                 code.append(f"    beq {false_label}")  # equal -> false
             elif swapped_op == '<':
-                code.append(f"    bge {false_label}")  # >= -> false
+                code.append(f"    bcc {false_label}" if unsigned_right else f"    bge {false_label}")  # >= -> false
             elif swapped_op == '<=':
-                code.append(f"    bgt {false_label}")  # > -> false
+                code.append(f"    bhi {false_label}" if unsigned_right else f"    bgt {false_label}")  # > -> false
             elif swapped_op == '>':
-                code.append(f"    ble {false_label}")  # <= -> false
+                code.append(f"    bls {false_label}" if unsigned_right else f"    ble {false_label}")  # <= -> false
             elif swapped_op == '>=':
-                code.append(f"    blt {false_label}")  # < -> false
+                code.append(f"    blo {false_label}" if unsigned_right else f"    blt {false_label}")  # < -> false
             
             return code
         
@@ -2162,6 +2182,7 @@ class CodeGen:
         
         # Emit inverted branches (jump if FALSE)
         op = expr.op
+        unsigned_cmp = self._is_unsigned_expr(expr.left, locals_info, params) or self._is_unsigned_expr(expr.right, locals_info, params)
         if op == '==':
             if right_is_imm:
                 code.append(f"    bne {false_label}")
@@ -2176,28 +2197,28 @@ class CodeGen:
                 code.append(f"    beq {false_label}")
         elif op == '<':
             if right_is_imm:
-                code.append(f"    bge {false_label}")
+                code.append(f"    bcc {false_label}" if unsigned_cmp else f"    bge {false_label}")
             else:
                 code.append(f"    cmp.l d1,d0")
-                code.append(f"    bge {false_label}")
+                code.append(f"    bcc {false_label}" if unsigned_cmp else f"    bge {false_label}")
         elif op == '<=':
             if right_is_imm:
-                code.append(f"    bgt {false_label}")
+                code.append(f"    bhi {false_label}" if unsigned_cmp else f"    bgt {false_label}")
             else:
                 code.append(f"    cmp.l d1,d0")
-                code.append(f"    bgt {false_label}")
+                code.append(f"    bhi {false_label}" if unsigned_cmp else f"    bgt {false_label}")
         elif op == '>':
             if right_is_imm:
-                code.append(f"    ble {false_label}")
+                code.append(f"    bls {false_label}" if unsigned_cmp else f"    ble {false_label}")
             else:
                 code.append(f"    cmp.l d1,d0")
-                code.append(f"    ble {false_label}")
+                code.append(f"    bls {false_label}" if unsigned_cmp else f"    ble {false_label}")
         elif op == '>=':
             if right_is_imm:
-                code.append(f"    blt {false_label}")
+                code.append(f"    blo {false_label}" if unsigned_cmp else f"    blt {false_label}")
             else:
                 code.append(f"    cmp.l d1,d0")
-                code.append(f"    blt {false_label}")
+                code.append(f"    blo {false_label}" if unsigned_cmp else f"    blt {false_label}")
         else:
             return None
         
