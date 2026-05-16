@@ -840,14 +840,16 @@ code inline_asm:
 
 #error "Platform not supported for this build";
 
-#pragma unroll(4)
-code loops:
-    proc unrolled_loop(n: long) -> long {
-        for i = 0 to n {
-            // Loop body unrolled 4 times
-        }
-        return 0;
+#pragma lockreg(a5, a4);
+
+#pragma strict16arith(on);
+code math_safe:
+    proc mul_small(a: byte, b: word) -> long {
+        // In strict16arith mode, operands must be provably safe for 68000 word arithmetic.
+        return a * b;
     }
+
+#pragma strict16arith(off);
 ```
 
 ---

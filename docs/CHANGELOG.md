@@ -2,6 +2,23 @@
 
 All notable changes to the HAS (High Assembler) project will be documented in this file.
 
+## [Unreleased]
+
+### Added
+- **`#pragma strict16arith(on|off)`**: New compile-time control for 68000 word arithmetic safety checks.
+  - `off` (default): preserves permissive behavior for dynamic arithmetic.
+  - `on`: requires arithmetic operands used by `muls.w` / `divs.w` paths to be provably safe signed 16-bit values.
+
+### Changed
+- Optimized comparison branch emission now selects unsigned branch opcodes (`blo`, `bls`, `bhi`, `bcc`) when operand types are unsigned.
+- Stack-based signed narrow parameters (`byte`, `word`) are now sign-extended correctly during loads.
+
+### Fixed
+- Removed incorrect signed division-by-power-of-two rewrite to `asr`, preserving `divs.w` semantics for negative values.
+- Fixed duplicate RHS evaluation in non-constant division code paths.
+- Added codegen diagnostics for constant `*`, `/`, `%` operands outside signed 16-bit range where 68000 word arithmetic is required.
+- Added diagnostics for constant divide/modulo by zero.
+
 ## [0.4] - 2026-02-05
 
 ### New Features

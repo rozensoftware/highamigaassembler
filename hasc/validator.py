@@ -227,6 +227,13 @@ class Validator:
                     self.errors.append(f"Pragma lockreg: Invalid register '{reg}'. Valid registers: d0-d7, a0-a7")
                 elif reg in reserved_regs:
                     self.errors.append(f"Pragma lockreg: Cannot lock reserved register '{reg}'")
+        elif pragma.name == 'strict16arith':
+            if len(pragma.args) != 1:
+                self.errors.append("Pragma strict16arith: Expected exactly one argument: on or off")
+                return
+            mode = pragma.args[0]
+            if mode not in {'on', 'off'}:
+                self.errors.append("Pragma strict16arith: Invalid mode. Use on or off")
         else:
             self.warnings.append(f"Unknown pragma: {pragma.name}")
     

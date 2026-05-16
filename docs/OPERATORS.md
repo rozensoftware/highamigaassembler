@@ -4,8 +4,17 @@
 - `+` - Addition
 - `-` - Subtraction  
 - `*` - Multiplication (signed 16-bit muls.w)
-- `/` - Division (placeholder - returns 0)
+- `/` - Division (signed 16-bit divs.w)
 - `%` - Modulo (via divs.w, remainder in upper word)
+
+### 68000 Arithmetic Safety Notes
+
+- `*`, `/`, `%` currently lower to 68000 word arithmetic (`muls.w` / `divs.w`).
+- Constant operands used in these paths must fit signed 16-bit range: `-32768..32767`.
+- Division/modulo by constant zero is a compile-time error.
+- `#pragma strict16arith(on)` enables stricter checks for dynamic (non-constant) operands:
+	- operands must be provably safe signed 16-bit values based on declared types.
+- `#pragma strict16arith(off)` (default) keeps permissive behavior for dynamic operands.
 
 ## Comparison Operators (all signed)
 - `==` - Equal (returns 1 or 0)
@@ -77,6 +86,11 @@ divs.w d1,d0
 swap d0      ; remainder is now in lower word
 ext.l d0     ; sign-extend
 ```
+
+### Division Semantics
+
+Signed division is emitted as `divs.w` even for power-of-two divisors.
+This avoids incorrect negative rounding behavior that would result from substituting arithmetic shifts.
 
 ## Examples
 

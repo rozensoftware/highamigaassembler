@@ -25,6 +25,7 @@ class CodeGen:
         self.extern_vars = self._build_extern_vars(module)  # Collect external variables
         self.extern_funcs = self._build_extern_funcs(module)  # Collect external functions
         self.locked_regs = self._build_locked_regs(module)  # Collect locked registers from pragmas
+        self.strict_word_arith = self._build_strict_word_arith(module)
         self.label_counter = 0
         self.push_stack = []  # Track PUSH/POP register lists
         self.reg_alloc = RegisterAllocator(locked_regs=self.locked_regs)  # Register allocation manager with locked regs
@@ -43,6 +44,48 @@ class CodeGen:
             self._fail(
                 f"{op_name} uses 68000 word arithmetic; {side} constant {expr.value} "
                 f"is outside signed 16-bit range (-32768..32767)."
+            )
+
+    def _is_word_arith_operand_safe(self, expr, locals_info, params=None) -> bool:
+        """Best-effort proof that expr is always representable as signed 16-bit."""
+        if isinstance(expr, ast.Number):
+            return self._fits_signed_word(expr.value)
+
+        if isinstance(expr, ast.VarRef):
+            name = expr.name
+            local_info = next((l for l in locals_info if l[0] == name), None)
+            if local_info:
+                _, vtype, _ = local_info
+                if vtype is None:
+                    return False
+                size = ast.type_size(vtype)
+                if size == 1:
+                    return True
+                if size == 2:
+                    # Unsigned word may exceed signed 16-bit upper bound.
+                    return ast.is_signed(vtype)
+                return False
+
+            if params:
+                param_info = next((p for p in params if p.name == name), None)
+                if param_info and param_info.ptype:
+                    ptype = param_info.ptype
+                    size = ast.type_size(ptype)
+                    if size == 1:
+                        return True
+                    if size == 2:
+                        return ast.is_signed(ptype)
+            return False
+
+        return False
+
+    def _require_word_arith_operand(self, expr, op_name: str, side: str, locals_info, params=None):
+        """Validate operand width assumptions for MULS.W / DIVS.W operations."""
+        self._require_signed_word_const(expr, op_name, side)
+        if self.strict_word_arith and not self._is_word_arith_operand_safe(expr, locals_info, params):
+            self._fail(
+                f"{op_name} with strict16arith(on) requires provably signed 16-bit operands; "
+                f"{side} operand cannot be proven safe at compile time."
             )
 
     def _is_unsigned_expr(self, expr, locals_info, params=None) -> bool:
@@ -249,6 +292,15 @@ class CodeGen:
                 if item.name == 'lockreg':
                     locked.update(item.args)
         return locked
+
+    def _build_strict_word_arith(self, module: ast.Module) -> bool:
+        """Collect strict16arith pragma mode. Default is permissive (off)."""
+        strict = False
+        for item in module.items:
+            if isinstance(item, ast.PragmaDirective) and item.name == 'strict16arith':
+                if item.args:
+                    strict = (item.args[0] == 'on')
+        return strict
 
     def _expand_macro(self, macro: ast.MacroDef, args: list, params: list, locals_info: list):
         """Expand a macro by substituting arguments into the macro body.
@@ -1363,22 +1415,22 @@ class CodeGen:
             elif expr.op == '*':
                 # Use signed 16x16 -> 32 multiply for int arithmetic on 68000
                 # Assumes operands fit in 16 bits; result in reg_left (32-bit)
-                self._require_signed_word_const(expr.left, 'multiplication', 'left')
-                self._require_signed_word_const(expr.right, 'multiplication', 'right')
+                self._require_word_arith_operand(expr.left, 'multiplication', 'left', locals_info, params)
+                self._require_word_arith_operand(expr.right, 'multiplication', 'right', locals_info, params)
                 code.append(f"    ext.l {reg_left}  ; normalize to signed 16-bit source semantics")
                 code.append(f"    ext.l {reg_right}  ; normalize to signed 16-bit source semantics")
                 code.append(f"    muls.w {reg_right},{reg_left}")
             elif expr.op == '/':
                 # Use DIVS.W for signed division. Do not rewrite to ASR for powers
                 # of two because ASR rounds negative values differently than DIVS.
-                self._require_signed_word_const(expr.right, 'division', 'right')
+                self._require_word_arith_operand(expr.right, 'division', 'right', locals_info, params)
                 if isinstance(expr.right, ast.Number) and expr.right.value == 0:
                     self._fail("Division by zero constant in expression.")
                 code.append(f"    ext.l {reg_right}  ; normalize divisor to signed 16-bit semantics")
                 code.append(f"    divs.w {reg_right},{reg_left}")
             elif expr.op == '%':
                 # Modulo - after divs.w, remainder is in upper word
-                self._require_signed_word_const(expr.right, 'modulo', 'right')
+                self._require_word_arith_operand(expr.right, 'modulo', 'right', locals_info, params)
                 if isinstance(expr.right, ast.Number) and expr.right.value == 0:
                     self._fail("Modulo by zero constant in expression.")
                 code.append(f"    ext.l {reg_right}  ; normalize divisor to signed 16-bit semantics")

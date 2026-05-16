@@ -64,7 +64,7 @@ src/hasc/
 ### Current Feature Set (quick map)
 
 - Sections: `data`/`data_chip`, `bss`/`bss_chip`, `code`/`code_chip`, inline `asm`
-- Compile-time directives: `#warning`, `#error`, `#pragma lockreg(...)`, `const` declarations
+- Compile-time directives: `#warning`, `#error`, `#pragma lockreg(...)`, `#pragma strict16arith(on|off)`, `const` declarations
 - Procedure system: `proc`, forward `func` declarations, `extern func/var`, `public` exports
 - Control flow and expressions: loops (`for`/`while`/`repeat`), conditionals, full operator set including shifts and bitwise ops
 - Python integration: macros, `@python` directives, optional external generation via `--generate`
