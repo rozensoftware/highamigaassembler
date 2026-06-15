@@ -1,0 +1,126 @@
+#pragma lockreg(a5);
+
+// Visual regression demo for Text/Print in 320x256x32 mode.
+// Stresses cursor handling, newline behavior, wrapping, colors, and font attachment.
+
+extern var fonts: int;
+const KEY_ESC = 69;
+
+code main:
+    extern func SetGraphicsMode(mode: int) -> int;
+    extern func ClearScreen() -> int;
+    extern func SetColor(id: int, col: int) -> int;
+    extern func SetFont(ptr: int) -> int;
+    extern func Text(x: int, y: int, msg: int, color: int) -> int;
+    extern func Print(msg: int, color: int) -> int;
+    extern func UpdateCopperList() -> int;
+    extern func WaitVBlank() -> int;
+    extern func InitKeyboard() -> void;
+    extern func GetKey() -> byte;
+    extern func TakeSystem() -> void;
+    extern func ReleaseSystem() -> void;
+
+    public main;
+
+    asm {
+        jsr TakeSystem
+        jsr main
+        jmp ReleaseSystem
+    }
+
+    proc main() -> int {
+        var running: int = 1;
+        var key: byte;
+        var frame: int = 0;
+        var blink: int = 0;
+
+        if (SetGraphicsMode(0) == -1) {
+            return -1;
+        }
+
+        call InitKeyboard();
+        call SetFont(&fonts);
+        call ClearScreen();
+
+        // Keep palette explicit so color bugs are easy to spot.
+        call SetColor(0, $000);
+        call SetColor(1, $FFF);
+        call SetColor(2, $F80);
+        call SetColor(3, $0F0);
+        call SetColor(4, $08F);
+        call SetColor(5, $FF0);
+        call SetColor(6, $F0F);
+        call SetColor(7, $0FF);
+
+        call Text(1, 1, &title_txt, 2);
+        call Text(1, 2, &info_txt, 3);
+        call Text(1, 4, &phase1_hdr, 5);
+        call Text(1, 5, &phase1_hint, 1);
+
+        // Phase 1: deterministic Print-only block.
+        call Print(&baseline_block, 2);
+
+        call Text(1, 12, &phase2_hdr, 6);
+        call Text(1, 13, &phase2_hint, 1);
+
+        // Phase 2: mixed Print/Text interactions.
+        call Print(&stress_seq_a, 4);
+        call Print(&stress_seq_lf, 6);
+        call Print(&stress_seq_cr, 7);
+        call Text(2, 17, &text_anchor_a, 5);
+        call Text(2, 19, &text_anchor_b, 7);
+        call Print(&post_text_seq, 2);
+        call Print(&wrap_test_seq, 3);
+
+        call Text(1, 30, &exit_hint_txt, 1);
+        call UpdateCopperList();
+
+        while (running == 1) {
+            call WaitVBlank();
+
+            // Small periodic update to keep exercising Text on same line.
+            frame = frame + 1;
+            if (frame == 25) {
+                frame = 0;
+                if (blink == 0) {
+                    blink = 1;
+                    call Text(1, 28, &pulse_a_txt, 4);
+                } else {
+                    blink = 0;
+                    call Text(1, 28, &pulse_b_txt, 6);
+                }
+                call UpdateCopperList();
+            }
+
+            key = GetKey();
+            if (key == KEY_ESC) {
+                running = 0;
+            }
+        }
+
+        return 0;
+    }
+
+data text_data:
+    title_txt.b = "Texts.has - Print/Text Regression Demo", 0
+    info_txt.b = "Mode: 320x256x32 | font: lib/font8x8.s", 0
+
+    phase1_hdr.b = "PHASE 1: BASELINE (PRINT ONLY)", 0
+    phase1_hint.b = "Expected: full labels, stable left edge, no missing first chars.", 0
+    baseline_block.b = 10, "BASE-A: 0123456789 ABCDEFGHIJKLMNOPQRSTUVWXYZ", 10, "BASE-B: AAAA BBBB CCCC DDDD", 10, "BASE-C: left edge marker -> [#]", 0
+
+    phase2_hdr.b = "PHASE 2: STRESS (PRINT + TEXT MIX)", 0
+    phase2_hint.b = "Expected: Text() anchors do not permanently move Print cursor.", 0
+    stress_seq_a.b = 10, "STRESS-A: mixed cursor test start", 0
+    stress_seq_lf.b = 10, "STRESS-B after LF should start on next line.", 0
+    stress_seq_cr.b = 13, "STRESS-C after CR should also start on next line.", 0
+
+    text_anchor_a.b = "TEXT anchor A at (2,17)", 0
+    text_anchor_b.b = "TEXT anchor B at (2,19)", 0
+    post_text_seq.b = "STRESS-D cursor should continue from STRESS-C, not Text anchors.", 0
+
+    wrap_test_seq.b = "WRAP: 0123456789012345678901234567890123456789 <- end", 0
+
+    pulse_a_txt.b = "Pulse line via Text(): state A", 0
+    pulse_b_txt.b = "Pulse line via Text(): state B", 0
+    exit_hint_txt.b = "Press ESC to exit demo.", 0
