@@ -37,6 +37,7 @@ GADGET_SIZE     EQU 20   ; struct size in bytes (for allocation)
 ; ============================================================
 
 GADGET_TYPE_MSGBOX  EQU 0   ; message box with word-wrapped text
+GADGET_TYPE_BUTTON  EQU 1   ; clickable button with centred label
 
 ; ============================================================
 ; External references (assembled in gui.s)
@@ -48,7 +49,11 @@ GADGET_TYPE_MSGBOX  EQU 0   ; message box with word-wrapped text
     XREF DrawBox
     XREF DrawWrappedText
     XREF DrawMsgBox
+    XREF DrawButton
     XREF DrawGadget
+    XREF GuiPollMouse
+    XREF GuiHitTest
+    XREF GuiHitTestRect
 
     endif   ; GUI_I
 

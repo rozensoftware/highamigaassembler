@@ -41,13 +41,22 @@
     XDEF DrawBox
     XDEF DrawWrappedText
     XDEF DrawMsgBox
+    XDEF DrawButton
     XDEF DrawGadget
+    XDEF GuiPollMouse
+    XDEF GuiHitTest
+    XDEF GuiHitTestRect
+    XDEF GetGuiMouseX
+    XDEF GetGuiMouseY
 
     XREF gfx_current_screen_ptr
     XREF gfx_current_mode
     XREF _DrawChar
     XREF gfx_text_cursor_x
     XREF gfx_text_cursor_y
+    XREF GetMouseDX
+    XREF GetMouseDY
+    XREF GetMouseLBtn
 
 
 ; ============================================================
@@ -584,7 +593,7 @@ DrawMsgBox:
 ;   8(a6) = gadget_ptr - pointer to a GADGET struct (see gui.i for layout)
 ;
 ;   Dispatches to the appropriate renderer based on GADGET_TYPE field.
-;   Currently only supports type 0 (message box).
+;   Type 0 = message box (DrawMsgBox), type 1 = button (DrawButton).
 ;   Unknown types are silently ignored (returns 0).
 ; ============================================================
 DrawGadget:
@@ -593,15 +602,15 @@ DrawGadget:
 
     move.l 8(a6),a0                ; a0 = gadget struct pointer
 
-    ; Dispatch on GADGET_TYPE
+    ; Dispatch on GADGET_TYPE: 0=msgbox, 1=button; skip unknown
     move.w 18(a0),d1               ; 18 = GADGET_TYPE offset
     tst.w d1
-    bne .dg_unknown                ; only type 0 handled now
+    beq .dg_dispatch               ; type 0: msgbox
+    cmp.w #1,d1
+    bne .dg_done                   ; unknown type: skip
 
-    ; ---- Type 0: Message Box ----
-    ; Push all 8 args for DrawMsgBox (right-to-left)
-    ; Palette/size fields: zero-extend (logically unsigned, 0-31 / positive pixels)
-    ; Coordinate fields X, Y: sign-extend to support off-screen positioning
+.dg_dispatch:
+    ; Push all 8 args (identical layout for DrawMsgBox and DrawButton)
     moveq #0,d1
     move.w 16(a0),d1               ; GADGET_TCOLOR (unsigned)
     move.l d1,-(sp)                ; arg8 = text_color
@@ -625,20 +634,316 @@ DrawGadget:
     move.l d1,-(sp)                ; arg3 = w
 
     move.w 2(a0),d1                ; GADGET_Y (signed coordinate)
-    ext.l d1                       ; sign-extend: allows negative y (partially off-screen)
+    ext.l d1                       ; sign-extend: allows negative y
     move.l d1,-(sp)                ; arg2 = y
 
     move.w 0(a0),d1                ; GADGET_X (signed coordinate)
-    ext.l d1                       ; sign-extend: allows negative x (partially off-screen)
+    ext.l d1                       ; sign-extend: allows negative x
     move.l d1,-(sp)                ; arg1 = x
 
+    ; Call correct renderer (a0 still valid above pushed args)
+    tst.w 18(a0)
+    bne .dg_call_button
     jsr DrawMsgBox
+    bra .dg_pop
+.dg_call_button:
+    jsr DrawButton
+.dg_pop:
     lea 32(sp),sp
 
-.dg_unknown:
+.dg_done:
     moveq #0,d0
     movem.l (sp)+,d1/a0
     unlk a6
+    rts
+
+
+; ============================================================
+; DrawButton(x, y, w, h, bg, border, label, tcolor)
+;   8(a6)  = x      - left pixel
+;   12(a6) = y      - top pixel
+;   16(a6) = w      - width in pixels (multiple of 8 recommended)
+;   20(a6) = h      - height in pixels (multiple of 8 recommended)
+;   24(a6) = bg     - background palette index
+;   28(a6) = border - border palette index
+;   32(a6) = label  - pointer to null-terminated label string
+;   36(a6) = tcolor - text palette index
+;
+;   Draws a bordered box with the label centered horizontally and
+;   vertically (snapped to the 8-pixel character grid).
+;   Returns d0 = 0.
+; ============================================================
+DrawButton:
+    link a6,#-4                     ; -4(a6) = strlen local (long)
+    movem.l d1-d5/a0,-(sp)
+
+    ; ---- 1. Draw the border + background ----
+    move.l 28(a6),-(sp)             ; border
+    move.l 24(a6),-(sp)             ; bg
+    move.l 20(a6),-(sp)             ; h
+    move.l 16(a6),-(sp)             ; w
+    move.l 12(a6),-(sp)             ; y
+    move.l 8(a6),-(sp)              ; x
+    jsr DrawBox
+    lea 24(sp),sp
+
+    ; ---- 2. Measure label (strlen) ----
+    move.l 32(a6),a0                ; label ptr
+    clr.l -4(a6)                    ; len = 0
+.dbt_len:
+    tst.b (a0)+
+    beq .dbt_len_done
+    addq.l #1,-4(a6)
+    bra .dbt_len
+.dbt_len_done:
+    tst.l -4(a6)
+    beq .dbt_done                   ; empty label: skip rendering
+
+    ; ---- 3. Horizontal centering (char units) ----
+    ;    h_pad = max(0, (w/8 - len) / 2)
+    ;    cx    = (x/8) + h_pad
+    move.l 16(a6),d1                ; w
+    lsr.l #3,d1                     ; d1 = button cols
+    sub.l -4(a6),d1                 ; d1 = button_cols - len
+    tst.l d1
+    bge .dbt_hpad_ok
+    clr.l d1                        ; clamp: label wider than button
+.dbt_hpad_ok:
+    lsr.l #1,d1                     ; d1 = h_pad
+    move.l 8(a6),d2
+    lsr.l #3,d2                     ; d2 = x/8
+    add.l d2,d1                     ; d1 = cx (char column)
+
+    ; ---- 4. Vertical centering (char units) ----
+    ;    v_pad = max(0, (h/8 - 1) / 2)
+    ;    cy    = (y/8) + v_pad
+    move.l 20(a6),d2                ; h
+    lsr.l #3,d2                     ; d2 = button rows
+    subq.l #1,d2                    ; d2 = button_rows - 1
+    tst.l d2
+    bge .dbt_vpad_ok
+    clr.l d2                        ; clamp to 0
+.dbt_vpad_ok:
+    lsr.l #1,d2                     ; d2 = v_pad
+    move.l 12(a6),d3
+    lsr.l #3,d3                     ; d3 = y/8
+    add.l d3,d2                     ; d2 = cy (char row)
+
+    ; ---- 5. Render label one char at a time ----
+    move.w d1,gfx_text_cursor_x
+    move.w d2,gfx_text_cursor_y
+    move.l 32(a6),a0                ; reset to label start
+    move.l 36(a6),d5                ; d5 = tcolor (constant)
+.dbt_draw:
+    moveq #0,d0
+    move.b (a0)+,d0                 ; d0 = next ASCII char; NUL = stop
+    tst.b d0
+    beq .dbt_done
+    move.l d5,d1                    ; d1 = color (_DrawChar: D0=char, D1=color)
+    jsr _DrawChar
+    move.w gfx_text_cursor_x,d4
+    addq.w #1,d4
+    move.w d4,gfx_text_cursor_x
+    bra .dbt_draw
+
+.dbt_done:
+    moveq #0,d0
+    movem.l (sp)+,d1-d5/a0
+    unlk a6
+    rts
+
+
+; ============================================================
+; GuiPollMouse()
+;   Must be called once per frame AFTER ReadMouse().
+;   Reads delta movement via GetMouseDX/GetMouseDY and accumulates
+;   into gui_abs_mouse_x/y (x clamped to screen width, y clamped
+;   to 0..255).  Reads button via GetMouseLBtn and writes the
+;   leading-edge (0->1 transition) result into gui_lbtn_edge.
+;   Returns d0 = 0.
+; ============================================================
+GuiPollMouse:
+    link a6,#0
+    movem.l d1-d2,-(sp)
+
+    ; ---- Accumulate X ----
+    jsr GetMouseDX              ; d0 = dx (signed long)
+    move.w gui_abs_mouse_x,d1
+    ext.l d1                    ; d1 = current abs_x
+    add.l d0,d1                 ; d1 = new abs_x
+    tst.l d1
+    bge .gpm_x_pos
+    moveq #0,d1                 ; underflow: clamp to 0
+    bra .gpm_x_done
+.gpm_x_pos:
+    move.w gfx_current_mode,d2
+    tst.w d2
+    bne .gpm_x_hires
+    cmp.l #319,d1               ; mode 0: max x = 319
+    ble .gpm_x_done
+    move.l #319,d1
+    bra .gpm_x_done
+.gpm_x_hires:
+    cmp.l #639,d1               ; mode 1: max x = 639
+    ble .gpm_x_done
+    move.l #639,d1
+.gpm_x_done:
+    move.w d1,gui_abs_mouse_x
+
+    ; ---- Accumulate Y ----
+    jsr GetMouseDY              ; d0 = dy (signed long)
+    move.w gui_abs_mouse_y,d1
+    ext.l d1
+    add.l d0,d1
+    tst.l d1
+    bge .gpm_y_pos
+    moveq #0,d1
+    bra .gpm_y_done
+.gpm_y_pos:
+    cmp.l #255,d1
+    ble .gpm_y_done
+    move.l #255,d1
+.gpm_y_done:
+    move.w d1,gui_abs_mouse_y
+
+    ; ---- Left-button edge detect ----
+    jsr GetMouseLBtn            ; d0 = current lbtn (0 or 1, long)
+    move.w d0,d2                ; d2 = current state
+    moveq #0,d0                 ; d0 = edge = 0 (default: no new click)
+    cmp.w #1,d2
+    bne .gpm_no_edge            ; not pressed: no edge
+    tst.w gui_lbtn_prev
+    bne .gpm_no_edge            ; was held last frame: edge already consumed
+    moveq #1,d0                 ; 0->1 transition: click!
+.gpm_no_edge:
+    move.w d0,gui_lbtn_edge
+    move.w d2,gui_lbtn_prev     ; save current state for next frame
+
+    moveq #0,d0
+    movem.l (sp)+,d1-d2
+    unlk a6
+    rts
+
+
+; ============================================================
+; GuiHitTest(gadget_ptr) -> int
+;   8(a6) = gadget_ptr - pointer to GADGET struct
+;   Returns 1 if gui_lbtn_edge is set AND the absolute mouse
+;   position falls inside [gx..gx+gw) x [gy..gy+gh).
+;   Returns 0 otherwise.  Works for any gadget type.
+; ============================================================
+GuiHitTest:
+    link a6,#0
+    movem.l d1-d5/a0,-(sp)
+
+    tst.w gui_lbtn_edge
+    beq .ght_miss
+
+    move.l 8(a6),a0             ; gadget_ptr
+    move.w 0(a0),d1             ; GADGET_X (signed)
+    ext.l d1
+    move.w 2(a0),d2             ; GADGET_Y (signed)
+    ext.l d2
+    moveq #0,d3
+    move.w 4(a0),d3             ; GADGET_W (unsigned)
+    moveq #0,d4
+    move.w 6(a0),d4             ; GADGET_H (unsigned)
+
+    move.w gui_abs_mouse_x,d5
+    ext.l d5                    ; mx
+    cmp.l d1,d5                 ; mx < gx?
+    blt .ght_miss
+    move.l d1,d0
+    add.l d3,d0                 ; d0 = gx + gw
+    cmp.l d0,d5                 ; mx >= gx+gw?
+    bge .ght_miss
+
+    move.w gui_abs_mouse_y,d5
+    ext.l d5                    ; my
+    cmp.l d2,d5                 ; my < gy?
+    blt .ght_miss
+    move.l d2,d0
+    add.l d4,d0                 ; d0 = gy + gh
+    cmp.l d0,d5                 ; my >= gy+gh?
+    bge .ght_miss
+
+    moveq #1,d0
+    movem.l (sp)+,d1-d5/a0
+    unlk a6
+    rts
+.ght_miss:
+    moveq #0,d0
+    movem.l (sp)+,d1-d5/a0
+    unlk a6
+    rts
+
+
+; ============================================================
+; GuiHitTestRect(x, y, w, h) -> int
+;   8(a6)=x, 12(a6)=y, 16(a6)=w, 20(a6)=h  (all longs, pixels)
+;   Returns 1 if gui_lbtn_edge AND abs mouse in [x..x+w)x[y..y+h).
+;   Convenience alternative to GuiHitTest for HAS callers that
+;   use DrawButton directly without a GADGET struct.
+; ============================================================
+GuiHitTestRect:
+    link a6,#0
+    movem.l d1-d5,-(sp)
+
+    tst.w gui_lbtn_edge
+    beq .ghr_miss
+
+    move.l 8(a6),d1             ; x
+    move.l 12(a6),d2            ; y
+    move.l 16(a6),d3            ; w
+    move.l 20(a6),d4            ; h
+
+    move.w gui_abs_mouse_x,d5
+    ext.l d5                    ; mx
+    cmp.l d1,d5
+    blt .ghr_miss
+    move.l d1,d0
+    add.l d3,d0
+    cmp.l d0,d5
+    bge .ghr_miss
+
+    move.w gui_abs_mouse_y,d5
+    ext.l d5                    ; my
+    cmp.l d2,d5
+    blt .ghr_miss
+    move.l d2,d0
+    add.l d4,d0
+    cmp.l d0,d5
+    bge .ghr_miss
+
+    moveq #1,d0
+    movem.l (sp)+,d1-d5
+    unlk a6
+    rts
+.ghr_miss:
+    moveq #0,d0
+    movem.l (sp)+,d1-d5
+    unlk a6
+    rts
+
+
+; ============================================================
+; GetGuiMouseX() -> int
+;   Returns gui_abs_mouse_x (accumulated clamped X pixel) as a signed long.
+;   No stack frame needed - no arguments.
+; ============================================================
+GetGuiMouseX:
+    move.w gui_abs_mouse_x,d0
+    ext.l d0
+    rts
+
+; ============================================================
+; GetGuiMouseY() -> int
+;   Returns gui_abs_mouse_y (accumulated clamped Y pixel) as a signed long.
+;   No stack frame needed - no arguments.
+; ============================================================
+GetGuiMouseY:
+    move.w gui_abs_mouse_y,d0
+    ext.l d0
     rts
 
 
@@ -662,3 +967,9 @@ gui_lmask:
 
 gui_rmask:
     dc.b $80,$C0,$E0,$F0,$F8,$FC,$FE,$FF
+
+; Mouse event state (updated by GuiPollMouse each frame)
+gui_abs_mouse_x: dc.w 0   ; accumulated absolute X pixel (clamped to screen width-1)
+gui_abs_mouse_y: dc.w 0   ; accumulated absolute Y pixel (clamped to 0..255)
+gui_lbtn_prev:   dc.w 0   ; left-button state from previous GuiPollMouse call
+gui_lbtn_edge:   dc.w 0   ; 1 on the frame the left button is first pressed, else 0
