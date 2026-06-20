@@ -37,6 +37,9 @@ GFX_FONT_PLANES      EQU 5                ; Font assets are always expanded to 5
     XDEF SetColor
     XDEF LoadPalette
     XDEF ShowPicture
+    XDEF _DrawChar
+    XDEF gfx_text_cursor_x
+    XDEF gfx_text_cursor_y
 
 ; ---------- Graphics support wrappers ----------
 ; These minimal wrappers map the public names used by generated code

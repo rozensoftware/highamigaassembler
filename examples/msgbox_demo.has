@@ -1,0 +1,162 @@
+// msgbox_demo.has
+// Demonstrates the GUI widget library: DrawMsgBox with word-wrapped text.
+//
+// Graphics mode: 320x256x32 (mode 0, 5 bitplanes, line-interleaved)
+// Font: lib/font8x8.s  (8x8 pixel characters)
+//
+// Palette indices used:
+//   0  = black       ($000) - screen background
+//   1  = white       ($FFF) - border + text
+//   4  = blue        ($00F) - window background
+//   5  = yellow      ($FF0) - second window border
+//   8  = mid-grey    ($888) - second window background
+//
+// Build (link gui.s, graphics.s, font8x8.s alongside the generated .s):
+//   python -m hasc.cli examples/msgbox_demo.has -o build/msgbox_demo.s
+//   vasmm68k_mot -Fhunkexe -I lib/ -o build/msgbox_demo.o build/msgbox_demo.s lib/gui.s lib/graphics.s lib/font8x8.s lib/helpers.s
+//   vlink -bamigahunk build/msgbox_demo.o -o build/msgbox_demo.exe
+
+#pragma lockreg(a5);
+
+extern var fonts: int;   // font bitmap data from lib/font8x8.s
+
+code main:
+    extern func SetGraphicsMode(mode: int) -> int;
+    extern func ClearScreen() -> int;
+    extern func SetFont(ptr: int) -> int;
+    extern func SetColor(id: int, col: int) -> int;
+    extern func UpdateCopperList() -> int;
+    extern func WaitVBlank() -> int;
+    extern func TakeSystem() -> void;
+    extern func ReleaseSystem() -> void;
+
+    // GUI library functions from lib/gui.s
+    extern func DrawBox(x:int, y:int, w:int, h:int, bg:int, border:int) -> int;
+    extern func DrawMsgBox(x:int, y:int, w:int, h:int, bg:int, border:int, str:int, tc:int) -> int;
+    extern func DrawButton(x:int, y:int, w:int, h:int, bg:int, border:int, str:int, tc:int) -> int;
+    // Mouse event manager (lib/input.s + lib/gui.s)
+    extern func ReadMouse() -> void;
+    extern func GuiPollMouse() -> void;
+    extern func GuiHitTestRect(x:int, y:int, w:int, h:int) -> int;
+    extern func GetGuiMouseX() -> int;
+    extern func GetGuiMouseY() -> int;
+    // Hardware sprite cursor (lib/sprite.s)
+    extern func CreateSprite(idx:int, ptr:int) -> int;
+    extern func ApplySpritePalette(idx:int) -> int;
+    extern func ShowSprite(idx:int) -> int;
+    extern func SetSpritePosition(idx:int, x:int, y:int) -> int;
+
+    public main;
+
+    asm {
+        jsr TakeSystem
+        jsr main
+        jmp ReleaseSystem
+    }
+
+    proc main() -> int {
+        var result: int;
+        var frame: int = 0;
+        var mx: int = 0;
+        var my: int = 0;
+
+        // Initialise 320x256x32 mode
+        result = SetGraphicsMode(0);
+        if (result == -1) {
+            return -1;
+        }
+
+        // Attach the 8x8 bitmap font
+        call SetFont(&fonts);
+
+        // Customise a few palette entries for the demo
+        call SetColor(0, $000);   // 0 = black (background)
+        call SetColor(1, $FFF);   // 1 = white
+        call SetColor(4, $00F);   // 4 = blue  (window fill)
+        call SetColor(5, $FF0);   // 5 = yellow
+        call SetColor(8, $444);   // 8 = dark grey
+
+        call ClearScreen();
+
+        // ---------------------------------------------------------
+        // Sprite cursor: hardware sprite 0 used as mouse pointer
+        // cursor_pal (4 words immediately before cursor) sets color1=$FFF (white)
+        // ---------------------------------------------------------
+        result = CreateSprite(0, &cursor);   // copy fast->chip RAM; store palette
+        call ApplySpritePalette(0);          // write palette into copper list (COLOR17-19)
+        call ShowSprite(0);                  // mark slot visible
+        call SetSpritePosition(0, 160, 128); // initial position: screen centre
+
+        // ---------------------------------------------------------
+        // Window 1: short message - fits on one line
+        // Position (16, 16), size 200x24 pixels
+        // Background: blue (4), border: white (1), text: white (1)
+        // ---------------------------------------------------------
+        result = DrawMsgBox(16, 16, 200, 24, 4, 1, &msg_short, 1);
+
+        // ---------------------------------------------------------
+        // Window 2: long message - wraps across multiple lines
+        // Position (16, 56), size 288x72 pixels  (36 cols x 9 rows)
+        // Background: dark grey (8), border: yellow (5), text: white (1)
+        // ---------------------------------------------------------
+        result = DrawMsgBox(16, 56, 288, 72, 8, 5, &msg_long, 1);
+
+        // ---------------------------------------------------------
+        // Window 3: minimal box with no text - just a filled frame
+        // Position (16, 144), size 64x32
+        // ---------------------------------------------------------
+        result = DrawBox(16, 144, 64, 32, 4, 1);
+
+        // ---------------------------------------------------------
+        // Exit button:
+        // Move the mouse over it and click the left button to exit.
+        // Position (120, 140), size 80x16
+        // ---------------------------------------------------------
+        result = DrawButton(120, 140, 80, 16, 8, 1, &btn_label, 1);
+
+        // ---------------------------------------------------------
+        // Window 4: stress test - word longer than max_cols (hard break)
+        // Position (16, 192), size 96x48 pixels  (12 cols x 6 rows)
+        // ---------------------------------------------------------
+        result = DrawMsgBox(16, 192, 96, 48, 4, 5, &msg_hardwrap, 1);
+
+        // Show the frame
+        call UpdateCopperList();
+
+        // Event loop: hold display until the Exit button is clicked
+        do {
+            call WaitVBlank();
+            call ReadMouse();    // update raw mouse deltas + button state
+            call GuiPollMouse(); // accumulate abs pixel position; detect click edge
+            // Move hardware sprite to follow the mouse cursor
+            mx = GetGuiMouseX();
+            my = GetGuiMouseY();
+            call SetSpritePosition(0, mx, my);
+            if (GuiHitTestRect(100, 132, 120, 24) == 1) {
+                frame = 1;      // Exit button clicked: leave the loop
+            }
+            call UpdateCopperList();
+        } while (frame == 0);
+
+        return 0;
+    }
+
+// String data for the demo windows
+data demo_strings:
+    btn_label.b    = "Exit", 0
+
+    msg_short.b    = "Hello from the HAS GUI library!", 0
+
+    msg_long.b     = "This is a longer message that will not fit on a single line. The word-wrap engine breaks at spaces so no word is split. Rendering stops when the window is full.", 0
+
+    msg_hardwrap.b = "ABCDEFGHIJKLMNOPQRSTUVWXYZ no-space-here forced-break test end.", 0
+
+// Sprite 0 cursor data (classic 11-line arrow, top-left hotspot)
+// Palette word layout (4 words = 8 bytes before cursor label, required by CreateSprite):
+//   color0 = $000 (transparent), color1 = $FFF (white, used for all pixels),
+//   color2 = $CCC (light grey), color3 = $888 (mid grey)
+// Sprite data layout: height, ctrl0, ctrl1, (plane0,plane1) x height, 0,0 terminator
+// All rows use plane0=shape, plane1=$0000 so pixels select color1 (white).
+data cursor_data:
+    cursor_pal.w = $000, $FFF, $CCC, $888
+    cursor.w = 11, 0, 0, $8000, 0, $C000, 0, $E000, 0, $F000, 0, $F800, 0, $FC00, 0, $FE00, 0, $EC00, 0, $C600, 0, $8300, 0, $0300, 0, 0, 0
