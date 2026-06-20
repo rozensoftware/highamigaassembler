@@ -1,9 +1,11 @@
 ; gui.s - HAS GUI widget library for Motorola 68000 / Amiga
 ;
-; Supports mode 0 only: 320x256, 5 bitplanes, line-interleaved.
-; Screen memory layout (mode 0):
-;   byte offset for pixel (x, y): y*200 + plane*40 + (x>>3)
-;   bit within that byte: bit (7 - (x & 7))  [bit 7 = leftmost pixel]
+; Supports mode 0 (320x256x32, 5 planes, 40 bytes/row) and
+;                 mode 1 (640x256x16, 4 planes, 80 bytes/row); both line-interleaved.
+; Screen memory layout:
+;   mode 0 byte offset for pixel (x,y): y*200 + plane*40 + (x>>3)
+;   mode 1 byte offset for pixel (x,y): y*320 + plane*80 + (x>>3)
+;   bit within byte: (7 - (x & 7))  [bit 7 = leftmost pixel]
 ;
 ; Calling convention (matches graphics.s):
 ;   link a6,#N  with arguments at 8(a6), 12(a6), 16(a6), ...  (longs)
@@ -42,6 +44,7 @@
     XDEF DrawGadget
 
     XREF gfx_current_screen_ptr
+    XREF gfx_current_mode
     XREF _DrawChar
     XREF gfx_text_cursor_x
     XREF gfx_text_cursor_y
@@ -55,13 +58,14 @@
 ;   20(a6) = h      - height in pixels (long)
 ;   24(a6) = color  - palette index 0-31 (long)
 ;
-; Fills a solid axis-aligned rectangle using mode-0 line-interleaved layout.
-; For each of the 5 bitplanes: if (color >> plane) & 1, SET covered bits;
-; otherwise CLEAR them.  Handles partial left/right bytes via bit-masks.
+; Fills a solid axis-aligned rectangle using the current mode's line-interleaved layout.
+; Reads gfx_current_mode at call time: mode 0 uses 5 planes/40 bytes, mode 1 uses 4 planes/80 bytes.
+; For each bitplane: if (color >> plane) & 1, SET covered bits; otherwise CLEAR them.
+; Handles partial left/right bytes via bit-masks.
 ; Returns d0 = 0.
 ; ============================================================
 FillRect:
-    link a6,#-4                     ; locals: -1(a6)=lmask byte, -2(a6)=rmask byte
+    link a6,#-8                     ; locals: -1(a6)=lmask, -2(a6)=rmask, -4(a6)=width_bytes, -6(a6)=row_stride, -8(a6)=num_planes
     movem.l d1-d7/a0-a4,-(sp)
 
     ; Bail on zero/negative size
@@ -71,6 +75,22 @@ FillRect:
     move.l 20(a6),d0                ; h
     tst.l d0
     ble .fr_exit
+
+    ; ---- Determine mode-dependent parameters ----
+    move.w gfx_current_mode,d0
+    tst.w d0
+    bne .fr_hires
+    ; Mode 0: 320x256, 5 planes, 40 bytes/row
+    move.w #40,-4(a6)               ; width_bytes
+    move.w #200,-6(a6)              ; row_stride = 5*40
+    move.w #5,-8(a6)                ; num_planes
+    bra .fr_mode_set
+.fr_hires:
+    ; Mode 1: 640x256, 4 planes, 80 bytes/row
+    move.w #80,-4(a6)               ; width_bytes
+    move.w #320,-6(a6)              ; row_stride = 4*80
+    move.w #4,-8(a6)                ; num_planes
+.fr_mode_set:
 
     ; ---- Precompute left_byte and right_byte (in address registers a2/a3) ----
     ; left_byte = x >> 3
@@ -120,9 +140,9 @@ FillRect:
 .fr_row_loop:
     ; Compute: a1 = screen_base + row*200 + plane*40 + left_byte
     move.l d7,d0
-    mulu.w #200,d0                  ; d0 = row * 200
+    mulu.w -6(a6),d0                ; d0 = row * row_stride
     move.l d5,d1
-    mulu.w #40,d1                   ; d1 = plane * 40
+    mulu.w -4(a6),d1                ; d1 = plane * width_bytes
     add.l d1,d0
     add.l a2,d0                     ; d0 += left_byte
     move.l a0,a1
@@ -215,8 +235,8 @@ FillRect:
     dbra d3,.fr_row_loop            ; h iterations
 
     addq.l #1,d5                    ; next plane
-    cmp.l #5,d5
-    blt .fr_plane_loop              ; 5 planes (0..4)
+    cmp.w -8(a6),d5
+    blt .fr_plane_loop              ; num_planes iterations
 
 .fr_exit:
     moveq #0,d0
