@@ -108,11 +108,11 @@ code main:
         result = DrawBox(16, 144, 64, 32, 4, 1);
 
         // ---------------------------------------------------------
-        // Exit button: centred near the bottom of the screen.
+        // Exit button:
         // Move the mouse over it and click the left button to exit.
-        // Position (120, 240), size 80x16
+        // Position (120, 140), size 80x16
         // ---------------------------------------------------------
-        result = DrawButton(120, 240, 80, 16, 8, 1, &btn_label, 1);
+        result = DrawButton(120, 140, 80, 16, 8, 1, &btn_label, 1);
 
         // ---------------------------------------------------------
         // Window 4: stress test - word longer than max_cols (hard break)
@@ -132,7 +132,7 @@ code main:
             mx = GetGuiMouseX();
             my = GetGuiMouseY();
             call SetSpritePosition(0, mx, my);
-            if (GuiHitTestRect(120, 240, 80, 16) == 1) {
+            if (GuiHitTestRect(100, 132, 120, 24) == 1) {
                 frame = 1;      // Exit button clicked: leave the loop
             }
             call UpdateCopperList();

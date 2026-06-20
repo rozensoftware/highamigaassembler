@@ -677,17 +677,54 @@ DrawButton:
     link a6,#-4                     ; -4(a6) = strlen local (long)
     movem.l d1-d5/a0,-(sp)
 
-    ; ---- 1. Draw the border + background ----
-    move.l 28(a6),-(sp)             ; border
+    ; ---- 1. Background fill ----
     move.l 24(a6),-(sp)             ; bg
     move.l 20(a6),-(sp)             ; h
     move.l 16(a6),-(sp)             ; w
     move.l 12(a6),-(sp)             ; y
     move.l 8(a6),-(sp)              ; x
-    jsr DrawBox
-    lea 24(sp),sp
+    jsr FillRect
+    lea 20(sp),sp
 
-    ; ---- 2. Measure label (strlen) ----
+    ; ---- 2. Top highlight (1 px, border color = bright) ----
+    move.l 28(a6),-(sp)             ; color = border (highlight)
+    move.l 16(a6),-(sp)             ; w
+    move.l 12(a6),-(sp)             ; y (top edge)
+    move.l 8(a6),-(sp)              ; x
+    jsr DrawHLine
+    lea 16(sp),sp
+
+    ; ---- 3. Left highlight (1 px, border color = bright) ----
+    move.l 28(a6),-(sp)             ; color = border (highlight)
+    move.l 20(a6),-(sp)             ; h
+    move.l 12(a6),-(sp)             ; y
+    move.l 8(a6),-(sp)              ; x
+    jsr DrawVLine
+    lea 16(sp),sp
+
+    ; ---- 4. Bottom shadow (1 px, black = color 0) ----
+    move.l #0,-(sp)                 ; color = 0 (shadow)
+    move.l 16(a6),-(sp)             ; w
+    move.l 20(a6),d1
+    add.l 12(a6),d1
+    subq.l #1,d1                    ; d1 = y + h - 1
+    move.l d1,-(sp)                 ; y = bottom edge
+    move.l 8(a6),-(sp)              ; x
+    jsr DrawHLine
+    lea 16(sp),sp
+
+    ; ---- 5. Right shadow (1 px, black = color 0) ----
+    move.l #0,-(sp)                 ; color = 0 (shadow)
+    move.l 20(a6),-(sp)             ; h
+    move.l 12(a6),-(sp)             ; y
+    move.l 16(a6),d1
+    add.l 8(a6),d1
+    subq.l #1,d1                    ; d1 = x + w - 1
+    move.l d1,-(sp)                 ; x = right edge
+    jsr DrawVLine
+    lea 16(sp),sp
+
+    ; ---- 6. Measure label (strlen) ----
     move.l 32(a6),a0                ; label ptr
     clr.l -4(a6)                    ; len = 0
 .dbt_len:
@@ -699,37 +736,29 @@ DrawButton:
     tst.l -4(a6)
     beq .dbt_done                   ; empty label: skip rendering
 
-    ; ---- 3. Horizontal centering (char units) ----
-    ;    h_pad = max(0, (w/8 - len) / 2)
-    ;    cx    = (x/8) + h_pad
-    move.l 16(a6),d1                ; w
-    lsr.l #3,d1                     ; d1 = button cols
-    sub.l -4(a6),d1                 ; d1 = button_cols - len
-    tst.l d1
-    bge .dbt_hpad_ok
-    clr.l d1                        ; clamp: label wider than button
-.dbt_hpad_ok:
-    lsr.l #1,d1                     ; d1 = h_pad
-    move.l 8(a6),d2
-    lsr.l #3,d2                     ; d2 = x/8
-    add.l d2,d1                     ; d1 = cx (char column)
-
-    ; ---- 4. Vertical centering (char units) ----
-    ;    v_pad = max(0, (h/8 - 1) / 2)
-    ;    cy    = (y/8) + v_pad
-    move.l 20(a6),d2                ; h
-    lsr.l #3,d2                     ; d2 = button rows
-    subq.l #1,d2                    ; d2 = button_rows - 1
+    ; ---- 7. Horizontal centering ----
+    ;    cx = (x + (w - len*8) / 2) / 8
+    move.l -4(a6),d1                ; len
+    lsl.l #3,d1                     ; len * 8  (pixel width of label)
+    move.l 16(a6),d2                ; w
+    sub.l d1,d2                     ; d2 = w - label_px
     tst.l d2
-    bge .dbt_vpad_ok
-    clr.l d2                        ; clamp to 0
-.dbt_vpad_ok:
-    lsr.l #1,d2                     ; d2 = v_pad
-    move.l 12(a6),d3
-    lsr.l #3,d3                     ; d3 = y/8
-    add.l d3,d2                     ; d2 = cy (char row)
+    bge .dbt_hpad_ok
+    clr.l d2                        ; clamp: label wider than button
+.dbt_hpad_ok:
+    lsr.l #1,d2                     ; d2 = (w - label_px) / 2
+    add.l 8(a6),d2                  ; d2 = x + hpad_px
+    lsr.l #3,d2                     ; d2 = cx  (snap to char grid)
+    move.l d2,d1                    ; d1 = cx
 
-    ; ---- 5. Render label one char at a time ----
+    ; ---- 8. Vertical centering ----
+    ;    cy = (y + h/2) / 8   - rounds text row to nearest char row
+    move.l 20(a6),d2                ; h
+    lsr.l #1,d2                     ; h/2
+    add.l 12(a6),d2                 ; y + h/2
+    lsr.l #3,d2                     ; d2 = cy  (char row)
+
+    ; ---- 9. Render label one char at a time ----
     move.w d1,gfx_text_cursor_x
     move.w d2,gfx_text_cursor_y
     move.l 32(a6),a0                ; reset to label start
