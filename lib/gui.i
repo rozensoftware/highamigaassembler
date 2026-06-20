@@ -54,6 +54,8 @@ GADGET_TYPE_BUTTON  EQU 1   ; clickable button with centred label
     XREF GuiPollMouse
     XREF GuiHitTest
     XREF GuiHitTestRect
+    XREF GetGuiMouseX
+    XREF GetGuiMouseY
 
     endif   ; GUI_I
 
@@ -67,4 +69,10 @@ GADGET_TYPE_BUTTON  EQU 1   ; clickable button with centred label
 ;   extern func DrawBox(x:int, y:int, w:int, h:int, bg:int, border:int) -> int;
 ;   extern func DrawWrappedText(cx:int, cy:int, cols:int, rows:int, str:int, color:int) -> int;
 ;   extern func DrawMsgBox(x:int, y:int, w:int, h:int, bg:int, border:int, str:int, tc:int) -> int;
+;   extern func DrawButton(x:int, y:int, w:int, h:int, bg:int, border:int, str:int, tc:int) -> int;
 ;   extern func DrawGadget(gadget_ptr:int) -> int;
+;   extern func GuiPollMouse() -> void;
+;   extern func GuiHitTest(gadget_ptr:int) -> int;
+;   extern func GuiHitTestRect(x:int, y:int, w:int, h:int) -> int;
+;   extern func GetGuiMouseX() -> int;
+;   extern func GetGuiMouseY() -> int;
