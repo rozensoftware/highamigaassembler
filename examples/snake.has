@@ -1,0 +1,453 @@
+// snake.has
+// Classic Snake game for the Amiga (Motorola 68000).
+//
+// Compiler features exercised:
+//   struct arrays (ring buffer for body), BSS/data sections, const,
+//   while/for loops, break/continue, proc with typed args + return,
+//   byte/int/long variables, modulo %, short-circuit &&, extern func,
+//   address-of (&), heap (ItoaAlloc / StrConcatAlloc / HeapFree).
+//
+// Screen: 320×256, 32 colours (5 bitplanes, mode 0).
+// Grid  : 20×20 tiles, 8 px/tile = 160×160 px, origin at (80, 48).
+// Controls: cursor keys to steer, ESC to quit.
+// Scoring : +10 per food eaten.
+//
+// Build from project root:
+//   ./scripts/build_snake.sh
+//   (or: python -m hasc.cli examples/snake.has -o build/snake.s)
+
+#pragma lockreg(a5);
+
+// -------------------------------------------------------------------------
+// Constants
+// -------------------------------------------------------------------------
+
+const TRUE          = 1;
+const FALSE         = 0;
+
+const GRID_W        = 20;     // columns
+const GRID_H        = 20;     // rows
+const TILE          = 8;      // pixels per tile
+const GRID_OX       = 80;     // grid origin X  ((320-160)/2)
+const GRID_OY       = 48;     // grid origin Y  (leaves 48 px above for HUD)
+const MAX_SNAKE     = 100;    // ring-buffer capacity
+const MOVE_DELAY    = 0;      // vblanks between snake steps (≈8 moves/s @ 50 Hz)
+
+// Amiga keyboard raw scan-codes
+const KEY_ESC       = 69;     // $45
+const KEY_UP        = 76;     // $4C
+const KEY_DOWN      = 77;     // $4D
+const KEY_LEFT      = 79;     // $4F
+const KEY_RIGHT     = 78;     // $4E
+
+// Direction enum (byte 0-3)
+const DIR_RIGHT     = 0;
+const DIR_UP        = 1;
+const DIR_LEFT      = 2;
+const DIR_DOWN      = 3;
+
+// Palette colour indices (configured in main)
+const COL_BG        = 0;      // black   — background
+const COL_BORDER    = 1;      // white   — grid border + HUD text
+const COL_BODY      = 2;      // green   — snake body segments
+const COL_FOOD      = 3;      // red     — food pellet
+const COL_HEAD      = 4;      // lime    — snake head
+
+// -------------------------------------------------------------------------
+// External library functions  (all implementations in lib/*.s)
+// -------------------------------------------------------------------------
+
+extern func SetGraphicsMode(mode: int) -> int;
+extern func ClearScreen()              -> int;
+extern func SwapScreen()               -> int;
+extern func Show()                     -> void;
+extern func WaitVBlank()               -> void;
+extern func SetColor(id: int, col: int) -> int;
+extern func SetFont(ptr: int)          -> int;
+extern func Text(x: int, y: int, msg: int, color: int) -> int;
+extern func DrawBox(x: int, y: int, w: int, h: int, bg: int, border: int) -> int;
+extern func TakeSystem()               -> void;
+extern func ReleaseSystem()            -> void;
+extern func InitKeyboard()             -> void;
+extern func GetKey()                   -> byte;
+extern func SeedRnd(seed: int)         -> void;
+extern func RndMaxAMOS(max: int)       -> int;
+extern func HeapInit()                 -> void;
+extern func HeapFree(ptr: int)         -> void;
+extern func ItoaAlloc(value: int)      -> int;
+extern func StrConcatAlloc(a: int, b: int) -> int;
+
+extern var fonts: int;         // 8×8 font bitmap from lib/font8x8.s
+
+// -------------------------------------------------------------------------
+// Initialized data (in the DATA hunk)
+// -------------------------------------------------------------------------
+
+data game_data:
+    direction.b  = 0          // current snake direction (DIR_RIGHT = 0 initially)
+    next_dir.b   = 0          // direction buffered from keyboard
+    score.l      = 0          // player score (long for easy ItoaAlloc use)
+    running.b    = 1          // main-loop flag (TRUE = 1)
+    frame_timer.b = 0         // counts vblanks between snake moves
+
+    score_lbl.b  = "Score: ", 0
+    over_txt.b   = "GAME OVER!  Press ESC to quit.", 0
+
+// -------------------------------------------------------------------------
+// Uninitialized game state (in the BSS hunk)
+// -------------------------------------------------------------------------
+
+bss game_bss:
+    head_idx.l: 1             // index of the head entry in snake_body[]
+    snake_len.l: 1            // number of live body segments
+    food_x.l: 1               // food grid column (0-19)
+    food_y.l: 1               // food grid row    (0-19)
+    score_str.l: 1            // cached heap pointer to "Score: NNN" label
+    score_cache.l: 1          // score value when score_str was last built
+    struct snake_body[100] { x.l, y.l }   // ring buffer (grid coords)
+
+// -------------------------------------------------------------------------
+// Code
+// -------------------------------------------------------------------------
+
+code game_code:
+
+    public main;
+
+    // Entry: take Amiga hardware, run game, restore OS and exit.
+    asm {
+        jsr TakeSystem
+        jsr main
+        jmp ReleaseSystem
+    }
+
+    // ------------------------------------------------------------------
+    // GetDX(d) -> int
+    // Returns the horizontal delta (-1, 0, or +1) for direction d.
+    // ------------------------------------------------------------------
+    proc GetDX(d: byte) -> int {
+        if (d == DIR_RIGHT) { return 1;  }
+        if (d == DIR_LEFT)  { return -1; }
+        return 0;
+    }
+
+    // ------------------------------------------------------------------
+    // GetDY(d) -> int
+    // Returns the vertical delta (-1, 0, or +1) for direction d.
+    // ------------------------------------------------------------------
+    proc GetDY(d: byte) -> int {
+        if (d == DIR_DOWN) { return 1;  }
+        if (d == DIR_UP)   { return -1; }
+        return 0;
+    }
+
+    // ------------------------------------------------------------------
+    // IsOccupied(gx, gy) -> byte
+    // Returns TRUE when the snake currently occupies grid cell (gx, gy).
+    // Iterates the ring buffer from head_idx backwards for snake_len steps.
+    // ------------------------------------------------------------------
+    proc IsOccupied(gx: int, gy: int) -> byte {
+        var i:   int;
+        var idx: int;
+        var hd:  int;
+        var len: int;
+
+        hd  = head_idx;
+        len = snake_len;
+        i   = 0;
+
+        while (i < len) {
+            idx = (hd - i + MAX_SNAKE) % MAX_SNAKE;
+            if (snake_body[idx].x == gx && snake_body[idx].y == gy) {
+                return TRUE;
+            }
+            i = i + 1;
+        }
+        return FALSE;
+    }
+
+    // ------------------------------------------------------------------
+    // PlaceFood — pick a random cell not occupied by the snake.
+    // Loops until a free cell is found (always terminates in practice
+    // because the grid has 400 cells and MAX_SNAKE is only 100).
+    // ------------------------------------------------------------------
+    proc PlaceFood() -> void {
+        var fx:     int;
+        var fy:     int;
+        var placed: byte = FALSE;
+
+        while (placed == FALSE) {
+            fx = RndMaxAMOS(GRID_W);
+            fy = RndMaxAMOS(GRID_H);
+            if (IsOccupied(fx, fy) == FALSE) {
+                food_x = fx;
+                food_y = fy;
+                placed = TRUE;
+            }
+        }
+    }
+
+    // ------------------------------------------------------------------
+    // InitGame — reset all state for a fresh game.
+    // ------------------------------------------------------------------
+    proc InitGame() -> void {
+        // Length-3 snake at row 10, columns 8-10, pointing right
+        snake_len    = 3;
+        head_idx     = 2;
+
+        snake_body[0].x = 8;   snake_body[0].y = 10;
+        snake_body[1].x = 9;   snake_body[1].y = 10;
+        snake_body[2].x = 10;  snake_body[2].y = 10;
+
+        direction   = DIR_RIGHT;
+        next_dir    = DIR_RIGHT;
+        score       = 0;
+        frame_timer = 0;
+        running     = TRUE;
+
+        // Free any cached score string from a previous game
+        if (score_str != 0) {
+            call HeapFree(score_str);
+            score_str = 0;
+        }
+        score_cache = -1;   // force allocation on first DrawScore call
+
+        call PlaceFood();
+    }
+
+    // ------------------------------------------------------------------
+    // HandleInput(key) — buffer a direction change from the keyboard.
+    // Ignores 180-degree reversals (you cannot steer directly backwards).
+    // ------------------------------------------------------------------
+    proc HandleInput(key: byte) -> void {
+        var d: byte = direction;
+
+        if (key == KEY_UP    && d != DIR_DOWN)  { next_dir = DIR_UP;    }
+        if (key == KEY_DOWN  && d != DIR_UP)    { next_dir = DIR_DOWN;  }
+        if (key == KEY_LEFT  && d != DIR_RIGHT) { next_dir = DIR_LEFT;  }
+        if (key == KEY_RIGHT && d != DIR_LEFT)  { next_dir = DIR_RIGHT; }
+    }
+
+    // ------------------------------------------------------------------
+    // MoveSnake() -> byte
+    // Advances the snake one tile in the current direction.
+    // Returns TRUE if the snake is still alive, FALSE on self-collision.
+    //
+    // Algorithm:
+    //   1. Commit buffered direction.
+    //   2. Compute new head position, wrap at grid edges.
+    //   3. Self-collision: check all segments except the tail
+    //      (the tail will vacate before the head arrives).
+    //   4. Advance the ring-buffer head.
+    //   5. Check food; grow + PlaceFood if eaten.
+    // ------------------------------------------------------------------
+    proc MoveSnake() -> byte {
+        var new_x: int;
+        var new_y: int;
+        var dx:    int;
+        var dy:    int;
+        var i:     int;
+        var idx:   int;
+        var hd:    int;
+        var d:     byte;
+
+        // Commit buffered direction (prevents mid-frame reversal)
+        d         = next_dir;
+        direction = d;
+
+        dx = GetDX(d);
+        dy = GetDY(d);
+        hd = head_idx;
+
+        // New head grid position
+        new_x = snake_body[hd].x + dx;
+        new_y = snake_body[hd].y + dy;
+
+        // Wrap around grid edges (no wall-death: tunnel through)
+        if (new_x < 0)       { new_x = GRID_W - 1; }
+        if (new_x >= GRID_W) { new_x = 0; }
+        if (new_y < 0)       { new_y = GRID_H - 1; }
+        if (new_y >= GRID_H) { new_y = 0; }
+
+        // Self-collision check: skip the last segment (it will move away)
+        i = 0;
+        while (i < snake_len - 1) {
+            idx = (hd - i + MAX_SNAKE) % MAX_SNAKE;
+            if (snake_body[idx].x == new_x && snake_body[idx].y == new_y) {
+                return FALSE;   // collision = game over
+            }
+            i = i + 1;
+        }
+
+        // Advance ring-buffer head
+        hd               = (hd + 1) % MAX_SNAKE;
+        head_idx         = hd;
+        snake_body[hd].x = new_x;
+        snake_body[hd].y = new_y;
+
+        // Check food
+        if (new_x == food_x && new_y == food_y) {
+            snake_len = snake_len + 1;
+            score     = score + 10;
+            call PlaceFood();
+        }
+
+        return TRUE;    // alive
+    }
+
+    // ------------------------------------------------------------------
+    // DrawSnake — render all segments into the current back buffer.
+    // The head (i == 0) is drawn in COL_HEAD; body in COL_BODY.
+    // ------------------------------------------------------------------
+    proc DrawSnake() -> void {
+        var i:   int;
+        var idx: int;
+        var px:  int;
+        var py:  int;
+        var col: int;
+        var hd:  int;
+        var len: int;
+
+        hd  = head_idx;
+        len = snake_len;
+        i   = 0;
+
+        while (i < len) {
+            idx = (hd - i + MAX_SNAKE) % MAX_SNAKE;
+            px  = GRID_OX + snake_body[idx].x * TILE;
+            py  = GRID_OY + snake_body[idx].y * TILE;
+
+            if (i == 0) { col = COL_HEAD; }
+            else        { col = COL_BODY; }
+
+            call DrawBox(px, py, TILE, TILE, col, col);
+            i = i + 1;
+        }
+    }
+
+    // ------------------------------------------------------------------
+    // DrawFood — render the food pellet tile.
+    // ------------------------------------------------------------------
+    proc DrawFood() -> void {
+        var px: int;
+        var py: int;
+        px = GRID_OX + food_x * TILE;
+        py = GRID_OY + food_y * TILE;
+        call DrawBox(px, py, TILE, TILE, COL_FOOD, COL_FOOD);
+    }
+
+    // ------------------------------------------------------------------
+    // DrawScore — render "Score: NNN" in the HUD area.
+    // The label string is built on the heap only when the score changes;
+    // between score changes the cached pointer is reused every frame.
+    // ------------------------------------------------------------------
+    proc DrawScore() -> void {
+        var numstr: int;
+
+        if (score != score_cache) {
+            // Free the old cached label (if any)
+            if (score_str != 0) {
+                call HeapFree(score_str);
+            }
+            // Build "Score: NNN" and cache it
+            numstr    = ItoaAlloc(score);
+            score_str = StrConcatAlloc(&score_lbl, numstr);
+            call HeapFree(numstr);   // numstr was only needed for concat
+            score_cache = score;
+        }
+
+        call Text(4, 4, score_str, COL_BORDER);
+    }
+
+    // ------------------------------------------------------------------
+    // DrawFrame — compose a complete game frame into the back buffer.
+    // ------------------------------------------------------------------
+    proc DrawFrame() -> void {
+        // White border 2 px outside the 160×160 play area
+        call DrawBox(GRID_OX - 2, GRID_OY - 2,
+                     GRID_W * TILE + 4, GRID_H * TILE + 4,
+                     COL_BG, COL_BORDER);
+        call DrawSnake();
+        call DrawFood();
+        call DrawScore();
+    }
+
+    // ------------------------------------------------------------------
+    // ShowGameOver — display the result screen and wait for ESC.
+    // ------------------------------------------------------------------
+    proc ShowGameOver() -> void {
+        var key: byte = 0;
+
+        call SwapScreen();
+        call ClearScreen();
+        call Text(4, 12, &over_txt, COL_FOOD);
+        call DrawScore();
+        call WaitVBlank();
+        call Show();
+
+        while (key != KEY_ESC) {
+            call WaitVBlank();
+            key = GetKey();
+        }
+    }
+
+    // ------------------------------------------------------------------
+    // main — top-level entry procedure.
+    // ------------------------------------------------------------------
+    proc main() -> int {
+        var key:   byte = 0;
+        var alive: byte;
+
+        // ---- Hardware initialisation ----
+        if (SetGraphicsMode(0) == -1) {
+            return -1;
+        }
+
+        call HeapInit();
+        call InitKeyboard();
+        call SeedRnd(0xDEADBEEF);
+        call SetFont(&fonts);
+
+        // Palette
+        call SetColor(COL_BG,     $000);   // black
+        call SetColor(COL_BORDER, $FFF);   // white
+        call SetColor(COL_BODY,   $0E0);   // green  (body)
+        call SetColor(COL_FOOD,   $F00);   // red    (food)
+        call SetColor(COL_HEAD,   $0F4);   // lime   (head)
+
+        call InitGame();
+
+        // ---- Main game loop ----
+        while (running == TRUE) {
+            call SwapScreen();
+            call ClearScreen();
+
+            key = GetKey();
+
+            if (key == KEY_ESC) {
+                running = FALSE;
+                continue;       // skip render so we don't flash on quit
+            }
+
+            call HandleInput(key);
+
+            // Step the snake every MOVE_DELAY vblanks
+            frame_timer = frame_timer + 1;
+            if (frame_timer >= MOVE_DELAY) {
+                frame_timer = 0;
+                alive = MoveSnake();
+                if (alive == FALSE) {
+                    running = FALSE;    // snake hit itself — game over
+                }
+            }
+
+            call DrawFrame();
+            call WaitVBlank();
+            call Show();
+        }
+
+        // ---- End of game (death or ESC) ----
+        call ShowGameOver();
+
+        return 0;
+    }
