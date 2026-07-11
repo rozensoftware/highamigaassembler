@@ -41,6 +41,7 @@ HAS bridges the gap between high-level languages and assembly programming. It of
 - **Constants**: Compile-time constant evaluation
 - **Pointer Arithmetic**: Address-of (`&`) and dereference (`*`) operators
 - **Register Locking**: `#pragma lockreg()` to protect registers from compiler allocation
+- **Dead-Code Elimination**: `--strip-unused-procs` removes unreachable internal procedures before assembly emission
 
 ### Amiga-Specific
 
@@ -223,6 +224,29 @@ if __name__ == "__main__":
 
 ```bash
 python -m hasc.cli input.has --no-validate -o output.s
+```
+
+### Remove Unused Procedures (dead-code elimination)
+
+```bash
+# Remove unreachable internal procedures before assembly emission
+python -m hasc.cli program.has --strip-unused-procs -o program.s
+
+# Same, but also print what was removed
+python -m hasc.cli program.has --strip-unused-procs --strip-unused-report -o program.s
+```
+
+The pass uses call-graph reachability from `public` declarations.  It is
+**conservative by default**: if no roots are found, or if a top-level raw
+`asm` block is present, all procedures are kept unchanged.
+
+```has
+// Mark the entry point so unreachable procs can be stripped
+public game_init;
+
+proc game_init() -> void { ... }   // kept (root)
+proc helper()    -> void { ... }   // kept (called by game_init)
+proc dead_code() -> void { ... }   // removed (never called)
 ```
 
 ### Build Complete Executable

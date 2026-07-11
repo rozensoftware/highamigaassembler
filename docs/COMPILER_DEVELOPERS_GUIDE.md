@@ -55,6 +55,8 @@ src/hasc/
       ↓
   [Validator] ───→ Validated AST + Warnings
       ↓
+  [Reachability] → Pruned AST  (opt-in; see --strip-unused-procs)
+      ↓
   [CodeGen] ─────→ 68000 Assembly Text
       ↓
    vasm/vlink ───→ Executable Binary
@@ -65,6 +67,7 @@ src/hasc/
 
 - Sections: `data`/`data_chip`, `bss`/`bss_chip`, `code`/`code_chip`, inline `asm`
 - Compile-time directives: `#warning`, `#error`, `#pragma lockreg(...)`, `#pragma strict16arith(on|off)`, `const` declarations
+- Dead-code elimination: `--strip-unused-procs` removes unreachable internal `proc` definitions via call-graph analysis (`hasc/reachability.py`)
 - Procedure system: `proc`, forward `func` declarations, `extern func/var`, `public` exports
 - Control flow and expressions: loops (`for`/`while`/`repeat`), conditionals, full operator set including shifts and bitwise ops
 - Python integration: macros, `@python` directives, optional external generation via `--generate`
