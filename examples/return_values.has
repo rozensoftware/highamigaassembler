@@ -36,7 +36,7 @@ code main:
         
         // Method 3: Return value is always in d0
         call calculate(100, 200);
-        result = d0;  // Manual register read
+        asm "move.l d0,result";  // Manual register read
         
         // Method 4: Nested calls (pass result to another function)
         var doubled: long = calculate(get_flag(), 2);

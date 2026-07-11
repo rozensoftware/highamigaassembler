@@ -1,0 +1,7 @@
+// Negative test: extern func register conflicts should fail validation
+
+code main:
+    // Duplicate register assignment (d0) and forbidden stack pointer register (a7)
+    extern func BadExtern(__reg(d0) x: int, __reg(d0) y: int, __reg(a7) sp: ptr) -> int;
+
+    asm "rts";

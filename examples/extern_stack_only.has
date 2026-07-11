@@ -1,0 +1,17 @@
+// extern func with stack-only parameters (cdecl-like)
+
+code main:
+    extern func PlotPixel(x: int, y: int, color: int) -> int;
+
+    asm {
+        jsr main
+        rts
+    }
+
+    proc main() -> int {
+        var x: int = 10;
+        var y: int = 20;
+        var color: int = 3;
+        var rc: int = PlotPixel(x, y, color);
+        return rc;
+    }
