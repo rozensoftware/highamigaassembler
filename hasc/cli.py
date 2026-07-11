@@ -2,6 +2,7 @@ import argparse
 import sys
 import subprocess
 from . import parser, codegen, validator
+from . import reachability
 import os
 from lark.exceptions import LarkError, UnexpectedInput, UnexpectedToken, UnexpectedCharacters
 
@@ -33,6 +34,16 @@ def main(argv=None):
     ap.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
     ap.add_argument("--generate", help="Pre-process with Python script to generate code")
     ap.add_argument("--no-validate", action="store_true", help="Skip validation checks")
+    ap.add_argument(
+        "--strip-unused-procs",
+        action="store_true",
+        help="Remove unreachable internal procedures before code generation",
+    )
+    ap.add_argument(
+        "--strip-unused-report",
+        action="store_true",
+        help="Print kept/removed procedure report (implies --strip-unused-procs)",
+    )
     args = ap.parse_args(argv)
 
     # If --generate specified, run Python script to generate HAS code
@@ -103,6 +114,22 @@ def main(argv=None):
             print(f"  {e}", file=sys.stderr)
             sys.exit(1)
     
+    strip_enabled = args.strip_unused_procs or args.strip_unused_report
+    mod, strip_report = reachability.strip_unused_procs(mod, enabled=strip_enabled)
+
+    if args.strip_unused_report:
+        if strip_report.skipped_due_to_asm:
+            print(
+                "Strip report: top-level asm block detected; keeping all internal procedures",
+                file=sys.stderr,
+            )
+        roots = ", ".join(strip_report.roots) if strip_report.roots else "<none>"
+        kept = ", ".join(strip_report.reachable) if strip_report.reachable else "<none>"
+        removed = ", ".join(strip_report.removed) if strip_report.removed else "<none>"
+        print(f"Strip report roots: {roots}", file=sys.stderr)
+        print(f"Strip report kept: {kept}", file=sys.stderr)
+        print(f"Strip report removed: {removed}", file=sys.stderr)
+
     cg = codegen.CodeGen(mod)
     try:
         asm = cg.gen()

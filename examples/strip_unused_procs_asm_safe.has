@@ -1,0 +1,35 @@
+// strip_unused_procs_asm_safe.has
+// Demonstrates the conservative asm-block safeguard in --strip-unused-procs.
+//
+// When a top-level raw asm block is present in a code section the compiler
+// cannot safely prove which internal procedures are reachable via jsr/jmp
+// in that block.  The pass therefore keeps ALL internal procedures.
+//
+// Compile with stripping:
+//   python -m hasc.cli examples/strip_unused_procs_asm_safe.has \
+//          --strip-unused-procs --strip-unused-report -o /tmp/asm_safe.s
+//   → "top-level asm block detected; keeping all internal procedures"
+//   → labels: startup, helper, unreachable_from_has  (all kept)
+
+code demo:
+    // Top-level asm block that calls internal code via raw jsr.
+    // The compiler cannot statically trace these targets, so it keeps all procs.
+    asm {
+        jsr startup
+        rts
+    }
+
+    proc startup() -> void {
+        var r: int = helper(7);
+        return;
+    }
+
+    proc helper(x: int) -> int {
+        return x + 1;
+    }
+
+    // Called from raw asm above (not via HAS call statement).
+    // Without the asm-block safeguard this would be incorrectly removed.
+    proc unreachable_from_has() -> int {
+        return 0;
+    }

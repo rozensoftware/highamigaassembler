@@ -1,0 +1,40 @@
+// strip_unused_procs_demo.has
+// Demonstrates --strip-unused-procs (dead internal procedure removal).
+//
+// Root: public entry_point;
+// Reachable chain:  entry_point  →  compute  →  helper
+// Dead (never called): dead_a, dead_b
+//
+// Compile without stripping:
+//   python -m hasc.cli examples/strip_unused_procs_demo.has -o /tmp/demo.s
+//   → labels: entry_point, compute, helper, dead_a, dead_b
+//
+// Compile with stripping:
+//   python -m hasc.cli examples/strip_unused_procs_demo.has \
+//          --strip-unused-procs --strip-unused-report -o /tmp/demo.s
+//   → Strip report removed: dead_a, dead_b
+//   → labels: entry_point, compute, helper  (dead procs absent)
+
+code demo:
+    public entry_point;
+
+    proc entry_point() -> int {
+        return compute(10, 32);
+    }
+
+    proc compute(a: int, b: int) -> int {
+        return helper(a) + b;
+    }
+
+    proc helper(x: int) -> int {
+        return x * 2;
+    }
+
+    // These procedures are never called from any reachable path.
+    proc dead_a() -> int {
+        return 99;
+    }
+
+    proc dead_b() -> int {
+        return dead_a();
+    }
