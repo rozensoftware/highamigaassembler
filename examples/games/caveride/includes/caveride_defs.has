@@ -1,0 +1,147 @@
+// Shared constants and extern declarations for the Caveride game.
+// Include this file in every .has module that belongs to the game.
+
+const TRUE  = 1;
+const FALSE = 0;
+
+const SCREEN_WIDTH  = 320;
+const SCREEN_HEIGHT = 256;
+const MAX_COLORS    = 32;
+
+// Keyboard scan codes
+const KEY_ESC   = 69;
+const KEY_UP    = 76;
+const KEY_DOWN  = 77;
+const KEY_LEFT  = 79;
+const KEY_RIGHT = 78;
+const KEY_SPACE = 64;
+
+// Animation frame counts (must match the number of asset files per group)
+const HELI_FRAMES        = 6;   // heli_spritesheet_0 .. _5
+const BIRD_FRAMES        = 3;   // heli_bird_left/right_0 .. _2
+const BOLT_FRAMES        = 5;   // heli_bolt_left/right_0 .. _4
+const ENEMY_HELI_FRAMES  = 2;   // heli_enemy_heli_0 .. _1
+const FUEL_FRAMES        = 4;   // heli_fuel_0 .. _3
+const ROBOT_FRAMES       = 5;   // heli_robot_0 .. _4
+const TURRET_FRAMES      = 2;   // heli_AlienTurret_0 .. _1
+
+const ANIM_DELAY = 3;
+
+// Horizontal directions
+const DIR_LEFT  = 0;
+const DIR_RIGHT = 1;
+
+// =================================================================
+// Scroll & Playfield Constants
+// =================================================================
+
+const HUD_HEIGHT          = 16;      // pixel rows for the HUD strip (rows 0-15)
+const PLAY_HEIGHT         = 240;     // playfield rows (rows 16-255)
+const PLAY_TOP            = 16;      // first playfield row
+const PLAY_BOTTOM         = 255;     // last playfield row
+
+// Tunnel ring buffer — must be a power of two >= PLAY_HEIGHT
+const TUNNEL_BUF          = 256;     // ring buffer slot count
+const TUNNEL_MASK         = 255;     // AND mask for fast modulo
+
+// Tunnel geometry (pixel units)
+const MIN_TUNNEL_WIDTH    = 48;      // narrowest allowed opening
+const MAX_LEFT_X          = 160;     // left wall cannot pass screen centre
+const INITIAL_TUNNEL_LEFT = 100;     // left wall X at game start
+const INITIAL_TUNNEL_RIGHT = 220;   // right wall X at game start
+
+// Palette colour indices used by the cave renderer
+const COLOR_SKY           = 0;       // tunnel interior  (background = black)
+const COLOR_WALL          = 1;       // cave rock
+const COLOR_HUD_BG        = 0;       // HUD background (same as sky)
+const COLOR_HUD_TEXT      = 31;      // HUD labels and numbers
+
+// Player / helicopter sprite dimensions (must match the BOB descriptor: 48x48)
+const HELI_WIDTH          = 48;      // sprite pixel width
+const HELI_HEIGHT         = 48;      // sprite pixel height
+const PLAYER_Y_INIT       = 120;     // nominal starting Y (screen row)
+const PLAYER_SPEED        = 3;       // horizontal pixels per frame
+
+// Game-state constants
+const STATE_PLAYING       = 0;
+const STATE_DEAD          = 1;
+const DEAD_FRAMES         = 60;      // frames to show death animation
+const LIVES_START         = 3;
+
+// -----------------------------------------------------------------
+// Library functions (from lib/*.s)
+// -----------------------------------------------------------------
+
+extern func SetGraphicsMode(mode: int) -> int;
+extern func ClearScreen() -> int;
+extern func SetPixel(x: int, y: int, color: int) -> int;
+extern func SetColor(id: int, col: int) -> int;
+extern func LoadPalette(palette_ptr: ptr, num_colors: int) -> int;
+extern func ShowPicture(picture_addr: ptr) -> int;
+extern func Text(x: int, y: int, msg: ptr, color: int) -> int;
+extern func Print(msg: ptr, color: int) -> int;
+
+extern func StrLen(s: ptr) -> int;
+extern func StrCmp(a: ptr, b: ptr) -> int;
+extern func StrFind(hay: ptr, needle: ptr) -> int;
+extern func StrConcatAlloc(a: ptr, b: ptr) -> int;
+extern func Atoi(s: ptr) -> int;
+extern func ItoaAlloc(value: int) -> int;
+
+extern func SwapScreen() -> int;
+extern func UpdateCopperList() -> int;
+extern func TakeSystem() -> void;
+extern func ReleaseSystem() -> void;
+extern func SetFont(ptr: int) -> int;
+extern func WaitVBlank() -> void;
+extern func InitKeyboard() -> void;
+extern func GetKey() -> byte;
+
+extern func Show() -> void;
+
+extern func ReadJoystick() -> u32;
+extern func ReadJoystickFire() -> byte;
+
+extern func CreateSprite(id: int, ptr: int) -> int;
+extern func SetSpritePosition(id: int, x: int, y: int) -> int;
+extern func ApplySpritePalette(id: int) -> void;
+extern func UpdateSpritePointers() -> void;
+extern func ShowSprite(id: int) -> int;
+extern func ShowSprites() -> int;
+extern func HideSprite(id: int) -> int;
+extern func HideSprites() -> int;
+
+extern func CreateBob(descriptor_ptr: int, b: int) -> int;
+extern func DestroyBob(handle: int) -> void;
+extern func PasteBob(handle: int, x: int, y: int, mode: int) -> void;
+extern func GetBobBackground(handle: int, x: int, y: int) -> void;
+extern func PasteBackground(handle: int, x: int, y: int) -> void;
+extern func GetBobPalette(handle: int) -> int;
+extern func SetBobPalette(handle: int, palette_ptr: int) -> int;
+extern func GetBobWidth(handle: int) -> int;
+extern func GetBobHeight(handle: int) -> int;
+
+extern func SeedRnd(seed: int) -> void;
+extern func Rnd() -> int;
+extern func RndMaxAMOS(max: int) -> int;
+
+extern func HeapAlloc(words: int) -> int;
+extern func HeapFree(p: int) -> void;
+extern func HeapInit() -> void;
+
+extern func Q16FromInt(val: int) -> int;
+extern func Q16Add(a: int, b: int) -> int;
+extern func Q16Sub(a: int, b: int) -> int;
+extern func Q16Mul(a: int, b: int) -> int;
+extern func Q16Div(a: int, b: int) -> int;
+extern func Q16ToStringAlloc(val: int) -> int;
+
+// =================================================================
+// Additional library functions (from gui.s)
+// =================================================================
+
+extern func FillRect(x: int, y: int, w: int, h: int, color: int) -> int;
+extern func DrawHLine(x: int, y: int, len: int, color: int) -> int;
+
+// Screen-buffer pointer exported by graphics.s
+extern var gfx_current_screen_ptr: int;

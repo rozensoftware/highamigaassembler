@@ -1,0 +1,750 @@
+#pragma lockreg(a5);
+
+#include "includes/caveride_defs.has";
+
+// -----------------------------------------------------------------
+// BOB asset descriptors — symbols exported by assets/*.s
+// Each label points to the BOB descriptor block assembled from the
+// matching PNG sprite via the TexturePacker pipeline.
+// -----------------------------------------------------------------
+
+// Player helicopter (6 animation frames)
+extern var heli_spritesheet_0: int;
+extern var heli_spritesheet_1: int;
+extern var heli_spritesheet_2: int;
+extern var heli_spritesheet_3: int;
+extern var heli_spritesheet_4: int;
+extern var heli_spritesheet_5: int;
+
+// Enemy birds flying left (3 frames)
+extern var heli_bird_left_0: int;
+extern var heli_bird_left_1: int;
+extern var heli_bird_left_2: int;
+
+// Enemy birds flying right (3 frames)
+extern var heli_bird_right_0: int;
+extern var heli_bird_right_1: int;
+extern var heli_bird_right_2: int;
+
+// Projectile bolts, flying left (5 frames)
+extern var heli_bolt_left_0: int;
+extern var heli_bolt_left_1: int;
+extern var heli_bolt_left_2: int;
+extern var heli_bolt_left_3: int;
+extern var heli_bolt_left_4: int;
+
+// Projectile bolts, flying right (5 frames)
+extern var heli_bolt_right_0: int;
+extern var heli_bolt_right_1: int;
+extern var heli_bolt_right_2: int;
+extern var heli_bolt_right_3: int;
+extern var heli_bolt_right_4: int;
+
+// Enemy helicopter (2 frames)
+extern var heli_enemy_heli_0: int;
+extern var heli_enemy_heli_1: int;
+
+// Fuel pickup (4 frames)
+extern var heli_fuel_0: int;
+extern var heli_fuel_1: int;
+extern var heli_fuel_2: int;
+extern var heli_fuel_3: int;
+
+// Landing platform (static — 1 frame)
+extern var heli_landing_platform: int;
+
+// Enemy robots (5 frames)
+extern var heli_robot_0: int;
+extern var heli_robot_1: int;
+extern var heli_robot_2: int;
+extern var heli_robot_3: int;
+extern var heli_robot_4: int;
+
+// Rock obstacle (static — 1 frame)
+extern var heli_rock: int;
+
+// Alien turret (2 frames)
+extern var heli_AlienTurret_0: int;
+extern var heli_AlienTurret_1: int;
+
+// Font data provided by the library
+extern var fonts: int;
+
+    public main;
+    public Init;
+    public GameLoop;
+    public LoadAssets;
+
+code caveride_code:
+
+    // ---------------------------------------------------------------
+    // Entry point — execution begins here at program start.
+    // TakeSystem acquires Amiga hardware and stores CUSTOM base in a5.
+    // ---------------------------------------------------------------
+    asm {
+        jsr TakeSystem      ; acquire Amiga hardware, a5 = $DFF000
+        jsr main            ; run the game
+        jmp ReleaseSystem   ; restore OS and exit
+    }
+
+    // Read a 16-bit word from an arbitrary memory address.
+    // Used to walk the palette arrays returned by GetBobPalette().
+    native proc peek_w(__reg(a0) a: long) -> int {
+        asm {
+            move.w (a0),d0
+            ext.l  d0
+        }
+    }
+
+    // ---------------------------------------------------------------
+    // blit_scroll_playfield
+    // Scrolls the cave playfield UP by one interleaved display row
+    // using the Blitter (no CPU involvement after setup).
+    //
+    // Hardware layout (mode 0, 320×256, 5 bitplanes, interleaved):
+    //   1 interleaved row = 5 planes × 40 bytes = 200 bytes
+    //   Row N byte offset from screen base = N × 200
+    //
+    // We copy rows HUD_HEIGHT+1..255 to rows HUD_HEIGHT..254 as a
+    // flat linear block (no per-plane modulo needed):
+    //   source offset = 17 × 200 = 3400 bytes
+    //   dest   offset = 16 × 200 = 3200 bytes
+    //   total  bytes  = 239 × 200 = 47800 = 956 Blitter rows × 25 words
+    //   BLTSIZE = (956 << 6) | 25 = $EF19
+    //
+    // Row 255 (PLAY_BOTTOM) is left untouched — the caller draws the
+    // freshly generated tunnel row there after this returns.
+    //
+    // Polls BBUSY (DMACONR bit 14) before AND after the blit.
+    // a5 = $DFF000 (custom chip base), locked via #pragma lockreg(a5).
+    // ---------------------------------------------------------------
+    native proc blit_scroll_playfield(__reg(a0) screen_base: int) -> void {
+        asm {
+            ; ---- Wait until any previous Blitter operation is done ----
+.bsp_idle1:
+            btst    #6,$002(a5)         ; DMACONR high byte bit 6 = BBUSY (bit 14 of word)
+            bne.s   .bsp_idle1
+
+            ; ---- Set source pointer: screen_base + row 17 offset (3400) ----
+            move.l  a0,d0
+            add.l   #3400,d0
+            move.l  d0,$050(a5)         ; BLTAPT  ($DFF050/$DFF052)
+
+            ; ---- Set dest pointer: screen_base + row 16 offset (3200) ----
+            move.l  a0,d0
+            add.l   #3200,d0
+            move.l  d0,$054(a5)         ; BLTDPT  ($DFF054/$DFF056)
+
+            ; ---- Blitter control ----
+            move.w  #$09F0,$040(a5)     ; BLTCON0: USE_A|USE_D, minterm $F0 → D = A
+            move.w  #$0000,$042(a5)     ; BLTCON1: ascending, no shift, no fill
+            move.w  #$FFFF,$044(a5)     ; BLTAFWM: first-word mask = all bits
+            move.w  #$FFFF,$046(a5)     ; BLTALWM: last-word  mask = all bits
+            move.w  #0,$064(a5)         ; BLTAMOD: no modulo (linear source)
+            move.w  #0,$066(a5)         ; BLTDMOD: no modulo (linear dest)
+
+            ; ---- Trigger: 956 rows × 25 words = 47800 bytes ----
+            ; BLTSIZE = (956 << 6) | 25 = $EF00 | $19 = $EF19
+            move.w  #$EF19,$058(a5)     ; BLTSIZE — starts the blit immediately!
+
+            ; ---- Wait for this blit to complete before returning ----
+.bsp_idle2:
+            btst    #6,$002(a5)
+            bne.s   .bsp_idle2
+        }
+    }
+
+    // ---------------------------------------------------------------
+    // LoadAssets
+    // Registers every BOB descriptor with the BOB system and stores
+    // the returned handles in the bss arrays below.
+    // Applies the shared palette from the first helicopter frame.
+    // Returns 0 on success, -1 on any allocation failure.
+    // ---------------------------------------------------------------
+    proc LoadAssets() -> int
+    {
+        var id: long;
+        var pal: int;
+        var i: int;
+
+        // --- Player helicopter ---
+        id = CreateBob(&heli_spritesheet_0, 0); if (id == -1) { return -1; } heli_bobs[0] = id;
+        id = CreateBob(&heli_spritesheet_1, 0); if (id == -1) { return -1; } heli_bobs[1] = id;
+        id = CreateBob(&heli_spritesheet_2, 0); if (id == -1) { return -1; } heli_bobs[2] = id;
+        id = CreateBob(&heli_spritesheet_3, 0); if (id == -1) { return -1; } heli_bobs[3] = id;
+        id = CreateBob(&heli_spritesheet_4, 0); if (id == -1) { return -1; } heli_bobs[4] = id;
+        id = CreateBob(&heli_spritesheet_5, 0); if (id == -1) { return -1; } heli_bobs[5] = id;
+
+        // Apply the shared 32-color palette from the first helicopter frame
+        pal = GetBobPalette(heli_bobs[0]);
+        i = 0;
+        while (i < MAX_COLORS)
+        {
+            call SetColor(i, peek_w(pal + (i << 1)));
+            i = i + 1;
+        }
+
+        // --- Enemy birds (left) ---
+        id = CreateBob(&heli_bird_left_0, 0); if (id == -1) { return -1; } bird_left_bobs[0] = id;
+        id = CreateBob(&heli_bird_left_1, 0); if (id == -1) { return -1; } bird_left_bobs[1] = id;
+        id = CreateBob(&heli_bird_left_2, 0); if (id == -1) { return -1; } bird_left_bobs[2] = id;
+
+        // --- Enemy birds (right) ---
+        id = CreateBob(&heli_bird_right_0, 0); if (id == -1) { return -1; } bird_right_bobs[0] = id;
+        id = CreateBob(&heli_bird_right_1, 0); if (id == -1) { return -1; } bird_right_bobs[1] = id;
+        id = CreateBob(&heli_bird_right_2, 0); if (id == -1) { return -1; } bird_right_bobs[2] = id;
+
+        // --- Bolts (left) ---
+        id = CreateBob(&heli_bolt_left_0, 0); if (id == -1) { return -1; } bolt_left_bobs[0] = id;
+        id = CreateBob(&heli_bolt_left_1, 0); if (id == -1) { return -1; } bolt_left_bobs[1] = id;
+        id = CreateBob(&heli_bolt_left_2, 0); if (id == -1) { return -1; } bolt_left_bobs[2] = id;
+        id = CreateBob(&heli_bolt_left_3, 0); if (id == -1) { return -1; } bolt_left_bobs[3] = id;
+        id = CreateBob(&heli_bolt_left_4, 0); if (id == -1) { return -1; } bolt_left_bobs[4] = id;
+
+        // --- Bolts (right) ---
+        id = CreateBob(&heli_bolt_right_0, 0); if (id == -1) { return -1; } bolt_right_bobs[0] = id;
+        id = CreateBob(&heli_bolt_right_1, 0); if (id == -1) { return -1; } bolt_right_bobs[1] = id;
+        id = CreateBob(&heli_bolt_right_2, 0); if (id == -1) { return -1; } bolt_right_bobs[2] = id;
+        id = CreateBob(&heli_bolt_right_3, 0); if (id == -1) { return -1; } bolt_right_bobs[3] = id;
+        id = CreateBob(&heli_bolt_right_4, 0); if (id == -1) { return -1; } bolt_right_bobs[4] = id;
+
+        // --- Enemy helicopter ---
+        id = CreateBob(&heli_enemy_heli_0, 0); if (id == -1) { return -1; } enemy_heli_bobs[0] = id;
+        id = CreateBob(&heli_enemy_heli_1, 0); if (id == -1) { return -1; } enemy_heli_bobs[1] = id;
+
+        // --- Fuel pickups ---
+        id = CreateBob(&heli_fuel_0, 0); if (id == -1) { return -1; } fuel_bobs[0] = id;
+        id = CreateBob(&heli_fuel_1, 0); if (id == -1) { return -1; } fuel_bobs[1] = id;
+        id = CreateBob(&heli_fuel_2, 0); if (id == -1) { return -1; } fuel_bobs[2] = id;
+        id = CreateBob(&heli_fuel_3, 0); if (id == -1) { return -1; } fuel_bobs[3] = id;
+
+        // --- Landing platform (static) ---
+        id = CreateBob(&heli_landing_platform, 0); if (id == -1) { return -1; } landing_platform_bob = id;
+
+        // --- Enemy robots ---
+        id = CreateBob(&heli_robot_0, 0); if (id == -1) { return -1; } robot_bobs[0] = id;
+        id = CreateBob(&heli_robot_1, 0); if (id == -1) { return -1; } robot_bobs[1] = id;
+        id = CreateBob(&heli_robot_2, 0); if (id == -1) { return -1; } robot_bobs[2] = id;
+        id = CreateBob(&heli_robot_3, 0); if (id == -1) { return -1; } robot_bobs[3] = id;
+        id = CreateBob(&heli_robot_4, 0); if (id == -1) { return -1; } robot_bobs[4] = id;
+
+        // --- Rock obstacle (static) ---
+        id = CreateBob(&heli_rock, 0); if (id == -1) { return -1; } rock_bob = id;
+
+        // --- Alien turrets ---
+        id = CreateBob(&heli_AlienTurret_0, 0); if (id == -1) { return -1; } turret_bobs[0] = id;
+        id = CreateBob(&heli_AlienTurret_1, 0); if (id == -1) { return -1; } turret_bobs[1] = id;
+
+        return 0;
+    }
+
+    // ---------------------------------------------------------------
+    // Init
+    // Brings up the heap, sets the graphics mode, loads all assets,
+    // installs the font and initialises the keyboard driver.
+    // Returns 0 on success, -1 on failure.
+    // ---------------------------------------------------------------
+    proc Init() -> int
+    {
+        call HeapInit();
+
+        if (SetGraphicsMode(0) == -1)
+        {
+            return -1;
+        }
+
+        if (LoadAssets() == -1)
+        {
+            return -1;
+        }
+
+        // Override palette entries for the cave renderer.
+        // Colour 0  = black sky (background), 1 = rock wall, 31 = HUD text.
+        call SetColor(0,  $0000);
+        call SetColor(1,  $0876);
+        call SetColor(31, $0FFF);
+
+        call SetFont(&fonts);
+        call InitKeyboard();
+
+        // Seed the random-number generator.
+        call SeedRnd($DEADBEEF);
+
+        // Initialise game state.
+        lives      = LIVES_START;
+        hi_score   = 0;
+        score      = 0;
+        game_state = STATE_PLAYING;
+
+        // Build the tunnel ring buffer and paint the initial playfield
+        // into BOTH screen buffers so neither flashes black on the first flip.
+        call init_tunnel();
+        call draw_tunnel_initial();   // draws into gfx_screen1
+        call draw_hud();
+
+        call SwapScreen();            // gfx_current_screen_ptr → gfx_screen2
+        call draw_tunnel_initial();   // draws into gfx_screen2
+        call draw_hud();
+        call SwapScreen();            // back to gfx_screen1
+
+        return 0;
+    }
+
+    // ---------------------------------------------------------------
+    // gen_tunnel_row
+    // Advances the ring-buffer head by one slot, generates a new
+    // tunnel row by drifting each wall ±1 pixel at random, and
+    // clamps the result to maintain minimum opening width.
+    // ---------------------------------------------------------------
+    proc gen_tunnel_row() -> void
+    {
+        var prev_head: int;
+        var next_head: int;
+        var prev_left: int;
+        var prev_right: int;
+        var new_left: int;
+        var new_right: int;
+        var dl: int;
+        var dr: int;
+
+        prev_head  = tunnel_head;
+        next_head  = (tunnel_head + 1) & TUNNEL_MASK;
+
+        prev_left  = tunnel_left[prev_head];
+        prev_right = tunnel_right[prev_head];
+
+        // Wall drift: RndMaxAMOS(3) ∈ {0,1,2}  →  delta ∈ {-1,0,+1}
+        dl = RndMaxAMOS(3) - 1;
+        dr = RndMaxAMOS(3) - 1;
+
+        new_left  = prev_left  + dl;
+        new_right = prev_right + dr;
+
+        // Clamp left wall.
+        if (new_left < 0)          { new_left = 0; }
+        if (new_left > MAX_LEFT_X) { new_left = MAX_LEFT_X; }
+
+        // Enforce minimum tunnel opening.
+        if (new_right < new_left + MIN_TUNNEL_WIDTH)
+        {
+            new_right = new_left + MIN_TUNNEL_WIDTH;
+        }
+
+        // Clamp right wall to screen edge.
+        if (new_right > SCREEN_WIDTH) { new_right = SCREEN_WIDTH; }
+
+        tunnel_left[next_head]  = new_left;
+        tunnel_right[next_head] = new_right;
+        tunnel_head = next_head;
+    }
+
+    // ---------------------------------------------------------------
+    // init_tunnel
+    // Fills the entire ring buffer with a straight, centred opening
+    // and positions the head so row PLAY_BOTTOM maps to index 239.
+    // ---------------------------------------------------------------
+    proc init_tunnel() -> void
+    {
+        var i: int;
+
+        i = 0;
+        while (i < TUNNEL_BUF)
+        {
+            tunnel_left[i]  = INITIAL_TUNNEL_LEFT;
+            tunnel_right[i] = INITIAL_TUNNEL_RIGHT;
+            i = i + 1;
+        }
+
+        // Head = index of the row currently at y = PLAY_BOTTOM.
+        tunnel_head = PLAY_HEIGHT - 1;   // = 239
+    }
+
+    // ---------------------------------------------------------------
+    // draw_tunnel_initial
+    // Paints all PLAY_HEIGHT rows of the playfield from the ring
+    // buffer.  Used once during Init to seed the displayed screen.
+    // ---------------------------------------------------------------
+    proc draw_tunnel_initial() -> void
+    {
+        var y: int;
+        var ring_idx: int;
+        var lx: int;
+        var rx: int;
+
+        y = PLAY_TOP;
+        while (y <= PLAY_BOTTOM)
+        {
+            // ring_idx for screen row y:
+            //   newest row (y=255) → tunnel_head
+            //   oldest  row (y=16) → (tunnel_head - 239) & MASK
+            ring_idx = (tunnel_head - (PLAY_BOTTOM - y)) & TUNNEL_MASK;
+            lx = tunnel_left[ring_idx];
+            rx = tunnel_right[ring_idx];
+
+            call FillRect(0,  y, lx,               1, COLOR_WALL);
+            call FillRect(lx, y, rx - lx,          1, COLOR_SKY);
+            call FillRect(rx, y, SCREEN_WIDTH - rx, 1, COLOR_WALL);
+
+            y = y + 1;
+        }
+    }
+
+    // ---------------------------------------------------------------
+    // draw_hud
+    // Redraws the top HUD strip: score, hi-score, lives.
+    // Character coordinates: each character cell is 8×8 pixels.
+    // ---------------------------------------------------------------
+    proc draw_hud() -> void
+    {
+        var s: int;
+
+        // Clear the HUD strip.
+        call FillRect(0, 0, SCREEN_WIDTH, HUD_HEIGHT, COLOR_HUD_BG);
+
+        // Score.
+        call Text(0, 0, &str_score_label, COLOR_HUD_TEXT);
+        s = ItoaAlloc(score);
+        call Text(3, 0, s, COLOR_HUD_TEXT);
+        call HeapFree(s);
+
+        // Hi-score.
+        call Text(14, 0, &str_hi_label, COLOR_HUD_TEXT);
+        s = ItoaAlloc(hi_score);
+        call Text(17, 0, s, COLOR_HUD_TEXT);
+        call HeapFree(s);
+
+        // Lives.
+        call Text(31, 0, &str_lives_label, COLOR_HUD_TEXT);
+        s = ItoaAlloc(lives);
+        call Text(34, 0, s, COLOR_HUD_TEXT);
+        call HeapFree(s);
+    }
+
+    // ---------------------------------------------------------------
+    // erase_player_from_tunnel
+    // Redraws the HELI_HEIGHT screen rows that the player sprite
+    // occupies directly from the ring buffer, replacing any helicopter
+    // pixels with the correct wall/sky/wall pattern.
+    //
+    // saved_head is the tunnel_head value recorded when the helicopter
+    // was last drawn into this buffer — using the current tunnel_head
+    // would be off by one gen_tunnel_row() call, causing 1-pixel wall
+    // corruption near wall boundaries.
+    // ---------------------------------------------------------------
+    proc erase_player_from_tunnel(px: int, py: int, saved_head: int) -> void
+    {
+        var row: int;
+        var ry: int;
+        var ridx: int;
+        var lx: int;
+        var rx: int;
+
+        row = 0;
+        while (row < HELI_HEIGHT)
+        {
+            ry = py + row;
+            if (ry >= PLAY_TOP)
+            {
+                if (ry <= PLAY_BOTTOM)
+                {
+                    ridx = (saved_head - (PLAY_BOTTOM - ry)) & TUNNEL_MASK;
+                    lx = tunnel_left[ridx];
+                    rx = tunnel_right[ridx];
+                    call FillRect(0,   ry, lx,                1, COLOR_WALL);
+                    call FillRect(lx,  ry, rx - lx,           1, COLOR_SKY);
+                    call FillRect(rx,  ry, SCREEN_WIDTH - rx,  1, COLOR_WALL);
+                }
+            }
+            row = row + 1;
+        }
+    }
+
+    // ---------------------------------------------------------------
+    // check_collision
+    // Returns 1 if the player sprite overlaps a wall pixel, 0 if safe.
+    // Checks every screen row the HELI_HEIGHT-tall sprite occupies by
+    // looking up the ring-buffer left/right values for that row.
+    // ---------------------------------------------------------------
+    proc check_collision() -> int
+    {
+        var row: int;
+        var ry: int;
+        var ridx: int;
+        var lx: int;
+        var rx: int;
+
+        row = 0;
+        while (row < HELI_HEIGHT)
+        {
+            ry = player_y + row;
+            if (ry >= PLAY_TOP)
+            {
+                if (ry <= PLAY_BOTTOM)
+                {
+                    ridx = (tunnel_head - (PLAY_BOTTOM - ry)) & TUNNEL_MASK;
+                    lx   = tunnel_left[ridx];
+                    rx   = tunnel_right[ridx];
+
+                    if (player_x < lx)                      { return 1; }
+                    if ((player_x + HELI_WIDTH) > rx)       { return 1; }
+                }
+            }
+            row = row + 1;
+        }
+        return 0;
+    }
+
+    // ---------------------------------------------------------------
+    // GameLoop
+    // Core game loop — runs until the player presses ESC or runs out
+    // of lives.
+    //
+    // Double-buffer rendering strategy
+    // ---------------------------------
+    // Two screen buffers (gfx_screen1 / gfx_screen2) alternate each frame.
+    // The beam always displays the PREVIOUS fully-rendered frame (no racing
+    // with the blitter) which eliminates BOB blinking.
+    //
+    // Protocol each frame:
+    //   WaitVBlank → Show (present gfx_current_screen_ptr) →
+    //   SwapScreen (gfx_current_screen_ptr = other buffer = new back)
+    //   → render into new back buffer → (repeat)
+    //
+    // Per-buffer tracking
+    // -------------------
+    // buf_heli_x/y[2] stores the last helicopter position drawn into each
+    // buffer.  When a buffer becomes the back buffer again (2 frames later)
+    // we erase the stale helicopter before rendering the new frame.
+    // buf_heli_y = 0 is used as a sentinel meaning "no helicopter drawn"
+    // (y=0 < PLAY_TOP so erase_player_from_tunnel silently skips it).
+    //
+    // Per-frame sequence
+    // ------------------
+    //  1. WaitVBlank + Show + SwapScreen
+    //  2. If PLAYING: erase_player_from_tunnel at buf_heli[db_index]
+    //  3. blit_scroll_playfield (shift rows 17→16 … 255→254)
+    //  4. gen_tunnel_row + draw three FillRect segments at row 255
+    //  5. If PLAYING: read joystick, clamp player, advance animation
+    //  6. If PLAYING: PasteBob with mask; update buf_heli[db_index]
+    //  7. If PLAYING: check_collision, update score
+    //  8. If DEAD: count down, then respawn or game-over
+    //  9. draw_hud
+    // ---------------------------------------------------------------
+    proc GameLoop() -> void
+    {
+        var run: int = TRUE;
+        var key: byte;
+        var joy: u32;
+        var new_left: int;
+        var new_right: int;
+        var hit: int;
+
+        // ---- Initialise player ----
+        player_x          = SCREEN_WIDTH / 2 - HELI_WIDTH / 2;
+        player_y          = PLAYER_Y_INIT;
+        player_anim_frame = 0;
+        player_anim_delay = ANIM_DELAY;
+
+        // Draw the initial helicopter into BOTH buffers so that when
+        // the first SwapScreen reveals the back buffer it already has
+        // the helicopter in the right place.
+        // gfx_current_screen_ptr = gfx_screen1 at this point.
+        buf_heli_x[0] = player_x;
+        buf_heli_y[0] = player_y;
+        buf_tunnel_head[0] = tunnel_head;
+        call PasteBob(heli_bobs[0], player_x, player_y, 1);  // onto screen1
+
+        call SwapScreen();   // gfx_current_screen_ptr = screen2
+        buf_heli_x[1] = player_x;
+        buf_heli_y[1] = player_y;
+        buf_tunnel_head[1] = tunnel_head;
+        call PasteBob(heli_bobs[0], player_x, player_y, 1);  // onto screen2
+        call SwapScreen();   // back to screen1
+
+        // db_index tracks which buffer gfx_current_screen_ptr CURRENTLY
+        // points to before the frame-start Show+SwapScreen.
+        // screen1=0, screen2=1.  Starts at 0 (screen1 is current front).
+        db_index = 0;
+
+        // ---- Main loop ----
+        while (run == TRUE)
+        {
+            // Step 1: present the just-rendered buffer, then make the
+            // other buffer the new render target.
+            call WaitVBlank();
+            call Show();        // copper → gfx_current_screen_ptr (last rendered)
+            call SwapScreen();  // gfx_current_screen_ptr → other buffer (2 frames old)
+            db_index = (db_index + 1) & 1;  // track which buffer we now render into
+
+            key = GetKey();
+            if (key == KEY_ESC) { run = FALSE; }
+
+            // Step 2: erase the helicopter that was drawn into THIS buffer
+            // two frames ago (buf_heli_y = 0 acts as a no-op sentinel).
+            if (game_state == STATE_PLAYING)
+            {
+                call erase_player_from_tunnel(buf_heli_x[db_index], buf_heli_y[db_index], buf_tunnel_head[db_index]);
+            }
+
+            // Step 3: scroll the entire playfield upward by one row.
+            call blit_scroll_playfield(gfx_current_screen_ptr);
+
+            // Step 4: generate and paint the new bottom row.
+            call gen_tunnel_row();
+            new_left  = tunnel_left[tunnel_head];
+            new_right = tunnel_right[tunnel_head];
+            call FillRect(0,         PLAY_BOTTOM, new_left,               1, COLOR_WALL);
+            call FillRect(new_left,  PLAY_BOTTOM, new_right - new_left,   1, COLOR_SKY);
+            call FillRect(new_right, PLAY_BOTTOM, SCREEN_WIDTH - new_right, 1, COLOR_WALL);
+
+            if (game_state == STATE_PLAYING)
+            {
+                // Step 5: read joystick and move the player.
+                joy = ReadJoystick();
+                if (joy & (1 << 9))  { player_x = player_x - PLAYER_SPEED; }   // left
+                if (joy & 2)         { player_x = player_x + PLAYER_SPEED; }   // right
+                if (joy & (1 << 10)) { player_y = player_y - PLAYER_SPEED; }   // up
+                if (joy & 4)         { player_y = player_y + PLAYER_SPEED; }   // down
+
+                // Clamp to playfield bounds.
+                if (player_x < 0)                         { player_x = 0; }
+                if (player_x > SCREEN_WIDTH - HELI_WIDTH)  { player_x = SCREEN_WIDTH - HELI_WIDTH; }
+                if (player_y < PLAY_TOP)                   { player_y = PLAY_TOP; }
+                if (player_y > PLAY_BOTTOM - HELI_HEIGHT)  { player_y = PLAY_BOTTOM - HELI_HEIGHT; }
+
+                // Advance animation frame.
+                if (player_anim_delay > 0)
+                {
+                    player_anim_delay = player_anim_delay - 1;
+                }
+                else
+                {
+                    player_anim_delay = ANIM_DELAY;
+                    player_anim_frame = (player_anim_frame + 1) & (HELI_FRAMES - 1);
+                }
+
+                // Step 6: draw helicopter at new position (masked blit —
+                // no background save needed; erase is done via ring buffer).
+                call PasteBob(heli_bobs[player_anim_frame], player_x, player_y, 1);
+                buf_heli_x[db_index] = player_x;
+                buf_heli_y[db_index] = player_y;
+                buf_tunnel_head[db_index] = tunnel_head;
+
+                // Step 7: collision and scoring.
+                hit = check_collision();
+                if (hit != 0)
+                {
+                    game_state = STATE_DEAD;
+                    dead_timer = DEAD_FRAMES;
+                    lives      = lives - 1;
+                }
+
+                score = score + 1;
+                if (score > hi_score) { hi_score = score; }
+            }
+            else
+            {
+                // Step 8: death countdown, then respawn or game over.
+                // No helicopter is drawn into this buffer this frame;
+                // use the sentinel (y=0) so the next erase is a no-op.
+                buf_heli_x[db_index] = 0;
+                buf_heli_y[db_index] = 0;
+
+                if (dead_timer > 0)
+                {
+                    dead_timer = dead_timer - 1;
+                }
+                else
+                {
+                    if (lives > 0)
+                    {
+                        // Respawn at centre of tunnel.
+                        player_x          = SCREEN_WIDTH / 2 - HELI_WIDTH / 2;
+                        player_y          = PLAYER_Y_INIT;
+                        score             = 0;
+                        game_state        = STATE_PLAYING;
+                        player_anim_frame = 0;
+                        player_anim_delay = ANIM_DELAY;
+
+                        call PasteBob(heli_bobs[0], player_x, player_y, 1);
+                        buf_heli_x[db_index] = player_x;
+                        buf_heli_y[db_index] = player_y;
+                        buf_tunnel_head[db_index] = tunnel_head;
+                    }
+                    else
+                    {
+                        run = FALSE;   // no lives left → exit game loop
+                    }
+                }
+            }
+
+            // Step 9: refresh HUD.
+            call draw_hud();
+        }
+    }
+
+    // ---------------------------------------------------------------
+    // main
+    // Top-level procedure. Calls Init then GameLoop.
+    // ---------------------------------------------------------------
+    proc main() -> void
+    {
+        if (Init() == 0)
+        {
+            call GameLoop();
+        }
+    }
+
+data caveride_data:
+    // String constants for the HUD display (null-terminated).
+    str_score_label.b = "SC ", 0
+    str_hi_label.b    = "HI ", 0
+    str_lives_label.b = "LI ", 0
+
+bss caveride_bss:
+    // BOB handles for every sprite group — populated by LoadAssets()
+    heli_bobs.l[HELI_FRAMES]              // Player helicopter animation
+    bird_left_bobs.l[BIRD_FRAMES]         // Enemy bird, heading left
+    bird_right_bobs.l[BIRD_FRAMES]        // Enemy bird, heading right
+    bolt_left_bobs.l[BOLT_FRAMES]         // Projectile, heading left
+    bolt_right_bobs.l[BOLT_FRAMES]        // Projectile, heading right
+    enemy_heli_bobs.l[ENEMY_HELI_FRAMES]  // Enemy helicopter
+    fuel_bobs.l[FUEL_FRAMES]              // Fuel pickup
+    landing_platform_bob.l: 1              // Landing platform (static)
+    robot_bobs.l[ROBOT_FRAMES]            // Enemy robot
+    rock_bob.l: 1                          // Rock obstacle (static)
+    turret_bobs.l[TURRET_FRAMES]          // Alien turret
+
+    // -----------------------------------------------------------------
+    // Tunnel ring buffer
+    // tunnel_left[i]  = X of the right edge of the left  wall for row i
+    // tunnel_right[i] = X of the left  edge of the right wall for row i
+    // tunnel_head     = ring-buffer index of the row currently displayed
+    //                   at y = PLAY_BOTTOM (the newest generated row)
+    // -----------------------------------------------------------------
+    tunnel_left.l[TUNNEL_BUF]
+    tunnel_right.l[TUNNEL_BUF]
+    tunnel_head.l: 1
+
+    // -----------------------------------------------------------------
+    // Player / helicopter state
+    // -----------------------------------------------------------------
+    player_x.l: 1             // current X in pixels
+    player_y.l: 1             // current Y in pixels
+    player_anim_frame.l: 1    // index into heli_bobs[] (0..HELI_FRAMES-1)
+    player_anim_delay.l: 1    // frames until next animation step
+    // Per-buffer helicopter position for double-buffered erase.
+    // buf_heli_y = 0 is a sentinel meaning "no helicopter drawn this buffer frame".
+    db_index.l: 1             // which buffer is the current render target (0=screen1, 1=screen2)
+    buf_heli_x.l[2]           // last helicopter X drawn into each buffer
+    buf_heli_y.l[2]           // last helicopter Y drawn into each buffer (0 = no-op)
+    buf_tunnel_head.l[2]      // tunnel_head value at the time each buffer was last rendered
+
+    // -----------------------------------------------------------------
+    // Game state
+    // -----------------------------------------------------------------
+    game_state.l: 1           // STATE_PLAYING / STATE_DEAD
+    score.l: 1                // current score (frames survived)
+    hi_score.l: 1             // highest score this session
+    lives.l: 1                // remaining lives
+    dead_timer.l: 1           // countdown after collision (DEAD_FRAMES..0)

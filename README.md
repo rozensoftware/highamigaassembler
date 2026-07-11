@@ -1,6 +1,6 @@
 # HAS - High Assembler for Motorola 68000 (Amiga)
 
-**Version:** 0.5
+**Version:** 0.6
 
 **We invite you to join the community!** If you're interested in Amiga development, compiler design, or just want to contribute to an exciting project, we'd love to have you on board. Whether you're fixing bugs, adding features, improving documentation, or testing - all contributions are welcome!
 
@@ -363,6 +363,8 @@ data txt_data:
     txt.b = "Hello Amiga!",0
 ```
 
+`extern func` parameters support `__reg(...)` annotations. Register-annotated arguments are passed in the declared registers, while non-annotated arguments are passed on the stack.
+
 ### Arrays
 
 ```has
@@ -486,7 +488,7 @@ HAS follows Motorola 68000 standard calling convention:
 
 ## 🛠️ Development Status
 
-**Version 0.4** - Active Development
+**Version 0.6** - Active Development
 
 This compiler is actively being developed. Current focus areas:
 

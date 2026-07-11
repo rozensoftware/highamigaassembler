@@ -1,6 +1,11 @@
 // Test PUSH and POP functionality
 
 code main:
+    asm {
+        jsr test_push_pop
+        rts
+    }
+
     proc test_push_pop() -> int {
         var x: int = 10;
         var y: int = 20;
@@ -20,5 +25,3 @@ code main:
         
         return x + y;
     }
-    
-    call test_push_pop();

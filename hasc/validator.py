@@ -146,7 +146,9 @@ class Validator:
                             # Store extern func signature (params list)
                             # signature is dict: {'params': [...], 'rettype': ...}
                             if isinstance(code_item.signature, dict) and 'params' in code_item.signature:
-                                self.extern_funcs[code_item.name] = code_item.signature['params']
+                                params = code_item.signature['params']
+                                self._validate_extern_func_signature(code_item.name, params)
+                                self.extern_funcs[code_item.name] = params
                             else:
                                 self.extern_funcs[code_item.name] = []
                     elif isinstance(code_item, ast.MacroDef):
@@ -168,7 +170,9 @@ class Validator:
                 elif item.kind == 'func':
                     sig = item.signature
                     if isinstance(sig, dict) and 'params' in sig:
-                        self.extern_funcs[item.name] = sig['params']
+                        params = sig['params']
+                        self._validate_extern_func_signature(item.name, params)
+                        self.extern_funcs[item.name] = params
                     else:
                         self.extern_funcs[item.name] = []
         
@@ -236,6 +240,33 @@ class Validator:
                 self.errors.append("Pragma strict16arith: Invalid mode. Use on or off")
         else:
             self.warnings.append(f"Unknown pragma: {pragma.name}")
+
+    def _validate_extern_func_signature(self, name, params):
+        """Validate extern func register annotations.
+
+        Rules:
+        - no duplicate register usage within one extern signature
+        - reserved registers a6/a7 are not allowed for extern params
+        """
+        used_regs = set()
+        reserved_regs = {'a6', 'a7'}
+
+        for p in params:
+            reg = getattr(p, 'register', None)
+            if reg == 'None' or not reg:
+                continue
+
+            if reg in reserved_regs:
+                self.errors.append(
+                    f"In extern func '{name}': Parameter '{p.name}' cannot use reserved register '{reg}'"
+                )
+
+            if reg in used_regs:
+                self.errors.append(
+                    f"In extern func '{name}': Register '{reg}' is assigned to multiple parameters"
+                )
+            else:
+                used_regs.add(reg)
     
     def _validate_proc(self, proc):
         """Validate a procedure."""

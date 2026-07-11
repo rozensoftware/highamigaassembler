@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Created with TexturePacker https://www.codeandweb.com/texturepacker -->
+<!-- $TexturePacker:SmartUpdate:6d6710abf10a78bcd4033b786244f8d8:bd470cdd08ddd8a1e4f5496967efd21c:50ca5951966a548e7b4840b46b51907c$ -->
+<!--Format:
+n  => name of the sprite
+x  => sprite x pos in texture
+y  => sprite y pos in texture
+w  => sprite width (may be trimmed)
+h  => sprite height (may be trimmed)
+pX => x pos of the pivot point (relative to sprite width)
+pY => y pos of the pivot point (relative to sprite height)
+oX => sprite's x-corner offset (only available if trimmed)
+oY => sprite's y-corner offset (only available if trimmed)
+oW => sprite's original width (only available if trimmed)
+oH => sprite's original height (only available if trimmed)
+r => 'y' only set if sprite is rotated
+with polygon mode enabled:
+vertices   => points in sprite coordinate system (x0,y0,x1,y1,x2,y2, ...)
+verticesUV => points in sheet coordinate system (x0,y0,x1,y1,x2,y2, ...)
+triangles  => sprite triangulation, 3 vertex indices per triangle
+-->
+<TextureAtlas imagePath="heli.png" width="819" height="159">
+    <sprite n="AlienTurret-0.png" x="0" y="0" w="28" h="26"/>
+    <sprite n="AlienTurret-1.png" x="63" y="0" w="28" h="26"/>
+    <sprite n="bird_left-0.png" x="126" y="0" w="48" h="53"/>
+    <sprite n="bird_left-1.png" x="189" y="0" w="48" h="53"/>
+    <sprite n="bird_left-2.png" x="252" y="0" w="48" h="53"/>
+    <sprite n="bird_right-0.png" x="315" y="0" w="48" h="53"/>
+    <sprite n="bird_right-1.png" x="378" y="0" w="48" h="53"/>
+    <sprite n="bird_right-2.png" x="441" y="0" w="48" h="53"/>
+    <sprite n="bolt_left-0.png" x="504" y="0" w="29" h="14"/>
+    <sprite n="bolt_left-1.png" x="567" y="0" w="29" h="14"/>
+    <sprite n="bolt_left-2.png" x="630" y="0" w="29" h="14"/>
+    <sprite n="bolt_left-3.png" x="693" y="0" w="29" h="14"/>
+    <sprite n="bolt_left-4.png" x="756" y="0" w="29" h="14"/>
+    <sprite n="bolt_right-0.png" x="0" y="53" w="29" h="14"/>
+    <sprite n="bolt_right-1.png" x="63" y="53" w="29" h="14"/>
+    <sprite n="bolt_right-2.png" x="126" y="53" w="29" h="14"/>
+    <sprite n="bolt_right-3.png" x="189" y="53" w="29" h="14"/>
+    <sprite n="bolt_right-4.png" x="252" y="53" w="29" h="14"/>
+    <sprite n="enemy_heli-0.png" x="315" y="53" w="62" h="53"/>
+    <sprite n="enemy_heli-1.png" x="378" y="53" w="62" h="53"/>
+    <sprite n="fuel-0.png" x="441" y="53" w="26" h="21"/>
+    <sprite n="fuel-1.png" x="504" y="53" w="26" h="21"/>
+    <sprite n="fuel-2.png" x="567" y="53" w="26" h="21"/>
+    <sprite n="fuel-3.png" x="630" y="53" w="26" h="21"/>
+    <sprite n="landing_platform.png" x="693" y="53" w="60" h="45"/>
+    <sprite n="robot-0.png" x="756" y="53" w="63" h="51"/>
+    <sprite n="robot-1.png" x="0" y="106" w="63" h="51"/>
+    <sprite n="robot-2.png" x="63" y="106" w="63" h="51"/>
+    <sprite n="robot-3.png" x="126" y="106" w="63" h="51"/>
+    <sprite n="robot-4.png" x="189" y="106" w="63" h="51"/>
+    <sprite n="rock.png" x="252" y="106" w="16" h="16"/>
+    <sprite n="spritesheet-0.png" x="315" y="106" w="48" h="48"/>
+    <sprite n="spritesheet-1.png" x="378" y="106" w="48" h="48"/>
+    <sprite n="spritesheet-2.png" x="441" y="106" w="48" h="48"/>
+    <sprite n="spritesheet-3.png" x="504" y="106" w="48" h="48"/>
+    <sprite n="spritesheet-4.png" x="567" y="106" w="48" h="48"/>
+    <sprite n="spritesheet-5.png" x="630" y="106" w="48" h="48"/>
+</TextureAtlas>

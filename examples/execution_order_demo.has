@@ -12,15 +12,17 @@ code demo:
     // ========================================
     // EXECUTION STARTS HERE (first instruction)
     // ========================================
-    call startup();    ; Explicitly call our startup procedure
-    asm "rts";         ; Return to AmigaDOS/Exec
+    asm {
+        jsr startup      // Explicitly call our startup procedure
+        rts              // Return to AmigaDOS/Exec
+    }
     
     // Procedure definitions below only execute when called
     
     proc startup() -> long {
         var result: long;
         
-        ; This runs because we called it above
+        // This runs because we called it above
         result = initialize();
         result = process(result);
         call cleanup();
@@ -29,17 +31,17 @@ code demo:
     }
     
     proc initialize() -> long {
-        ; Only runs when called by startup()
+        // Only runs when called by startup()
         return MESSAGE;
     }
     
     proc process(value: long) -> long {
-        ; Only runs when called by startup()
+        // Only runs when called by startup()
         return value * 2;
     }
     
     proc cleanup() -> void {
-        ; Only runs when called by startup()
+        // Only runs when called by startup()
         asm "nop";
         return;
     }
@@ -47,8 +49,8 @@ code demo:
     // A procedure named "main" has NO special meaning
     // It would only run if we called it explicitly
     proc main() -> long {
-        ; This NEVER runs in this program!
-        ; We would need to add: call main();
+        // This NEVER runs in this program!
+        // We would need to add: call main();
         return 99;
     }
 

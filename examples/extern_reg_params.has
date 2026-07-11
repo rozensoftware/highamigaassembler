@@ -1,0 +1,17 @@
+// extern func with all parameters passed in registers
+
+code main:
+    extern func BlitFast(__reg(a0) src: ptr, __reg(a1) dst: ptr, __reg(d0) count: int) -> int;
+
+    asm {
+        jsr main
+        rts
+    }
+
+    proc main() -> int {
+        var src_ptr: ptr = 4096;
+        var dst_ptr: ptr = 8192;
+        var count: int = 64;
+        var rc: int = BlitFast(src_ptr, dst_ptr, count);
+        return rc;
+    }

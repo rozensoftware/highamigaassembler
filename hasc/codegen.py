@@ -129,19 +129,44 @@ class CodeGen:
         return codegen_utils.evaluate_const_expr(expr, self.constants)
 
     def _build_proc_signatures(self, module: ast.Module):
-        """Collect procedure signatures so call sites know register vs stack params.
-        
-        NOTE: Only internal Proc definitions are included here. External FuncDecl
-        (declared with 'extern func' or 'func') are intentionally NOT included so
-        they use standard cdecl calling convention with right-to-left argument pushing.
-        Internal procs may use register-based parameter passing."""
+        """Collect call signatures so call sites know register vs stack params.
+
+        Includes:
+        - Internal proc definitions (`proc`)
+        - Forward declarations (`func`)
+        - External declarations (`extern func`)
+
+        Precedence:
+        - Implemented `proc` signatures override declaration-only signatures.
+        """
         sigs = {}
+
+        # First pass: collect declaration-only signatures.
+        for item in module.items:
+            if isinstance(item, ast.CodeSection):
+                for it in item.items:
+                    if isinstance(it, ast.FuncDecl):
+                        sigs[it.name] = it.params
+                    elif isinstance(it, ast.ExternDecl) and it.kind == 'func':
+                        sig = it.signature
+                        if isinstance(sig, dict) and 'params' in sig:
+                            sigs[it.name] = sig['params']
+                        else:
+                            sigs[it.name] = []
+            elif isinstance(item, ast.ExternDecl) and item.kind == 'func':
+                sig = item.signature
+                if isinstance(sig, dict) and 'params' in sig:
+                    sigs[item.name] = sig['params']
+                else:
+                    sigs[item.name] = []
+
+        # Second pass: proc definitions override declaration-only signatures.
         for item in module.items:
             if isinstance(item, ast.CodeSection):
                 for it in item.items:
                     if isinstance(it, ast.Proc):
-                        sigs[it.name] = it.params  # list of Param
-            # FuncDecl (extern func, func) intentionally excluded - they use cdecl
+                        sigs[it.name] = it.params
+
         return sigs
 
     def _build_array_dimensions(self, module: ast.Module):

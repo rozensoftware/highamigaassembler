@@ -1,0 +1,18 @@
+// extern func with mixed register and stack parameters
+
+code main:
+    extern func DrawSpan(__reg(a0) dst: ptr, y: int, __reg(d0) color: int, len: int) -> int;
+
+    asm {
+        jsr main
+        rts
+    }
+
+    proc main() -> int {
+        var dst_ptr: ptr = 12288;
+        var y: int = 42;
+        var color: int = 7;
+        var len: int = 80;
+        var rc: int = DrawSpan(dst_ptr, y, color, len);
+        return rc;
+    }
