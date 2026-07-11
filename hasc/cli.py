@@ -5,7 +5,7 @@ from . import parser, codegen, validator
 import os
 from lark.exceptions import LarkError, UnexpectedInput, UnexpectedToken, UnexpectedCharacters
 
-_internal_versiojn = "0.3"
+_internal_versiojn = "0.6"
 
 # Read version from VERSION file
 def _get_version():

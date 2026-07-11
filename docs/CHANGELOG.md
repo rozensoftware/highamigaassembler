@@ -6,6 +6,41 @@ All notable changes to the HAS (High Assembler) project will be documented in th
 
 ### Added
 
+- **Example suite split gate** for deterministic regression checks:
+  - Added `examples/negative_examples.txt` manifest for expected-fail examples.
+  - Added `scripts/test_examples_split.sh` to enforce:
+    - positive examples must compile
+    - negative examples must fail
+    - non-zero exit code on any mismatch (CI-friendly)
+
+### Changed
+
+- `extern func` call emission now honors `__reg(...)` parameter annotations during code generation.
+  - Register-annotated extern args are loaded into declared registers before `jsr`.
+  - Non-annotated extern args continue to use right-to-left stack passing.
+  - Stack cleanup now reflects only stack-passed extern args for mixed signatures.
+- Updated example startup style in `examples/execution_order_demo.has` and `examples/push_pop_test.has` to use explicit startup `asm` bootstrap (`jsr ...` + `rts`) instead of top-level `call` statements.
+- Updated `examples/return_values.has` manual return-register demonstration to valid explicit assembly (`move.l d0,result`) instead of pseudo-variable usage.
+- Updated `examples/heap_test.has` to valid HAS section syntax for heap buffer declaration (`bss` + array declaration) and parser-compatible comment style.
+- Added extern ABI behavior examples:
+  - `examples/extern_reg_params.has` (all-register extern params)
+  - `examples/extern_mixed_params.has` (mixed register + stack extern params)
+  - `examples/extern_stack_only.has` (stack-only extern params)
+
+### Fixed
+
+- Resolved all previously identified stale positive-example failures in split-gate checks:
+  - `examples/execution_order_demo.has`
+  - `examples/push_pop_test.has`
+  - `examples/heap_test.has`
+  - `examples/return_values.has`
+- Example split gate now passes with:
+  - Positive suite: 79/79
+  - Negative suite: 5/5 expected failures
+- Added validator diagnostics for invalid extern register signatures:
+  - duplicate register assignments in a single `extern func` signature
+  - reserved register usage (`a6`, `a7`) in `extern func` params
+
 #### GUI Widget Library (`lib/gui.s` / `lib/gui.i`)
 - **`DrawButton(x, y, w, h, bg, border, label, tc)`**: Clickable button gadget with centred label.
   - Renders a **3D raised effect**: flat `bg` fill, `border`-coloured highlight on top and left edges, colour-0 (black) shadow on bottom and right edges.
