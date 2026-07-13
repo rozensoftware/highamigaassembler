@@ -174,9 +174,9 @@ All notable changes to the HAS (High Assembler) project will be documented in th
   - Increment/Decrement: ++, --
 
 #### Advanced Features
-- **Phase 1**: External Python code generation via `--generate` flag
-- **Phase 2**: Macro system with parameter substitution
-- **Phase 3**: Inline Python execution with `@python` directive
+- External Python code generation via `--generate` flag
+- Macro system with parameter substitution
+- Inline Python execution with `@python` directive
 - Include system with cyclic dependency detection
 - Inline assembly support with `asm { }` blocks
 - Register manipulation with `getreg()` and `setreg()` intrinsics

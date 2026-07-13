@@ -429,13 +429,13 @@ with open('/tmp/debug.has', 'w') as f:
 1. Try running the example: `python3 examples/code_generator.py`
 2. Create your own generator for a specific use case
 3. Integrate into your build process
-4. Consider implementing Phase 2 (macros) if needed
+4. Consider adding macros if needed
 
 ---
 
-## What's Next: Phase 2
+## What's Next
 
-- **Phase 2**: `@macro` directives for repetitive patterns
-- **Phase 3**: `@python` inline code blocks (requires sandbox)
+- `@macro` directives for repetitive patterns
+- `@python` inline code blocks (requires sandbox)
 
-For now, Phase 1 (external Python) gives you full power with no changes to the compiler core!
+For now, external Python generation gives you full power with no changes to the compiler core.

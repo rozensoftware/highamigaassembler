@@ -48,7 +48,7 @@ var x = (*p).x;         // Read member through pointer
 
 ## Implementation Plan
 
-### Phase 1: Type System Enhancement
+### Type System Enhancement
 
 #### 1.1 Update ast.py
 
@@ -83,7 +83,7 @@ def pointer_base_type(typename: str) -> Optional[str]:
     return None
 ```
 
-### Phase 2: Parser Updates
+### Parser Updates
 
 The parser already supports pointer types in variable declarations through the `type` rule. However, the `lvalue` grammar rule needs to be extended to support dereferenced struct member access.
 
@@ -147,7 +147,7 @@ def lvalue(self, items):
     # ... rest of existing code
 ```
 
-### Phase 3: Semantic Validation
+### Semantic Validation
 
 Add validation to ensure struct types are valid.
 
@@ -187,7 +187,7 @@ def _validate_data_section(self, section):
             self.struct_types.add(item.name)
 ```
 
-### Phase 4: Code Generation
+### Code Generation
 
 The code generator already handles:
 1. Address-of for array elements: `&bullet[i]`
@@ -246,7 +246,7 @@ Ensure `vtype` is stored as the string `"bullet*"` (not processed or stripped).
 
 Looking at the code, the VarDecl AST node has a `vtype` field that should contain the full type string including the `*`.
 
-### Phase 5: Testing
+### Testing
 
 #### 5.1 Create Test File
 

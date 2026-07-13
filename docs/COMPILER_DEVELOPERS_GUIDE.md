@@ -1325,7 +1325,7 @@ When working on the compiler, always:
 ### Internal Documentation
 
 - [README.md](README.md) - Project overview
-- [QUICK_START_ALL_PHASES.md](QUICK_START_ALL_PHASES.md) - Phase implementation guide
+- [QUICK_START_ALL_PHASES.md](QUICK_START_ALL_PHASES.md) - Implementation guide
 - [OPERATORS.md](OPERATORS.md) - Operator precedence and implementation
 - [PROC_VS_FUNC_SUMMARY.md](PROC_VS_FUNC_SUMMARY.md) - Function declaration patterns
 

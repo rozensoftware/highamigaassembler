@@ -35,8 +35,8 @@ HAS bridges the gap between high-level languages and assembly programming. It of
 
 ### Advanced Features
 
-- **Macro System (Phase 2)**: Define reusable code patterns
-- **@python Directive (Phase 4)**: Execute Python code during compilation
+- **Macro System**: Define reusable code patterns
+- **@python Directive**: Execute Python code during compilation
 - **Include System**: Modular code organization with `#include`
 - **Constants**: Compile-time constant evaluation
 - **Pointer Arithmetic**: Address-of (`&`) and dereference (`*`) operators
@@ -189,7 +189,7 @@ These examples demonstrate game-related concepts and systems, but they are not r
 
 ### Code Generation
 
-- `code_generator.py` - External Python code generation (Phase 1)
+- `code_generator.py` - External Python code generation
 - `simple_generator.py` - Simple generation example
 
 ## 🔧 Usage
@@ -200,7 +200,7 @@ These examples demonstrate game-related concepts and systems, but they are not r
 python -m hasc.cli input.has -o output.s
 ```
 
-### With External Code Generation (Phase 1)
+### With External Code Generation
 
 ```bash
 python -m hasc.cli main.has --generate generator.py -o output.s
