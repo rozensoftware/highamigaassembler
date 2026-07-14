@@ -15,6 +15,9 @@ Reads `gfx_current_mode` at call time — no recompilation needed when switching
    - [DrawBox](#drawbox)
    - [DrawMsgBox](#drawmsgbox)
    - [DrawButton](#drawbutton) ← 3D gadget style
+    - [DrawEditBox](#draweditbox)
+    - [EditBoxProcessKey](#editboxprocesskey)
+    - [EditBoxPollKey](#editboxpollkey)
    - [DrawWrappedText](#drawwrappedtext)
    - [DrawGadget](#drawgadget) ← struct-based dispatch
 4. [Mouse event manager](#mouse-event-manager)
@@ -22,7 +25,7 @@ Reads `gfx_current_mode` at call time — no recompilation needed when switching
    - [GuiHitTestRect](#guihittestRect)
    - [GuiHitTest](#guihittest) ← struct-based
    - [GetGuiMouseX / GetGuiMouseY](#getguimousex--getguimousey)
-5. [GADGET struct](#gadget-struct)
+5. [GADGET and EDITBOX structs](#gadget-and-editbox-structs)
 6. [Button centering rules](#button-centering-rules)
 7. [Sprite cursor integration](#sprite-cursor-integration)
 8. [Build integration](#build-integration)
@@ -42,6 +45,9 @@ include "gui.i"
 ```has
 extern func DrawButton(x:int, y:int, w:int, h:int, bg:int, border:int, str:int, tc:int) -> int;
 extern func DrawMsgBox(x:int, y:int, w:int, h:int, bg:int, border:int, str:int, tc:int) -> int;
+extern func DrawEditBox(x:int, y:int, w:int, h:int, bg:int, border:int, text_ptr:int, tc:int, cursor_pos:int, cursor_vis:int) -> int;
+extern func EditBoxProcessKey(text_ptr:int, max_len:int, cursor_pos_ptr:int, scancode:int) -> int;
+extern func EditBoxPollKey(text_ptr:int, max_len:int, cursor_pos_ptr:int) -> int;
 extern func GuiPollMouse() -> void;
 extern func GuiHitTestRect(x:int, y:int, w:int, h:int) -> int;
 extern func GetGuiMouseX() -> int;
@@ -135,6 +141,84 @@ The `border` argument is therefore the *highlight* colour (typically white/brigh
 | `0` | black `$000` | Bottom/right shadow (automatic) |
 | `tc` | white `$FFF` | Label text |
 
+### `DrawEditBox`
+
+```c
+DrawEditBox(x, y, w, h, bg, border, text_ptr, tc, cursor_pos, cursor_vis) -> int
+```
+
+Draws a single-line text input field with optional caret.
+
+Rendering order:
+
+1. Draws background + 1-pixel border (`DrawBox`).
+2. Draws visible text with 8-pixel left/right padding.
+3. If `cursor_vis != 0`, draws a 1-pixel vertical caret at `cursor_pos`.
+
+Behavior notes:
+
+- Text is left-aligned and vertically centered.
+- Horizontal scrolling is automatic when text grows beyond visible width.
+    - `visible_cols = (w - 16) / 8`
+    - `scroll_start = max(0, cursor_pos - visible_cols + 1)`
+- `text_ptr` must point to a writable NUL-terminated byte buffer.
+
+| Argument | Meaning |
+|----------|---------|
+| `x, y` | Top-left corner in pixels |
+| `w, h` | Dimensions in pixels |
+| `bg` | Interior background palette index |
+| `border` | Border palette index |
+| `text_ptr` | Pointer to NUL-terminated text buffer |
+| `tc` | Text + caret colour palette index |
+| `cursor_pos` | Cursor character index (`0..strlen`) |
+| `cursor_vis` | `0` hide caret, non-zero show caret |
+
+### `EditBoxProcessKey`
+
+```c
+EditBoxProcessKey(text_ptr, max_len, cursor_pos_ptr, scancode) -> int
+```
+
+Processes one raw keyboard scan code and updates the edit buffer/cursor.
+
+- Ignores key-release events (`bit 7` set in scan code).
+- Maintains NUL-terminated buffer integrity.
+- Supports printable insertion, backspace delete, left/right cursor movement.
+
+Handled control keys:
+
+- `$41` Backspace
+- `$44` Return
+- `$43` Keypad Enter
+- `$45` Escape
+- `$4F` Left arrow
+- `$4E` Right arrow
+
+Return codes:
+
+| Return | Meaning |
+|--------|---------|
+| `0` | No change / key-up / unhandled key |
+| `1` | Buffer or cursor changed |
+| `2` | Return (submit) |
+| `3` | Escape (cancel) |
+
+### `EditBoxPollKey`
+
+```c
+EditBoxPollKey(text_ptr, max_len, cursor_pos_ptr) -> int
+```
+
+Convenience wrapper around `EditBoxProcessKey`:
+
+- Reads `current_key` from `lib/keyboard.s`
+- Clears it (consumes event)
+- Calls `EditBoxProcessKey`
+- Returns the same `0/1/2/3` status code
+
+Use this when the edit box is the sole keyboard consumer in the frame loop.
+
 ### `DrawWrappedText`
 
 ```c
@@ -162,9 +246,10 @@ Struct-based dispatch: reads `GADGET_TYPE` from the struct and calls the appropr
 |---------------|-------|-------------|
 | `GADGET_TYPE_MSGBOX` | 0 | `DrawMsgBox` |
 | `GADGET_TYPE_BUTTON` | 1 | `DrawButton` |
+| `GADGET_TYPE_EDITBOX` | 2 | `DrawEditBox` |
 
 Unknown types are silently skipped (returns 0).  
-See [GADGET struct](#gadget-struct) below for the field layout.
+See [GADGET and EDITBOX structs](#gadget-and-editbox-structs) below for field layouts.
 
 ---
 
@@ -232,7 +317,7 @@ No stack frame or arguments — equivalent to the `GetMouseX/Y` pattern in `lib/
 
 ---
 
-## GADGET struct
+## GADGET and EDITBOX structs
 
 Defined in `lib/gui.i`.  Size = **20 bytes**.
 
@@ -246,7 +331,7 @@ Defined in `lib/gui.i`.  Size = **20 bytes**.
 | `GADGET_BORDER` | 10 | word | Border / highlight palette index |
 | `GADGET_TEXT` | 12 | long | Pointer to null-terminated label/message string |
 | `GADGET_TCOLOR` | 16 | word | Text colour palette index |
-| `GADGET_TYPE` | 18 | word | Gadget type selector (`GADGET_TYPE_MSGBOX=0`, `GADGET_TYPE_BUTTON=1`) |
+| `GADGET_TYPE` | 18 | word | Gadget type selector (`GADGET_TYPE_MSGBOX=0`, `GADGET_TYPE_BUTTON=1`, `GADGET_TYPE_EDITBOX=2`) |
 
 Assembly allocation example:
 
@@ -264,6 +349,31 @@ my_button:
     dc.w 1            ; GADGET_TCOLOR (white text)
     dc.w GADGET_TYPE_BUTTON
 ```
+
+### EDITBOX struct
+
+Defined in `lib/gui.i`. Size = **28 bytes**. Offsets `0..19` are layout-compatible with `GADGET`.
+
+| Field | Offset | Type | Meaning |
+|-------|--------|------|---------|
+| `EDITBOX_X` | 0 | word | Screen X position (pixels) |
+| `EDITBOX_Y` | 2 | word | Screen Y position (pixels) |
+| `EDITBOX_W` | 4 | word | Width (pixels) |
+| `EDITBOX_H` | 6 | word | Height (pixels) |
+| `EDITBOX_BG` | 8 | word | Interior fill palette index |
+| `EDITBOX_BORDER` | 10 | word | Inactive border palette index |
+| `EDITBOX_TEXTBUF` | 12 | long | Pointer to mutable text buffer |
+| `EDITBOX_TCOLOR` | 16 | word | Text/caret colour |
+| `EDITBOX_TYPE` | 18 | word | Must be `GADGET_TYPE_EDITBOX` |
+| `EDITBOX_MAXLEN` | 20 | word | Maximum characters (excluding NUL) |
+| `EDITBOX_CURSOR` | 22 | word | Current cursor position |
+| `EDITBOX_FLAGS` | 24 | word | bit0=focused, bit1=cursor visible |
+| `EDITBOX_ABORDER` | 26 | word | Active border colour |
+
+When passed to `DrawGadget`:
+
+- Border colour uses `EDITBOX_ABORDER` when `EDITBOX_FLAGS bit0 == 1`.
+- Caret visibility uses `EDITBOX_FLAGS bit1`.
 
 ---
 
@@ -346,7 +456,10 @@ Pass `&cursor` (the address of the height word) to `CreateSprite`.
 Link `lib/gui.s`, `lib/sprite.s` (if using cursor), `lib/input.s`, `lib/graphics.s`, `lib/font8x8.s`, `lib/helpers.s`, and `lib/takeover.s` together:
 
 ```bash
-# Using the provided build script:
+# Using the generic build script:
+./scripts/build_example.sh examples/editbox_demo.has
+
+# Or existing dedicated demo script:
 ./scripts/build_msgbox_demo.sh
 
 # Manual steps:
@@ -359,4 +472,4 @@ vlink -bamigahunk build/msgbox_demo.o build/gui.o build/graphics.o \
       build/input.o -o build/msgbox_demo.exe
 ```
 
-See [examples/msgbox_demo.has](../examples/msgbox_demo.has) for a complete working demo.
+See [examples/msgbox_demo.has](../examples/msgbox_demo.has) and [examples/editbox_demo.has](../examples/editbox_demo.has) for complete working demos.

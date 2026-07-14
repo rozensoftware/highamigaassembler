@@ -1,0 +1,193 @@
+// editbox_demo.has
+// Demonstrates the GUI edit box widget: keyboard text entry, cursor navigation,
+// submit on Return, cancel (clear) on Escape, exit via button click.
+//
+// Graphics mode: 320x256x32 (mode 0, 5 bitplanes, line-interleaved)
+// Font: lib/font8x8.s  (8x8 pixel characters)
+//
+// Palette indices:
+//   0  = black  ($000) — screen background
+//   1  = white  ($FFF) — text, inactive border
+//   3  = cyan   ($0FF) — active/focused border highlight
+//   4  = blue   ($00F) — edit box interior
+//   8  = grey   ($444) — button/label background
+//
+// Controls:
+//   Type characters — enter text (lowercase letters, digits, punctuation)
+//   Left / Right    — move cursor
+//   Backspace       — delete char left of cursor
+//   Return          — submit: show entered text in a confirmation box
+//   Escape          — clear input buffer
+//   Click Exit btn  — quit
+//
+// Build:
+//   python3 -m hasc.cli examples/editbox_demo.has -o build/editbox_demo.s
+//   vasmm68k_mot -Fhunkexe -I lib/ -o build/editbox_demo.o \
+//       build/editbox_demo.s lib/gui.s lib/graphics.s lib/font8x8.s \
+//       lib/helpers.s lib/input.s lib/keyboard.s lib/takeover.s
+//   vlink -bamigahunk build/editbox_demo.o -o build/editbox_demo.exe
+
+#pragma lockreg(a5);
+
+extern var fonts: int;
+
+code demo:
+
+    extern func SetGraphicsMode(mode: int) -> int;
+    extern func ClearScreen() -> int;
+    extern func SetFont(ptr: int) -> int;
+    extern func SetColor(id: int, col: int) -> int;
+    extern func UpdateCopperList() -> int;
+    extern func WaitVBlank() -> void;
+    extern func TakeSystem() -> void;
+    extern func ReleaseSystem() -> void;
+
+    // GUI drawing
+    extern func DrawButton(x:int, y:int, w:int, h:int, bg:int, border:int,
+                            str:int, tc:int) -> int;
+    extern func DrawMsgBox(x:int, y:int, w:int, h:int, bg:int, border:int,
+                            str:int, tc:int) -> int;
+    extern func DrawEditBox(x:int, y:int, w:int, h:int, bg:int, border:int,
+                             text_ptr:int, tc:int,
+                             cursor_pos:int, cursor_vis:int) -> int;
+
+    // Keyboard and edit-box input
+    extern func InitKeyboard() -> void;
+    extern func EditBoxPollKey(text_ptr:int, max_len:int,
+                                cursor_pos_ptr:int) -> int;
+
+    // Mouse (for Exit button hit-test)
+    extern func ReadMouse() -> void;
+    extern func GuiPollMouse() -> void;
+    extern func GuiHitTestRect(x:int, y:int, w:int, h:int) -> int;
+    extern func GetGuiMouseX() -> int;
+    extern func GetGuiMouseY() -> int;
+    // Sprite cursor
+    extern func CreateSprite(idx:int, ptr:int) -> int;
+    extern func ApplySpritePalette(idx:int) -> int;
+    extern func ShowSprite(idx:int) -> int;
+    extern func SetSpritePosition(idx:int, x:int, y:int) -> int;
+
+    public main;
+
+    asm {
+        jsr TakeSystem
+        jsr main
+        jmp ReleaseSystem
+    }
+
+    proc main() -> int {
+        var result:  int;
+        var changed: int;
+        var done:    int = 0;
+        var mx:      int;
+        var my:      int;
+
+        // --- Graphics setup ---
+        result = SetGraphicsMode(0);
+        if (result == -1) { return -1; }
+        call SetFont(&fonts);
+        call SetColor(0, $000);   // black
+        call SetColor(1, $FFF);   // white
+        call SetColor(3, $0FF);   // cyan  (active border)
+        call SetColor(4, $00F);   // blue  (edit box bg)
+        call SetColor(8, $444);   // grey  (button bg)
+        call ClearScreen();
+
+        // --- Keyboard ---
+        call InitKeyboard();
+
+        // --- Sprite cursor ---
+        result = CreateSprite(0, &cursor);
+        call ApplySpritePalette(0);
+        call ShowSprite(0);
+        call SetSpritePosition(0, 160, 128);
+
+        // --- Draw static frame ---
+        call DrawStaticFrame();
+
+        // Initial edit box draw (steady visible cursor).
+        result = DrawEditBox(8, 48, 256, 24, 4, 3, &edit_buf, 1,
+                     edit_cursor, 1);
+
+        call UpdateCopperList();
+
+        // --- Main loop ---
+        while (done == 0) {
+
+            call WaitVBlank();
+            call ReadMouse();
+            call GuiPollMouse();
+
+            // Move hardware sprite cursor to GUI mouse position.
+            mx = GetGuiMouseX();
+            my = GetGuiMouseY();
+            call SetSpritePosition(0, mx, my);
+
+            // Process keyboard
+            changed = EditBoxPollKey(&edit_buf, 31, &edit_cursor);
+
+            if (changed == 3) {
+                // Escape: clear buffer, reset cursor, force redraw
+                edit_buf[0] = 0;
+                edit_cursor = 0;
+                changed = 1;
+            }
+
+            if (changed == 2) {
+                // Return / Enter: redraw the whole screen showing submitted text
+                call ClearScreen();
+                call DrawStaticFrame();
+                result = DrawMsgBox(8, 142, 304, 48, 8, 1, &edit_buf, 1);
+            }
+
+            // Redraw edit box only when buffer/cursor changed.
+            if (changed != 0) {
+                result = DrawEditBox(8, 48, 256, 24, 4, 3, &edit_buf, 1,
+                                     edit_cursor, 1);
+            }
+
+            // Exit button click
+            if (GuiHitTestRect(104, 224, 112, 24) == 1) {
+                done = 1;
+            }
+
+            call UpdateCopperList();
+        }
+
+        return 0;
+    }
+
+    // Draw the static parts of the UI (title, hint, exit button).
+    // Called on init and after Return (redraws background).
+    proc DrawStaticFrame() -> void {
+        var result: int;
+        result = DrawMsgBox(8, 8, 304, 16, 8, 1, &lbl_title, 1);
+        result = DrawMsgBox(8, 28, 304, 16, 8, 1, &lbl_hint, 1);
+        result = DrawButton(104, 224, 112, 24, 8, 1, &lbl_exit, 1);
+    }
+
+// -------------------------------------------------------------------------
+// Initialized data (strings, in DATA hunk)
+// -------------------------------------------------------------------------
+
+data demo_data:
+    lbl_title.b = "Edit Box Demo", 0
+    lbl_hint.b  = "Type, arrow keys, backspace, Enter=confirm, Esc=clear.", 0
+    lbl_exit.b  = "Exit", 0
+
+    // Sprite cursor data: 4 palette words immediately before sprite body.
+    cursor_pal.w = $000, $FFF, $CCC, $888
+    cursor.w = 11, 0, 0,
+               $8000, 0, $C000, 0, $E000, 0, $F000, 0, $F800, 0,
+               $FC00, 0, $FE00, 0, $EC00, 0, $C600, 0, $8300, 0, $0300, 0,
+               0, 0
+
+// -------------------------------------------------------------------------
+// Uninitialized data (text buffer + cursor, zeroed by loader)
+// -------------------------------------------------------------------------
+
+bss demo_bss:
+    edit_buf.b:    32    // 32-byte text buffer (31 usable chars + NUL)
+    edit_cursor.w: 1     // current cursor position (0..strlen)
+

@@ -43,6 +43,9 @@
     XDEF DrawMsgBox
     XDEF DrawButton
     XDEF DrawGadget
+    XDEF DrawEditBox
+    XDEF EditBoxProcessKey
+    XDEF EditBoxPollKey
     XDEF GuiPollMouse
     XDEF GuiHitTest
     XDEF GuiHitTestRect
@@ -57,6 +60,7 @@
     XREF GetMouseDX
     XREF GetMouseDY
     XREF GetMouseLBtn
+    XREF current_key
 
 
 ; ============================================================
@@ -602,12 +606,83 @@ DrawGadget:
 
     move.l 8(a6),a0                ; a0 = gadget struct pointer
 
-    ; Dispatch on GADGET_TYPE: 0=msgbox, 1=button; skip unknown
+    ; Dispatch on GADGET_TYPE: 0=msgbox, 1=button, 2=editbox; skip unknown
     move.w 18(a0),d1               ; 18 = GADGET_TYPE offset
     tst.w d1
     beq .dg_dispatch               ; type 0: msgbox
     cmp.w #1,d1
+    beq .dg_dispatch               ; type 1: button
+    cmp.w #2,d1
     bne .dg_done                   ; unknown type: skip
+
+; --- EditBox dispatch (GADGET_TYPE_EDITBOX = 2) ---
+; DrawEditBox(x, y, w, h, bg, border, text_ptr, tc, cursor_pos, cursor_vis)
+; Border: use EDITBOX_ABORDER (offset 26) when bit 0 of EDITBOX_FLAGS (offset 24) is set,
+;         otherwise use EDITBOX_BORDER (offset 10).
+; cursor_vis: bit 1 of EDITBOX_FLAGS.
+.dg_editbox:
+    ; cursor_vis = (EDITBOX_FLAGS >> 1) & 1  → arg10
+    moveq #0,d1
+    move.w 24(a0),d1               ; EDITBOX_FLAGS
+    lsr.w #1,d1
+    and.w #1,d1
+    move.l d1,-(sp)                ; arg10 = cursor_vis
+
+    ; cursor_pos = EDITBOX_CURSOR  → arg9
+    moveq #0,d1
+    move.w 22(a0),d1               ; EDITBOX_CURSOR
+    move.l d1,-(sp)                ; arg9 = cursor_pos
+
+    ; tc = EDITBOX_TCOLOR  → arg8
+    moveq #0,d1
+    move.w 16(a0),d1               ; EDITBOX_TCOLOR
+    move.l d1,-(sp)                ; arg8 = tc
+
+    ; text_ptr = EDITBOX_TEXTBUF  → arg7
+    move.l 12(a0),-(sp)            ; arg7 = text_ptr (long)
+
+    ; border: focused → EDITBOX_ABORDER; inactive → EDITBOX_BORDER  → arg6
+    moveq #0,d1
+    move.w 24(a0),d1               ; EDITBOX_FLAGS
+    btst #0,d1                     ; focused?
+    bne .dg_eb_use_active
+    moveq #0,d1
+    move.w 10(a0),d1               ; EDITBOX_BORDER
+    bra .dg_eb_push_border
+.dg_eb_use_active:
+    moveq #0,d1
+    move.w 26(a0),d1               ; EDITBOX_ABORDER
+.dg_eb_push_border:
+    move.l d1,-(sp)                ; arg6 = border
+
+    ; bg = EDITBOX_BG  → arg5
+    moveq #0,d1
+    move.w 8(a0),d1                ; EDITBOX_BG
+    move.l d1,-(sp)                ; arg5 = bg
+
+    ; h = EDITBOX_H  → arg4
+    moveq #0,d1
+    move.w 6(a0),d1                ; EDITBOX_H
+    move.l d1,-(sp)                ; arg4 = h
+
+    ; w = EDITBOX_W  → arg3
+    moveq #0,d1
+    move.w 4(a0),d1                ; EDITBOX_W
+    move.l d1,-(sp)                ; arg3 = w
+
+    ; y = EDITBOX_Y (signed)  → arg2
+    move.w 2(a0),d1
+    ext.l d1
+    move.l d1,-(sp)                ; arg2 = y
+
+    ; x = EDITBOX_X (signed)  → arg1
+    move.w 0(a0),d1
+    ext.l d1
+    move.l d1,-(sp)                ; arg1 = x
+
+    jsr DrawEditBox
+    lea 40(sp),sp
+    bra .dg_done
 
 .dg_dispatch:
     ; Push all 8 args (identical layout for DrawMsgBox and DrawButton)
@@ -778,6 +853,382 @@ DrawButton:
 .dbt_done:
     moveq #0,d0
     movem.l (sp)+,d1-d5/a0
+    unlk a6
+    rts
+
+
+; ============================================================
+; DrawEditBox(x, y, w, h, bg, border, text_ptr, tc, cursor_pos, cursor_vis) -> int
+;
+;  8(a6) = x          left pixel (long)
+; 12(a6) = y          top pixel (long)
+; 16(a6) = w          width in pixels (long)
+; 20(a6) = h          height in pixels (long)
+; 24(a6) = bg         interior fill palette index (long)
+; 28(a6) = border     1-px frame palette index (long)
+; 32(a6) = text_ptr   pointer to NUL-terminated text buffer (long)
+; 36(a6) = tc         text colour palette index (long)
+; 40(a6) = cursor_pos character index where caret is drawn (long)
+; 44(a6) = cursor_vis 0 = hide caret, non-zero = draw caret (long)
+;
+; Renders the edit box:
+;   1. Fills interior + 1-px border via DrawBox.
+;   2. Draws text left-aligned with 8-px left padding, vertically centred.
+;      Scrolls text so cursor_pos is always visible (stateless; cursor
+;      anchors to the rightmost visible column when string is long).
+;   3. If cursor_vis != 0, draws a 1-px vertical caret bar at cursor_pos.
+;
+; visible_cols = (w - 16) / 8   (8-px padding each side)
+; scroll_start = max(0, cursor_pos - visible_cols + 1)
+; Returns d0 = 0.
+; ============================================================
+DrawEditBox:
+    link a6,#-8                    ; -4(a6)=start_char  -8(a6)=visible_cols
+    movem.l d1-d7/a0-a2,-(sp)
+
+    ; --- Compute visible_cols = (w - 16) / 8 ---
+    move.l 16(a6),d0               ; w
+    sub.l #16,d0
+    ble .deb_exit                  ; w too small: nothing to draw
+    lsr.l #3,d0                    ; / 8
+    move.l d0,-8(a6)               ; visible_cols
+
+    ; --- Compute scroll start (stateless) ---
+    ; if cursor_pos < visible_cols: start = 0
+    ; else: start = cursor_pos - visible_cols + 1
+    move.l 40(a6),d1               ; cursor_pos
+    cmp.l -8(a6),d1
+    blt .deb_start_zero
+    move.l d1,d0
+    sub.l -8(a6),d0
+    addq.l #1,d0
+    move.l d0,-4(a6)               ; start_char
+    bra .deb_start_done
+.deb_start_zero:
+    clr.l -4(a6)
+.deb_start_done:
+
+    ; --- Draw border + fill via DrawBox ---
+    move.l 28(a6),-(sp)            ; border
+    move.l 24(a6),-(sp)            ; bg
+    move.l 20(a6),-(sp)            ; h
+    move.l 16(a6),-(sp)            ; w
+    move.l 12(a6),-(sp)            ; y
+    move.l 8(a6),-(sp)             ; x
+    jsr DrawBox
+    lea 24(sp),sp
+
+    ; --- Compute text cursor starting position ---
+    ; cx_start = (x + 8) >> 3  (char column, snapped to 8-px grid)
+    move.l 8(a6),d0
+    add.l #8,d0
+    lsr.l #3,d0
+    move.w d0,d7                   ; d7 = cx_start (saved)
+    move.w d0,gfx_text_cursor_x
+
+    ; cy = (y + h/2) >> 3  (vertically centred char row)
+    move.l 20(a6),d0               ; h
+    lsr.l #1,d0                    ; h / 2
+    add.l 12(a6),d0                ; y + h/2
+    lsr.l #3,d0                    ; >> 3
+    move.w d0,d6                   ; d6 = cy (saved)
+    move.w d0,gfx_text_cursor_y
+
+    move.l 36(a6),d5               ; d5 = tc (text colour, constant)
+
+    ; --- Skip start_char bytes in text_ptr ---
+    move.l 32(a6),a0               ; a0 = text_ptr
+    move.l -4(a6),d2               ; d2 = start_char
+    beq .deb_skip_done
+.deb_skip_loop:
+    tst.b (a0)                     ; reached NUL before start_char?
+    beq .deb_skip_done
+    addq.l #1,a0
+    subq.l #1,d2
+    bne .deb_skip_loop
+.deb_skip_done:
+
+    ; --- Draw up to visible_cols chars ---
+    move.l -8(a6),d4               ; d4 = remaining columns
+.deb_draw_loop:
+    tst.l d4
+    beq .deb_draw_done
+    moveq #0,d0
+    move.b (a0)+,d0
+    beq .deb_draw_done             ; NUL = end of string
+    move.l d5,d1                   ; d1 = tc
+    jsr _DrawChar
+    move.w gfx_text_cursor_x,d1
+    addq.w #1,d1
+    move.w d1,gfx_text_cursor_x
+    subq.l #1,d4
+    bra .deb_draw_loop
+.deb_draw_done:
+
+    ; --- Draw 1-px caret if cursor_vis != 0 ---
+    tst.l 44(a6)
+    beq .deb_exit
+
+    ; cursor_col = cursor_pos - start_char  (0-based from text area left)
+    move.l 40(a6),d0               ; cursor_pos
+    sub.l -4(a6),d0                ; - start_char
+    tst.l d0
+    blt .deb_exit
+    cmp.l -8(a6),d0                ; > visible_cols?
+    bgt .deb_exit
+
+    ; cursor_px_x = x + 8 + cursor_col * 8
+    lsl.l #3,d0                    ; cursor_col * 8
+    add.l 8(a6),d0                 ; + x
+    add.l #8,d0                    ; + left padding
+
+    ; FillRect(cursor_px_x, y+2, 1, h-4, tc)
+    move.l 36(a6),-(sp)            ; color = tc
+    move.l 20(a6),d1
+    sub.l #4,d1
+    move.l d1,-(sp)                ; h - 4
+    move.l #1,-(sp)                ; w = 1
+    move.l 12(a6),d1
+    add.l #2,d1
+    move.l d1,-(sp)                ; y + 2
+    move.l d0,-(sp)                ; cursor_px_x
+    jsr FillRect
+    lea 20(sp),sp
+
+.deb_exit:
+    moveq #0,d0
+    movem.l (sp)+,d1-d7/a0-a2
+    unlk a6
+    rts
+
+
+; ============================================================
+; EditBoxProcessKey(text_ptr, max_len, cursor_pos_ptr, scancode) -> int
+;
+;  8(a6) = text_ptr       pointer to NUL-terminated buffer (long)
+; 12(a6) = max_len        buffer capacity, not counting NUL (long)
+; 16(a6) = cursor_pos_ptr pointer to a word holding cursor position (long)
+; 20(a6) = scancode       raw value from GetKey() (long)
+;
+; Bit 7 of scancode signals a key-release event → returns 0 (no change).
+; All edits maintain a valid NUL-terminated string in the buffer.
+;
+; Returns:
+;   0  key-up event, or unhandled key  (no change)
+;   1  buffer or cursor changed        (caller should redraw)
+;   2  Return / KP-Enter pressed       (caller: treat as submit)
+;   3  Escape pressed                  (caller: treat as cancel)
+;
+; Handled keys:
+;   Printable chars ($00-$7F lookup) — insert at cursor, advance cursor
+;   $41 Backspace  — delete char left of cursor, retreat cursor
+;   $44 Return     — return 2
+;   $43 KP Enter   — return 2
+;   $45 Escape     — return 3
+;   $4F Left arrow — move cursor left
+;   $4E Right arrow— move cursor right
+;
+; Registers saved: d1-d5 / a0-a1
+; ============================================================
+EditBoxProcessKey:
+    link a6,#-4                    ; -4(a6) = strlen (temp)
+    movem.l d1-d5/a0-a1,-(sp)
+
+    ; --- Key-up check: bit 7 set → release event, ignore ---
+    move.l 20(a6),d0               ; scancode
+    btst #7,d0
+    bne .ebpk_nochange
+
+    and.l #$7F,d0                  ; strip release bit → base scan code
+    move.l d0,d5                   ; d5 = scan code (constant)
+
+    ; Load cursor position
+    move.l 16(a6),a1               ; a1 = cursor_pos_ptr
+    moveq #0,d3
+    move.w (a1),d3                 ; d3 = cursor_pos (zero-extended word)
+
+    ; --- Escape ($45) ---
+    cmp.l #$45,d5
+    bne .ebpk_not_esc
+    moveq #3,d0
+    bra .ebpk_ret
+.ebpk_not_esc:
+
+    ; --- Return ($44) and KP Enter ($43) ---
+    cmp.l #$44,d5
+    beq .ebpk_return
+    cmp.l #$43,d5
+    bne .ebpk_not_return
+.ebpk_return:
+    moveq #2,d0
+    bra .ebpk_ret
+.ebpk_not_return:
+
+    ; --- Backspace ($41): delete char left of cursor ---
+    cmp.l #$41,d5
+    bne .ebpk_not_bs
+    tst.l d3
+    beq .ebpk_nochange             ; cursor at start: nothing to delete
+
+    ; Measure strlen
+    move.l 8(a6),a0
+    clr.l -4(a6)
+.ebpk_bs_len:
+    tst.b (a0)+
+    beq .ebpk_bs_len_done
+    addq.l #1,-4(a6)
+    bra .ebpk_bs_len
+.ebpk_bs_len_done:
+
+    ; Decrement cursor (d3 = new cursor_pos = old - 1)
+    subq.l #1,d3
+
+    ; Shift text[old_cursor..strlen] one byte left (forward copy, no overlap)
+    ; dst = text_ptr + d3,  src = text_ptr + d3 + 1
+    ; count = strlen - d3  bytes (chars from old_cursor to NUL inclusive)
+    move.l 8(a6),a0
+    add.l d3,a0                    ; a0 = dst
+    move.l a0,a1
+    addq.l #1,a1                   ; a1 = src
+    move.l -4(a6),d4
+    sub.l d3,d4                    ; d4 = strlen - new_cursor_pos
+    subq.l #1,d4                   ; d4 = count - 1  (for dbra)
+.ebpk_bs_copy:
+    move.b (a1)+,(a0)+
+    dbra d4,.ebpk_bs_copy
+
+    move.l 16(a6),a1               ; reload cursor_pos_ptr (a1 was used by copy loop)
+    move.w d3,(a1)
+    moveq #1,d0
+    bra .ebpk_ret
+.ebpk_not_bs:
+
+    ; --- Left arrow ($4F): move cursor left ---
+    cmp.l #$4F,d5
+    bne .ebpk_not_left
+    tst.l d3
+    beq .ebpk_nochange
+    subq.l #1,d3
+    move.w d3,(a1)
+    moveq #1,d0
+    bra .ebpk_ret
+.ebpk_not_left:
+
+    ; --- Right arrow ($4E): move cursor right ---
+    cmp.l #$4E,d5
+    bne .ebpk_not_right
+    ; Measure strlen to clamp cursor
+    move.l 8(a6),a0
+    clr.l -4(a6)
+.ebpk_rt_len:
+    tst.b (a0)+
+    beq .ebpk_rt_len_done
+    addq.l #1,-4(a6)
+    bra .ebpk_rt_len
+.ebpk_rt_len_done:
+    cmp.l -4(a6),d3
+    bge .ebpk_nochange             ; cursor already at end
+    addq.l #1,d3
+    move.w d3,(a1)
+    moveq #1,d0
+    bra .ebpk_ret
+.ebpk_not_right:
+
+    ; --- Printable character: table lookup ---
+    cmp.l #$7F,d5
+    bgt .ebpk_nochange             ; out of table range
+    lea editbox_sc_unshifted,a0
+    moveq #0,d0
+    move.b (a0,d5.w),d0            ; d0 = ASCII char (0 = not mapped)
+    beq .ebpk_nochange
+
+    ; Measure strlen to check against max_len
+    move.l 8(a6),a0
+    clr.l -4(a6)
+.ebpk_ins_len:
+    tst.b (a0)+
+    beq .ebpk_ins_len_done
+    addq.l #1,-4(a6)
+    bra .ebpk_ins_len
+.ebpk_ins_len_done:
+    move.l -4(a6),d1               ; d1 = strlen
+    cmp.l 12(a6),d1                ; strlen >= max_len?
+    bge .ebpk_nochange             ; buffer full
+
+    ; Shift text[cursor_pos..strlen] one byte right (backwards to avoid overlap)
+    ; src start = text_ptr + strlen  (NUL),  dst = text_ptr + strlen + 1
+    ; count = strlen - cursor_pos + 1  (including NUL)
+    ; dbra counter = count - 1 = strlen - cursor_pos
+    move.l 8(a6),a0
+    add.l -4(a6),a0                ; a0 = text_ptr + strlen  (src: NUL byte)
+    move.l a0,a1
+    addq.l #1,a1                   ; a1 = dst  (one past NUL)
+    move.l -4(a6),d4
+    sub.l d3,d4                    ; d4 = strlen - cursor_pos  (dbra counter)
+.ebpk_ins_shift:
+    move.b (a0),(a1)               ; backwards copy
+    subq.l #1,a0
+    subq.l #1,a1
+    dbra d4,.ebpk_ins_shift
+
+    ; Write new char at cursor_pos
+    move.l 8(a6),a0
+    add.l d3,a0                    ; a0 = text_ptr + cursor_pos
+    move.b d0,(a0)                 ; store char
+
+    ; Advance cursor
+    addq.l #1,d3
+    move.l 16(a6),a1               ; reload cursor_pos_ptr (a1 may be stale)
+    move.w d3,(a1)
+    moveq #1,d0
+    bra .ebpk_ret
+
+.ebpk_nochange:
+    moveq #0,d0
+.ebpk_ret:
+    movem.l (sp)+,d1-d5/a0-a1
+    unlk a6
+    rts
+
+
+; ============================================================
+; EditBoxPollKey(text_ptr, max_len, cursor_pos_ptr) -> int
+;
+;  8(a6) = text_ptr       (same as EditBoxProcessKey)
+; 12(a6) = max_len
+; 16(a6) = cursor_pos_ptr
+;
+; Reads `current_key` from keyboard.s, clears it (consumes the event),
+; and calls EditBoxProcessKey with the raw scan code.
+; Returns the same values as EditBoxProcessKey (0/1/2/3).
+; If current_key is 0 (no pending key), returns 0 immediately.
+;
+; Note: do not call GetKey() separately in the same frame when using
+; this function — they both consume current_key.
+; ============================================================
+EditBoxPollKey:
+    link a6,#0
+    movem.l d1/a0,-(sp)
+
+    moveq #0,d1
+    move.b current_key,d1          ; read pending scan code
+    beq .ebpl_nochange             ; 0 = no key pressed
+
+    clr.b current_key              ; consume the event
+
+    ; Forward to EditBoxProcessKey
+    move.l d1,-(sp)                ; arg4 = scancode
+    move.l 16(a6),-(sp)            ; arg3 = cursor_pos_ptr
+    move.l 12(a6),-(sp)            ; arg2 = max_len
+    move.l 8(a6),-(sp)             ; arg1 = text_ptr
+    jsr EditBoxProcessKey
+    lea 16(sp),sp
+    bra .ebpl_done
+
+.ebpl_nochange:
+    moveq #0,d0
+.ebpl_done:
+    movem.l (sp)+,d1/a0
     unlk a6
     rts
 
@@ -1002,3 +1453,33 @@ gui_abs_mouse_x: dc.w 0   ; accumulated absolute X pixel (clamped to screen widt
 gui_abs_mouse_y: dc.w 0   ; accumulated absolute Y pixel (clamped to 0..255)
 gui_lbtn_prev:   dc.w 0   ; left-button state from previous GuiPollMouse call
 gui_lbtn_edge:   dc.w 0   ; 1 on the frame the left button is first pressed, else 0
+
+; ============================================================
+; editbox_sc_unshifted — Amiga scan-code → ASCII table (128 entries)
+;
+; Index = scan code after keyboard.s ror/not processing (bit 7 stripped).
+; 0x00 means "not a printable character" (special keys handled separately).
+; Covers the unshifted US/international layout.  Keypad digits are mapped
+; to their ASCII digit equivalents so numeric entry works without shift.
+; ============================================================
+editbox_sc_unshifted:
+    ; $00-$07  ` 1 2 3 4 5 6 7
+    dc.b $60,$31,$32,$33,$34,$35,$36,$37
+    ; $08-$0F  8 9 0 - = \(intl) [unused] 0(KP0)
+    dc.b $38,$39,$30,$2D,$3D,$5C,$00,$30
+    ; $10-$17  q w e r t y u i
+    dc.b $71,$77,$65,$72,$74,$79,$75,$69
+    ; $18-$1F  o p [ ] [unused] 1(KP1) 2(KP2) 3(KP3)
+    dc.b $6F,$70,$5B,$5D,$00,$31,$32,$33
+    ; $20-$27  a s d f g h j k
+    dc.b $61,$73,$64,$66,$67,$68,$6A,$6B
+    ; $28-$2F  l ; ' \ [unused] 4(KP4) 5(KP5) 6(KP6)
+    dc.b $6C,$3B,$27,$5C,$00,$34,$35,$36
+    ; $30-$37  <(intl) z x c v b n m
+    dc.b $3C,$7A,$78,$63,$76,$62,$6E,$6D
+    ; $38-$3F  , . / .(KP.) [unused] 7(KP7) 8(KP8) 9(KP9)
+    dc.b $2C,$2E,$2F,$2E,$00,$37,$38,$39
+    ; $40-$47  space [BS=special] [Tab=0] [KPEnter=special] [Return=special] [ESC=special] [Del] [Help]
+    dc.b $20,$00,$00,$00,$00,$00,$00,$00
+    ; $48-$7F  arrows, function keys, modifiers — all non-printable
+    dcb.b 56,$00

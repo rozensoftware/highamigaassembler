@@ -38,6 +38,30 @@ GADGET_SIZE     EQU 20   ; struct size in bytes (for allocation)
 
 GADGET_TYPE_MSGBOX  EQU 0   ; message box with word-wrapped text
 GADGET_TYPE_BUTTON  EQU 1   ; clickable button with centred label
+GADGET_TYPE_EDITBOX EQU 2   ; keyboard-driven text input field
+
+; ============================================================
+; EDITBOX struct layout (28 bytes) — offsets 0–19 are identical
+; to the GADGET struct so DrawGadget dispatch works transparently.
+; Allocate EDITBOX_SIZE bytes; pass pointer to DrawGadget or the
+; flat DrawEditBox / EditBoxPollKey functions.
+; ============================================================
+
+EDITBOX_X        EQU  0   ; word - screen X position in pixels
+EDITBOX_Y        EQU  2   ; word - screen Y position in pixels
+EDITBOX_W        EQU  4   ; word - width in pixels (multiples of 8 recommended)
+EDITBOX_H        EQU  6   ; word - height in pixels (16 or 24 recommended)
+EDITBOX_BG       EQU  8   ; word - interior fill palette index
+EDITBOX_BORDER   EQU 10   ; word - inactive border colour palette index
+EDITBOX_TEXTBUF  EQU 12   ; long - pointer to buffer of at least EDITBOX_MAXLEN+1 bytes
+EDITBOX_TCOLOR   EQU 16   ; word - text colour palette index
+EDITBOX_TYPE     EQU 18   ; word = GADGET_TYPE_EDITBOX (2)
+; --- EditBox-specific fields (offsets 20–27) ---
+EDITBOX_MAXLEN   EQU 20   ; word - max storable characters (not counting NUL)
+EDITBOX_CURSOR   EQU 22   ; word - current cursor position (0..strlen)
+EDITBOX_FLAGS    EQU 24   ; word - bit 0 = focused, bit 1 = cursor visible
+EDITBOX_ABORDER  EQU 26   ; word - focused/active border colour palette index
+EDITBOX_SIZE     EQU 28   ; total struct size in bytes
 
 ; ============================================================
 ; External references (assembled in gui.s)
@@ -51,6 +75,9 @@ GADGET_TYPE_BUTTON  EQU 1   ; clickable button with centred label
     XREF DrawMsgBox
     XREF DrawButton
     XREF DrawGadget
+    XREF DrawEditBox
+    XREF EditBoxProcessKey
+    XREF EditBoxPollKey
     XREF GuiPollMouse
     XREF GuiHitTest
     XREF GuiHitTestRect
@@ -71,6 +98,9 @@ GADGET_TYPE_BUTTON  EQU 1   ; clickable button with centred label
 ;   extern func DrawMsgBox(x:int, y:int, w:int, h:int, bg:int, border:int, str:int, tc:int) -> int;
 ;   extern func DrawButton(x:int, y:int, w:int, h:int, bg:int, border:int, str:int, tc:int) -> int;
 ;   extern func DrawGadget(gadget_ptr:int) -> int;
+;   extern func DrawEditBox(x:int, y:int, w:int, h:int, bg:int, border:int, text_ptr:int, tc:int, cursor_pos:int, cursor_vis:int) -> int;
+;   extern func EditBoxProcessKey(text_ptr:int, max_len:int, cursor_pos_ptr:int, scancode:int) -> int;
+;   extern func EditBoxPollKey(text_ptr:int, max_len:int, cursor_pos_ptr:int) -> int;
 ;   extern func GuiPollMouse() -> void;
 ;   extern func GuiHitTest(gadget_ptr:int) -> int;
 ;   extern func GuiHitTestRect(x:int, y:int, w:int, h:int) -> int;
