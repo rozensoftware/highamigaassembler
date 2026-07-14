@@ -54,10 +54,23 @@ echo "  VASM : $VASM"
 echo ""
 
 # ---------------------------------------------------------------------------
+# Python / HASC detection (prefer project venv, fall back to python3)
+# ---------------------------------------------------------------------------
+if [[ -x "$ROOT/.venv/bin/python" ]]; then
+    PYTHON="$ROOT/.venv/bin/python"
+elif [[ -x "$ROOT/venv/bin/python" ]]; then
+    PYTHON="$ROOT/venv/bin/python"
+elif command -v python3 &>/dev/null; then
+    PYTHON="python3"
+else
+    PYTHON="python"
+fi
+
+# ---------------------------------------------------------------------------
 # Step 1: HAS → assembly
 # ---------------------------------------------------------------------------
 echo "[1/3] Compiling HAS source..."
-(cd "$ROOT" && python -m hasc.cli "$SRC" -o "$BUILD/msgbox_demo.s")
+(cd "$ROOT" && "$PYTHON" -m hasc.cli "$SRC" -o "$BUILD/msgbox_demo.s")
 echo "      -> build/msgbox_demo.s"
 
 # ---------------------------------------------------------------------------
@@ -73,12 +86,14 @@ assemble() {
 
 assemble "$BUILD/msgbox_demo.s"   "$BUILD/msgbox_demo.o"
 assemble "$LIB/gui.s"             "$BUILD/gui.o"
+assemble "$LIB/gui_keyboard.s"    "$BUILD/gui_keyboard.o"
 assemble "$LIB/graphics.s"        "$BUILD/graphics.o"
 assemble "$LIB/sprite.s"          "$BUILD/sprite.o"
 assemble "$LIB/font8x8.s"         "$BUILD/font8x8.o"
 assemble "$LIB/helpers.s"         "$BUILD/helpers.o"
 assemble "$LIB/takeover.s"        "$BUILD/takeover.o"
 assemble "$LIB/input.s"           "$BUILD/input.o"
+assemble "$LIB/keyboard.s"        "$BUILD/keyboard.o"
 
 # ---------------------------------------------------------------------------
 # Step 3: Link
@@ -87,12 +102,14 @@ echo "[3/3] Linking..."
 vlink -bamigahunk \
     "$BUILD/msgbox_demo.o" \
     "$BUILD/gui.o"         \
+    "$BUILD/gui_keyboard.o" \
     "$BUILD/graphics.o"    \
     "$BUILD/sprite.o"      \
     "$BUILD/font8x8.o"     \
     "$BUILD/helpers.o"     \
     "$BUILD/takeover.o"    \
     "$BUILD/input.o"       \
+    "$BUILD/keyboard.o"    \
     -o "$BUILD/msgbox_demo.exe"
 
 echo ""

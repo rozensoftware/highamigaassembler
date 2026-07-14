@@ -44,6 +44,9 @@ All notable changes to the HAS (High Assembler) project will be documented in th
   - `examples/extern_reg_params.has` (all-register extern params)
   - `examples/extern_mixed_params.has` (mixed register + stack extern params)
   - `examples/extern_stack_only.has` (stack-only extern params)
+- GUI keyboard split for EditBox polling:
+  - Moved `EditBoxPollKey` implementation from `lib/gui.s` to new `lib/gui_keyboard.s`.
+  - Updated build integration/dependency closure to include `gui_keyboard.s` when GUI/editbox symbols are used.
 
 ### Fixed
 

@@ -89,6 +89,7 @@ assemble() {
 
 assemble "$BUILD/snake.s"         "$BUILD/snake.o"
 assemble "$LIB/gui.s"             "$BUILD/gui.o"
+assemble "$LIB/gui_keyboard.s"    "$BUILD/gui_keyboard.o"
 assemble "$LIB/graphics.s"        "$BUILD/graphics.o"
 assemble "$LIB/font8x8.s"         "$BUILD/font8x8.o"
 assemble "$LIB/helpers.s"         "$BUILD/helpers.o"
@@ -108,6 +109,7 @@ echo "[3/3] Linking..."
 "$VLINK" -bamigahunk \
     "$BUILD/snake.o"     \
     "$BUILD/gui.o"       \
+    "$BUILD/gui_keyboard.o" \
     "$BUILD/graphics.o"  \
     "$BUILD/font8x8.o"   \
     "$BUILD/helpers.o"   \

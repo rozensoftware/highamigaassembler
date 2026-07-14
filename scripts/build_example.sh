@@ -98,6 +98,7 @@ OUT_EXE="$BUILD/$BASE_NAME.exe"
 # Exclude alternate font object to avoid duplicate symbol 'fonts'.
 LIB_SOURCES=(
     "$LIB_DIR/gui.s"
+    "$LIB_DIR/gui_keyboard.s"
     "$LIB_DIR/graphics.s"
     "$LIB_DIR/font8x8.s"
     "$LIB_DIR/helpers.s"
@@ -157,7 +158,12 @@ while [[ $changed -eq 1 ]]; do
     for lib in "${!WANT_LIB[@]}"; do
         case "$(basename "$lib")" in
             gui.s)
-                for dep in "$LIB_DIR/graphics.s" "$LIB_DIR/input.s"; do
+                for dep in "$LIB_DIR/gui_keyboard.s" "$LIB_DIR/graphics.s" "$LIB_DIR/input.s"; do
+                    if [[ -z "${WANT_LIB[$dep]:-}" ]]; then add_dep "$dep"; changed=1; fi
+                done
+                ;;
+            gui_keyboard.s)
+                for dep in "$LIB_DIR/gui.s" "$LIB_DIR/keyboard.s"; do
                     if [[ -z "${WANT_LIB[$dep]:-}" ]]; then add_dep "$dep"; changed=1; fi
                 done
                 ;;
@@ -201,6 +207,7 @@ ORDERED_LIBS=(
     "$LIB_DIR/keyboard.s"
     "$LIB_DIR/sprite.s"
     "$LIB_DIR/gui.s"
+    "$LIB_DIR/gui_keyboard.s"
     "$LIB_DIR/str.s"
     "$LIB_DIR/heap.s"
     "$LIB_DIR/math.s"

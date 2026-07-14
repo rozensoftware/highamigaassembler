@@ -64,7 +64,7 @@ EDITBOX_ABORDER  EQU 26   ; word - focused/active border colour palette index
 EDITBOX_SIZE     EQU 28   ; total struct size in bytes
 
 ; ============================================================
-; External references (assembled in gui.s)
+; External references (assembled in gui.s, except EditBoxPollKey in gui_keyboard.s)
 ; ============================================================
 
     XREF FillRect

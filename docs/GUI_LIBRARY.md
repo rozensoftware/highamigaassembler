@@ -453,7 +453,7 @@ Pass `&cursor` (the address of the height word) to `CreateSprite`.
 
 ## Build integration
 
-Link `lib/gui.s`, `lib/sprite.s` (if using cursor), `lib/input.s`, `lib/graphics.s`, `lib/font8x8.s`, `lib/helpers.s`, and `lib/takeover.s` together:
+Link `lib/gui.s`, `lib/gui_keyboard.s`, `lib/sprite.s` (if using cursor), `lib/input.s`, `lib/graphics.s`, `lib/font8x8.s`, `lib/helpers.s`, and `lib/takeover.s` together:
 
 ```bash
 # Using the generic build script:
@@ -466,8 +466,9 @@ Link `lib/gui.s`, `lib/sprite.s` (if using cursor), `lib/input.s`, `lib/graphics
 python -m hasc.cli examples/msgbox_demo.has -o build/msgbox_demo.s
 vasmm68k_mot -Fhunk -devpac -I lib/ -o build/msgbox_demo.o build/msgbox_demo.s
 vasmm68k_mot -Fhunk -devpac -I lib/ -o build/gui.o         lib/gui.s
+vasmm68k_mot -Fhunk -devpac -I lib/ -o build/gui_keyboard.o lib/gui_keyboard.s
 # ... assemble the other libs ...
-vlink -bamigahunk build/msgbox_demo.o build/gui.o build/graphics.o \
+vlink -bamigahunk build/msgbox_demo.o build/gui.o build/gui_keyboard.o build/graphics.o \
       build/sprite.o build/font8x8.o build/helpers.o build/takeover.o \
       build/input.o -o build/msgbox_demo.exe
 ```
