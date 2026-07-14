@@ -1151,7 +1151,8 @@ EditBoxProcessKey:
     addq.l #1,-4(a6)
     bra .ebpk_ins_len
 .ebpk_ins_len_done:
-    cmp.l 12(a6),-4(a6)            ; strlen >= max_len?
+    move.l -4(a6),d1               ; d1 = strlen
+    cmp.l 12(a6),d1                ; strlen >= max_len?
     bge .ebpk_nochange             ; buffer full
 
     ; Shift text[cursor_pos..strlen] one byte right (backwards to avoid overlap)

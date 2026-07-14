@@ -23,6 +23,13 @@ All notable changes to the HAS (High Assembler) project will be documented in th
     - positive examples must compile
     - negative examples must fail
     - non-zero exit code on any mismatch (CI-friendly)
+- **GUI EditBox control** in `lib/gui.s` / `lib/gui.i`:
+  - Added `DrawEditBox(x,y,w,h,bg,border,text_ptr,tc,cursor_pos,cursor_vis)` single-line editable text field renderer.
+  - Added `EditBoxProcessKey(text_ptr,max_len,cursor_pos_ptr,scancode)` for scan-code-driven insert/delete/cursor movement.
+  - Added `EditBoxPollKey(text_ptr,max_len,cursor_pos_ptr)` convenience wrapper consuming `keyboard.s` `current_key`.
+  - Added `GADGET_TYPE_EDITBOX=2` and `EDITBOX_*` struct layout (28 bytes, `0..19` layout-compatible with `GADGET`).
+  - `DrawGadget(gadget_ptr)` now dispatches edit boxes (type 2), including focused border and cursor visibility via `EDITBOX_FLAGS`.
+  - Added end-to-end example `examples/editbox_demo.has`.
 
 ### Changed
 

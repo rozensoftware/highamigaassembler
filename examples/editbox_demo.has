@@ -62,6 +62,11 @@ code demo:
     extern func GuiHitTestRect(x:int, y:int, w:int, h:int) -> int;
     extern func GetGuiMouseX() -> int;
     extern func GetGuiMouseY() -> int;
+    // Sprite cursor
+    extern func CreateSprite(idx:int, ptr:int) -> int;
+    extern func ApplySpritePalette(idx:int) -> int;
+    extern func ShowSprite(idx:int) -> int;
+    extern func SetSpritePosition(idx:int, x:int, y:int) -> int;
 
     public main;
 
@@ -73,10 +78,10 @@ code demo:
 
     proc main() -> int {
         var result:  int;
-        var frame:   int = 0;
         var changed: int;
-        var cvis:    int;
         var done:    int = 0;
+        var mx:      int;
+        var my:      int;
 
         // --- Graphics setup ---
         result = SetGraphicsMode(0);
@@ -92,8 +97,18 @@ code demo:
         // --- Keyboard ---
         call InitKeyboard();
 
+        // --- Sprite cursor ---
+        result = CreateSprite(0, &cursor);
+        call ApplySpritePalette(0);
+        call ShowSprite(0);
+        call SetSpritePosition(0, 160, 128);
+
         // --- Draw static frame ---
         call DrawStaticFrame();
+
+        // Initial edit box draw (steady visible cursor).
+        result = DrawEditBox(8, 48, 256, 24, 4, 3, &edit_buf, 1,
+                     edit_cursor, 1);
 
         call UpdateCopperList();
 
@@ -104,9 +119,10 @@ code demo:
             call ReadMouse();
             call GuiPollMouse();
 
-            // Blink cursor: toggle every 25 frames at ~50 Hz
-            frame = frame + 1;
-            cvis = (frame / 25) & 1;
+            // Move hardware sprite cursor to GUI mouse position.
+            mx = GetGuiMouseX();
+            my = GetGuiMouseY();
+            call SetSpritePosition(0, mx, my);
 
             // Process keyboard
             changed = EditBoxPollKey(&edit_buf, 31, &edit_cursor);
@@ -122,12 +138,14 @@ code demo:
                 // Return / Enter: redraw the whole screen showing submitted text
                 call ClearScreen();
                 call DrawStaticFrame();
-                result = DrawMsgBox(8, 192, 304, 48, 8, 1, &edit_buf, 1);
+                result = DrawMsgBox(8, 142, 304, 48, 8, 1, &edit_buf, 1);
             }
 
-            // Redraw edit box (also updates cursor blink every frame)
-            result = DrawEditBox(8, 48, 256, 24, 4, 3, &edit_buf, 1,
-                                 edit_cursor, cvis);
+            // Redraw edit box only when buffer/cursor changed.
+            if (changed != 0) {
+                result = DrawEditBox(8, 48, 256, 24, 4, 3, &edit_buf, 1,
+                                     edit_cursor, 1);
+            }
 
             // Exit button click
             if (GuiHitTestRect(104, 224, 112, 24) == 1) {
@@ -157,6 +175,13 @@ data demo_data:
     lbl_title.b = "Edit Box Demo", 0
     lbl_hint.b  = "Type, arrow keys, backspace, Enter=confirm, Esc=clear.", 0
     lbl_exit.b  = "Exit", 0
+
+    // Sprite cursor data: 4 palette words immediately before sprite body.
+    cursor_pal.w = $000, $FFF, $CCC, $888
+    cursor.w = 11, 0, 0,
+               $8000, 0, $C000, 0, $E000, 0, $F000, 0, $F800, 0,
+               $FC00, 0, $FE00, 0, $EC00, 0, $C600, 0, $8300, 0, $0300, 0,
+               0, 0
 
 // -------------------------------------------------------------------------
 // Uninitialized data (text buffer + cursor, zeroed by loader)
