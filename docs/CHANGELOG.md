@@ -6,6 +6,17 @@ All notable changes to the HAS (High Assembler) project will be documented in th
 
 ### Added
 
+- **Dead-procedure elimination pass** (`--strip-unused-procs` / `--strip-unused-report`):
+  - New module `hasc/reachability.py` performs conservative call-graph analysis after validation and before code generation.
+  - Roots are discovered from `public` declarations that point to internal `proc` definitions.
+  - Unreachable internal procedures are removed from the AST before assembly is emitted.
+  - Three conservative keep-all safeguards prevent incorrect stripping:
+    - **Feature off by default** — requires an explicit opt-in flag.
+    - **Top-level asm block** — raw `jsr`/`jmp` may reference any label; all procs kept.
+    - **No roots found** — keeps everything rather than silently discarding all code.
+  - `--strip-unused-report` prints roots, kept, and removed procedure lists to stderr.
+  - Three new example files demonstrate all scenarios: `strip_unused_procs_demo.has`, `strip_unused_procs_asm_safe.has`, `strip_unused_procs_no_roots.has`.
+
 - **Example suite split gate** for deterministic regression checks:
   - Added `examples/negative_examples.txt` manifest for expected-fail examples.
   - Added `scripts/test_examples_split.sh` to enforce:
@@ -163,9 +174,9 @@ All notable changes to the HAS (High Assembler) project will be documented in th
   - Increment/Decrement: ++, --
 
 #### Advanced Features
-- **Phase 1**: External Python code generation via `--generate` flag
-- **Phase 2**: Macro system with parameter substitution
-- **Phase 3**: Inline Python execution with `@python` directive
+- External Python code generation via `--generate` flag
+- Macro system with parameter substitution
+- Inline Python execution with `@python` directive
 - Include system with cyclic dependency detection
 - Inline assembly support with `asm { }` blocks
 - Register manipulation with `getreg()` and `setreg()` intrinsics

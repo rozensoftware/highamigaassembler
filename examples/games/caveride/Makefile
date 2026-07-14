@@ -26,6 +26,7 @@ VASM := vasmm68k_mot
 VLINK := vlink
 WHICH := which
 HASC := $(PYTHON) -m hasc.cli
+HASC_FLAGS := --strip-unused-procs --strip-unused-report
 
 # Sources and targets
 # Main has file (must be first for linker)
@@ -52,6 +53,13 @@ ASSET_OBJS := $(ASSET_SRCS:$(SRC_DIR)/%.s=$(BUILD_DIR)/%.o)
 VASM_FLAGS := -m68000 -Fhunk -kick1hunks -I$(LIB_DIR)
 VLINK_FLAGS := -bamigahunk -Bstatic
 
+# Strip symbols from the final executable by default.
+# Use STRIP=0 for debug builds that keep symbols.
+STRIP ?= 1
+ifeq ($(STRIP),1)
+	VLINK_FLAGS += -s
+endif
+
 .PHONY: all clean compile assemble link run help libs game-objs asset-objs
 
 all: $(BUILD_DIR) $(EXE_FILE)
@@ -75,7 +83,7 @@ $(BUILD_DIR)/%.o: %.has | $(BUILD_DIR)
 		 echo "Error: Python interpreter '$(PYTHON)' not found. Set up venv or install python3."; \
 		 exit 1; \
 	fi
-	PYTHONPATH="$(PYTHONPATH)" "$(PYTHON)" -m hasc.cli "$(abspath $<)" -o "$(abspath $(BUILD_DIR)/$*.s)"
+	PYTHONPATH="$(PYTHONPATH)" $(HASC) $(HASC_FLAGS) "$(abspath $<)" -o "$(abspath $(BUILD_DIR)/$*.s)"
 	$(VASM) $(VASM_FLAGS) -L $(BUILD_DIR)/$*.lst -o $@ $(BUILD_DIR)/$*.s
 
 $(MAIN_OBJ): $(MAIN_HAS) | $(BUILD_DIR)
@@ -104,6 +112,8 @@ asset-objs: $(ASSET_OBJS)
 
 help:
 	@echo "Targets: all (default), compile, assemble, link, libs, clean, run, help"
+	@echo "Options: STRIP=1 (default, strips symbols), STRIP=0 (keep symbols)"
+	@echo "Compiler flags: HASC_FLAGS='$(HASC_FLAGS)' (override to customize)"
 
 clean:
 	rm -rf $(BUILD_DIR)/*.o $(BUILD_DIR)/*.s $(BUILD_DIR)/*.exe $(BUILD_DIR)/*.lst $(BUILD_DIR)/assets/

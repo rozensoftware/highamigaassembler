@@ -271,18 +271,18 @@ if args.generate:
 
 ## Recommended Implementation Path
 
-### Phase 1: External Python (Quick Win)
+### External Python (Quick Win)
 - Implement `--generate` CLI option
 - Use subprocess to run Python scripts
 - Allows users to generate HAS files before compilation
 - No changes to compiler needed
 
-### Phase 2: Macro System (Foundation)
+### Macro System (Foundation)
 - Add macro definitions to grammar
 - Implement macro expansion
 - Perfect for repetitive patterns
 
-### Phase 3: Python Sandbox (Advanced)
+### Python Sandbox (Advanced)
 - Add `@python` directive
 - Implement safe execution sandbox
 - Full compile-time code generation
@@ -290,7 +290,7 @@ if args.generate:
 
 ---
 
-## Detailed Implementation: Phase 1 (Start Here)
+## Detailed Implementation: External Python (Start Here)
 
 ### 1. Modify CLI
 
@@ -446,7 +446,7 @@ for op in ['add', 'sub', 'mul']:
 
 ## Recommendation
 
-**Start with Phase 1 (External Python):**
+**Start with external Python integration:**
 
 1. **Implement `--generate` option** in CLI (30 minutes)
    - Add argument parsing
@@ -467,7 +467,7 @@ for op in ['add', 'sub', 'mul']:
 - ✅ Minimal changes to HAS core
 - ✅ Full Python power immediately
 - ✅ Easy for users to understand
-- ✅ Can extend to Phases 2-4 later
+- ✅ Can extend with macro and sandbox features later
 - ✅ No security sandbox needed
 - ✅ Can debug generated code easily
 
@@ -477,7 +477,7 @@ Then later add `@macro` directive as needed.
 
 ## Next Steps
 
-1. Would you like me to implement Phase 1 (`--generate` option)?
+1. Would you like me to implement the `--generate` option?
 2. Should we add `@macro` support alongside?
 3. Any specific use case you have in mind?
 

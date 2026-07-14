@@ -756,7 +756,7 @@ code increment:
 
 ## Advanced Features
 
-### Macros (Phase 2)
+### Macros
 ```has
 ; Define reusable code patterns
 macro load_register(reg, value) {
@@ -775,7 +775,7 @@ code macro_demo:
     }
 ```
 
-### Python Directives (Phase 3)
+### Python Directives
 ```has
 code python_demo:
     proc computed() -> long {
@@ -790,7 +790,7 @@ code python_demo:
     }
 ```
 
-### External Code Generation (Phase 1)
+### External Code Generation
 Create `generator.py`:
 ```python
 #!/usr/bin/env python3

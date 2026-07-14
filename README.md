@@ -35,12 +35,13 @@ HAS bridges the gap between high-level languages and assembly programming. It of
 
 ### Advanced Features
 
-- **Macro System (Phase 2)**: Define reusable code patterns
-- **@python Directive (Phase 4)**: Execute Python code during compilation
+- **Macro System**: Define reusable code patterns
+- **@python Directive**: Execute Python code during compilation
 - **Include System**: Modular code organization with `#include`
 - **Constants**: Compile-time constant evaluation
 - **Pointer Arithmetic**: Address-of (`&`) and dereference (`*`) operators
 - **Register Locking**: `#pragma lockreg()` to protect registers from compiler allocation
+- **Dead-Code Elimination**: `--strip-unused-procs` removes unreachable internal procedures before assembly emission
 
 ### Amiga-Specific
 
@@ -188,7 +189,7 @@ These examples demonstrate game-related concepts and systems, but they are not r
 
 ### Code Generation
 
-- `code_generator.py` - External Python code generation (Phase 1)
+- `code_generator.py` - External Python code generation
 - `simple_generator.py` - Simple generation example
 
 ## 🔧 Usage
@@ -199,7 +200,7 @@ These examples demonstrate game-related concepts and systems, but they are not r
 python -m hasc.cli input.has -o output.s
 ```
 
-### With External Code Generation (Phase 1)
+### With External Code Generation
 
 ```bash
 python -m hasc.cli main.has --generate generator.py -o output.s
@@ -223,6 +224,29 @@ if __name__ == "__main__":
 
 ```bash
 python -m hasc.cli input.has --no-validate -o output.s
+```
+
+### Remove Unused Procedures (dead-code elimination)
+
+```bash
+# Remove unreachable internal procedures before assembly emission
+python -m hasc.cli program.has --strip-unused-procs -o program.s
+
+# Same, but also print what was removed
+python -m hasc.cli program.has --strip-unused-procs --strip-unused-report -o program.s
+```
+
+The pass uses call-graph reachability from `public` declarations.  It is
+**conservative by default**: if no roots are found, or if a top-level raw
+`asm` block is present, all procedures are kept unchanged.
+
+```has
+// Mark the entry point so unreachable procs can be stripped
+public game_init;
+
+proc game_init() -> void { ... }   // kept (root)
+proc helper()    -> void { ... }   // kept (called by game_init)
+proc dead_code() -> void { ... }   // removed (never called)
 ```
 
 ### Build Complete Executable

@@ -1,0 +1,32 @@
+// strip_unused_procs_no_roots.has
+// Demonstrates the conservative "no roots → keep all" safeguard in
+// --strip-unused-procs.
+//
+// When a code section contains only proc definitions with no public export
+// and no top-level asm block, the compiler cannot determine an entry point
+// and keeps every procedure to avoid silent data loss.
+//
+// Compile with stripping:
+//   python -m hasc.cli examples/strip_unused_procs_no_roots.has \
+//          --strip-unused-procs --strip-unused-report -o /tmp/no_roots.s
+//   → Strip report roots: <none>
+//   → Strip report kept: alpha, beta, gamma   (all kept — no roots found)
+//   → Strip report removed: <none>
+//
+// To make the pass actually strip, add:
+//   public alpha;
+// and recompile — then beta and gamma will be removed.
+
+code library:
+
+    proc alpha() -> int {
+        return 1;
+    }
+
+    proc beta() -> int {
+        return 2;
+    }
+
+    proc gamma() -> int {
+        return alpha() + beta();
+    }
