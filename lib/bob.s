@@ -216,20 +216,20 @@ DrawBobWithMask:
     move.w	#0,BLTAMOD(a5)		        ; No modulo - data is contiguous per plane
     move.w	#0,BLTBMOD(a5)		        ; No modulo - data is contiguous per plane
 
-    move.l  #SCREEN_WIDTH320,d2     ; d2 = 320
-    move.w  d4,d3                   ; d3 = width (low word)
-    ext.l   d3                      ; sign-extend low word into long (clears high word for small widths)
-    sub.l   d3,d2                   ; d2 = SCREEN_WIDTH320 - width
-    lsr.l   #3,d2                   ; divide by 8
+    ; chunks = ceil(width/16); modulo = 40 - chunks*2 (320px stride = 40 bytes)
+    move.w  d4,d7                   ; d7 = width
+    addi.w  #15,d7
+    lsr.w   #4,d7                   ; d7 = chunks
+    move.w  d7,d3
+    add.w   d3,d3                   ; d3 = chunks*2 bytes
+    move.w  #40,d2
+    sub.w   d3,d2                   ; d2 = 40 - chunks*2
     move.w  d2,BLTDMOD(a5)
     move.w  d2,BLTCMOD(a5)
 
     move.w  d5,d6                   ; d6 = height
     mulu    #BITPLANES320,d6        ; d6 = height * planes
     lsl.w   #6,d6                   ; shift into bits 15-6
-
-    move.w  d4,d7                   ; d7 = width
-    lsr.w   #4,d7                   ; d7 = chunks
 
     or.w    d7,d6
     move.w  d6,BLTSIZE(a5)
@@ -260,11 +260,14 @@ DrawBobWithMaskHires:
     move.w	#0,BLTAMOD(a5)		        ; No modulo - data is contiguous per plane
     move.w	#0,BLTBMOD(a5)		        ; No modulo - data is contiguous per plane
 
-    move.l  #SCREEN_WIDTH640,d2     ; d2 = 640
-    move.w  d4,d3                   ; d3 = width (low word)
-    ext.l   d3                      ; sign-extend low word into long (clears high word for small widths)
-    sub.l   d3,d2                   ; d2 = SCREEN_WIDTH640 - width
-    lsr.l   #3,d2                   ; divide by 8
+    ; chunks = ceil(width/16); modulo = 80 - chunks*2 (640px stride = 80 bytes)
+    move.w  d4,d7                   ; d7 = width
+    addi.w  #15,d7
+    lsr.w   #4,d7                   ; d7 = chunks
+    move.w  d7,d3
+    add.w   d3,d3                   ; d3 = chunks*2 bytes
+    move.w  #80,d2
+    sub.w   d3,d2                   ; d2 = 80 - chunks*2
     move.w  d2,BLTDMOD(a5)
     move.w  d2,BLTCMOD(a5)
 
@@ -272,9 +275,7 @@ DrawBobWithMaskHires:
     mulu    #BITPLANES640,d6        ; d6 = height * planes
     lsl.w   #6,d6                   ; shift into bits 15-6
 
-    lsr.w   #4,d4                   ; d7 = chunks
-
-    or.w    d4,d6
+    or.w    d7,d6
     move.w  d6,BLTSIZE(a5)
     rts
 
@@ -308,20 +309,20 @@ DrawBob:
     move.w #0,BLTCON1(a5) 		; No shift in BLTCON1
     move.w	#0,BLTAMOD(a5) 		; No modulo - data is contiguous per plane
 
-    move.l  #SCREEN_WIDTH320,d2     ; d2 = 320
-    move.w  d4,d3                   ; d3 = width (low word)
-    ext.l   d3                      ; sign-extend low word into long (clears high word for small widths)
-    sub.l   d3,d2                   ; d2 = SCREEN_WIDTH - width
-    lsr.l   #3,d2                   ; divide by 8
+    ; BLTSIZE = ((height*planes) << 6) | (chunks)
+    ; chunks = ceil(width/16); modulo = 40 - chunks*2 (320px stride = 40 bytes)
+    move.w  d4,d7                   ; d7 = width
+    addi.w  #15,d7
+    lsr.w   #4,d7                   ; d7 = chunks
+    move.w  d7,d3
+    add.w   d3,d3                   ; d3 = chunks*2 bytes
+    move.w  #40,d2
+    sub.w   d3,d2                   ; d2 = 40 - chunks*2
     move.w  d2,BLTDMOD(a5)
 
-    ; BLTSIZE = ((height*planes) << 6) | (chunks)
     move.w  d5,d6                   ; d6 = height
     mulu    #BITPLANES320,d6        ; d6 = height * planes
     lsl.w   #6,d6                   ; shift into bits 15-6
-
-    move.w  d4,d7                   ; d7 = width
-    lsr.w   #4,d7                   ; d7 = chunks
 
     or.w    d7,d6
     move.w  d6,BLTSIZE(a5)
@@ -349,25 +350,24 @@ DrawBobHires:
     move.w #0,BLTCON1(a5) 		; No shift in BLTCON1
     move.w	#0,BLTAMOD(a5) 		; No modulo - data is contiguous per plane
 
-    move.l  #SCREEN_WIDTH640,d2     ; d2 = 640
-    move.w  d4,d3                   ; d3 = width (low word)
-    ext.l   d3                      ; sign-extend low word into long (clears high word for small widths)
-    sub.l   d3,d2                   ; d2 = SCREEN_WIDTH - width
-    lsr.l   #3,d2                   ; divide by 8
-    move.w  d2,BLTDMOD(a5)
-    
-    ;MOVE.W	#(SCREEN_WIDTH640-80)/8,BLTDMOD(a5)
-
     ; BLTSIZE = ((height*planes) << 6) | (chunks)
+    ; chunks = ceil(width/16); modulo = 80 - chunks*2 (640px stride = 80 bytes)
+    move.w  d4,d7                   ; d7 = width
+    addi.w  #15,d7
+    lsr.w   #4,d7                   ; d7 = chunks
+    move.w  d7,d3
+    add.w   d3,d3                   ; d3 = chunks*2 bytes
+    move.w  #80,d2
+    sub.w   d3,d2                   ; d2 = 80 - chunks*2
+    move.w  d2,BLTDMOD(a5)
+
     move.w  d5,d6                   ; d6 = height
     mulu    #BITPLANES640,d6        ; d6 = height * planes
     lsl.w   #6,d6                   ; shift into bits 15-6
 
-    lsr.w   #4,d4                   ; d7 = chunks
-
-    or.w    d4,d6
+    or.w    d7,d6
     move.w  d6,BLTSIZE(a5)
-    
+
     ;move.w	#(64*BITPLANES640)<<6|(80/16),BLTSIZE(a5)
     rts
 
@@ -445,21 +445,22 @@ PrepBOBHires:
     MOVE.W	#0,BLTCON1(a5)		; Data transfer, no fills
     MOVE.W	#0,BLTDMOD(a5)		; Skip 0 bytes of the storage
 
-    move.l  #SCREEN_WIDTH640,d2     ; d2 = 640
-    move.w  d4,d3                   ; d3 = width (low word)
-    ext.l   d3                      ; sign-extend low word into long (clears high word for small widths)
-    sub.l   d3,d2                   ; d2 = SCREEN_WIDTH - width
-    lsr.l   #3,d2                   ; divide by 8
+    ; BLTSIZE = ((height*planes) << 6) | (chunks)
+    ; chunks = ceil(width/16); modulo = 80 - chunks*2 (640px stride = 80 bytes)
+    move.w  d4,d7                   ; d7 = width
+    addi.w  #15,d7
+    lsr.w   #4,d7                   ; d7 = chunks
+    move.w  d7,d3
+    add.w   d3,d3                   ; d3 = chunks*2 bytes
+    move.w  #80,d2
+    sub.w   d3,d2                   ; d2 = 80 - chunks*2
     move.w  d2,BLTAMOD(a5)
 
-    ; BLTSIZE = ((height*planes) << 6) | (chunks)
     move.w  d5,d6                   ; d6 = height
     mulu    #BITPLANES640,d6        ; d6 = height * planes
     lsl.w   #6,d6                   ; shift into bits 15-6
 
-    lsr.w   #4,d4                   ; d7 = chunks
-
-    or.w    d4,d6
+    or.w    d7,d6
     move.w  d6,BLTSIZE(a5)
     rts
 
@@ -492,21 +493,22 @@ PrepBOB:
     MOVE.W	#0,BLTCON1(a5)		; Data transfer, no fills
     MOVE.W	#0,BLTDMOD(a5)		; Skip 0 bytes of the storage
 
-    move.l  #SCREEN_WIDTH320,d2     ; d2 = 320
-    move.w  d4,d3                   ; d3 = width (low word)
-    ext.l   d3                      ; sign-extend low word into long (clears high word for small widths)
-    sub.l   d3,d2                   ; d2 = SCREEN_WIDTH - width
-    lsr.l   #3,d2                   ; divide by 8
+    ; BLTSIZE = ((height*planes) << 6) | (chunks)
+    ; chunks = ceil(width/16); modulo = 40 - chunks*2 (320px stride = 40 bytes)
+    move.w  d4,d7                   ; d7 = width
+    addi.w  #15,d7
+    lsr.w   #4,d7                   ; d7 = chunks
+    move.w  d7,d3
+    add.w   d3,d3                   ; d3 = chunks*2 bytes
+    move.w  #40,d2
+    sub.w   d3,d2                   ; d2 = 40 - chunks*2
     move.w  d2,BLTAMOD(a5)
 
-    ; BLTSIZE = ((height*planes) << 6) | (chunks)
     move.w  d5,d6                   ; d6 = height
     mulu    #BITPLANES320,d6        ; d6 = height * planes
     lsl.w   #6,d6                   ; shift into bits 15-6
 
-    lsr.w   #4,d4                   ; d7 = chunks
-
-    or.w    d4,d6
+    or.w    d7,d6
     move.w  d6,BLTSIZE(a5)
     rts
 
@@ -559,6 +561,7 @@ PasteBackground:
     
     move.l 12(a6),d0       ; d0 = x
     move.l 16(a6),d1       ; d1 = y
+    and.w  #$FFF0,d0       ; word-align X: bg saved without shift, restore must use shift=0
     
     ; Load descriptor fields
     move.l 8(a1),a0        ; a0 = bg_ptr (source)
@@ -566,7 +569,7 @@ PasteBackground:
     move.w 20(a1),d5       ; d5 = height
     
     addq.l #4,a0           ; skip 4-byte header (width/height) in buffer
-    jsr DrawBob            ; prepares blitter to copy from bg_ptr to screen
+    jsr DrawBob            ; copy from bg_ptr to screen (shift=0: direct word restore)
         
 .pb_no_background:
     moveq #0,d0

@@ -3316,9 +3316,10 @@ class CodeGen:
                         
                         # Check if return type is void
                         is_void = it.rettype == 'void'
+                        is_empty_body = len(it.body) == 0
                         
-                        # Skip stack frame setup for native functions
-                        if not it.native:
+                        # Empty procedures/functions do not need a frame; emit a bare RTS below.
+                        if not it.native and not is_empty_body:
                             # prologue: establish frame with LINK
                             # Use #0 for no locals, #-N for N bytes of locals
                             link_param = f"#0" if localsize == 0 else f"#-{localsize}"
@@ -3348,7 +3349,7 @@ class CodeGen:
                         has_return = any(isinstance(s, ast.Return) for s in it.body)
                         if not has_return:
                             # Skip epilogue for native functions (no stack frame to restore)
-                            if not it.native:
+                            if not it.native and not is_empty_body:
                                 # epilogue: restore a4 if we saved it in the frame
                                 if len(locals_info) > 0 and frame_reg == "a4":
                                     # Calculate the offset where a4 was saved

@@ -2,9 +2,9 @@
 """
 Tile Importer for Amiga Tilemap Graphics
 
-Converts PNG tile strips to interleaved 5-plane format for use with tile-based rendering.
-The tileset is stored as a horizontal strip where each tile is extracted and stored
-in row-interleaved format (for each pixel row: plane0, plane1, plane2, plane3, plane4).
+Converts PNG tile strips or tile grids to interleaved 5-plane format for use with
+tile-based rendering. The tileset is stored in row-interleaved format (for each
+pixel row: plane0, plane1, plane2, plane3, plane4).
 """
 from pathlib import Path
 import os
@@ -30,11 +30,11 @@ def _ensure_dir(p: Path):
 
 def export_tileset_asm(png_path: str, out_label: str, tile_width: int = 8, tile_height: int = 8, planes: int = 5, use_dither: bool = False) -> str:
     """
-    Export PNG tile strip to tile-by-tile row-interleaved format.
+    Export PNG tile strip or grid to tile-by-tile row-interleaved format.
     
     Format:
     - Each tile is tile_width x tile_height pixels
-    - Tiles are arranged horizontally in the source image
+    - Tiles are arranged in row-major order in the source image
     - Output format: for each tile, for each row (y=0..tile_height-1):
         - plane0_byte, plane1_byte, plane2_byte, plane3_byte, plane4_byte (interleaved)
     
@@ -62,20 +62,20 @@ def export_tileset_asm(png_path: str, out_label: str, tile_width: int = 8, tile_
     final_palette = quant['final_palette']
     max_colors = quant.get('max_colors', 2 ** planes)
     
-    # Validate dimensions
-    if img_h != tile_height:
-        raise ValueError(f"Image height {img_h} must equal tile_height {tile_height}")
-    
     if img_w % tile_width != 0:
         raise ValueError(f"Image width {img_w} must be multiple of tile_width {tile_width}")
+
+    if img_h % tile_height != 0:
+        raise ValueError(f"Image height {img_h} must be multiple of tile_height {tile_height}")
     
-    num_tiles = img_w // tile_width
-    bytes_per_tile = tile_width // 8  # 1 byte for 8px, 2 bytes for 16px
+    num_tiles_x = img_w // tile_width
+    num_tiles_y = img_h // tile_height
+    num_tiles = num_tiles_x * num_tiles_y
     
     lines = []
     lines.append(f"; Auto-generated tileset include")
     lines.append(f"; Tileset data generated from {Path(png_path).name}")
-    lines.append(f"; Tile-by-tile row-interleaved format: {planes} bitplanes, tile size={tile_width}x{tile_height}, {num_tiles} tiles")
+    lines.append(f"; Tile-by-tile row-interleaved format: {planes} bitplanes, tile size={tile_width}x{tile_height}, {num_tiles_x}x{num_tiles_y} tiles")
     lines.append(f"; Layout: For each tile, for each row (y=0..{tile_height-1}): plane0, plane1, ..., plane{planes-1} bytes")
     lines.append(f"\tSECTION tileset,DATA_C")
     lines.append(f"\tXDEF\t{out_label}")
@@ -83,43 +83,47 @@ def export_tileset_asm(png_path: str, out_label: str, tile_width: int = 8, tile_
     # Generate tileset data
     lines.append(f"{out_label}:")
     
-    # Process each tile
-    for tile_idx in range(num_tiles):
-        tile_x_start = tile_idx * tile_width
-        
-        lines.append(f"\t; Tile {tile_idx}")
-        
-        # Process each row of the tile
-        for row in range(tile_height):
-            # Get pixel indices for this row
-            row_indices = indices_by_row[row][tile_x_start:tile_x_start + tile_width]
-            
-            # Convert to planar format (interleaved by plane for this row)
-            for plane_idx in range(planes):
-                # Pack bits for this plane
-                if tile_width == 8:
-                    # Single byte per plane
-                    byte_val = 0
-                    for bit_pos in range(8):
-                        if bit_pos < len(row_indices):
-                            idx = row_indices[bit_pos]
-                            bit = (idx >> plane_idx) & 1
-                            byte_val = (byte_val << 1) | bit
-                        else:
-                            byte_val = byte_val << 1
-                    lines.append(f"\tDC.B\t${byte_val:02X}\t; tile={tile_idx} y={row} plane={plane_idx}")
-                else:  # tile_width == 16
-                    # Two bytes per plane (high byte, low byte)
-                    word_val = 0
-                    for bit_pos in range(16):
-                        if bit_pos < len(row_indices):
-                            idx = row_indices[bit_pos]
-                            bit = (idx >> plane_idx) & 1
-                            word_val = (word_val << 1) | bit
-                        else:
-                            word_val = word_val << 1
-                    # Store as word (Motorola big-endian: high byte first)
-                    lines.append(f"\tDC.W\t${word_val:04X}\t; tile={tile_idx} y={row} plane={plane_idx}")
+    # Process each tile in row-major order
+    for tile_row in range(num_tiles_y):
+        tile_y_start = tile_row * tile_height
+        for tile_col in range(num_tiles_x):
+            tile_idx = tile_row * num_tiles_x + tile_col
+            tile_x_start = tile_col * tile_width
+
+            lines.append(f"\t; Tile {tile_idx} ({tile_col},{tile_row})")
+
+            # Process each row of the tile
+            for row in range(tile_height):
+                # Get pixel indices for this row
+                source_row = indices_by_row[tile_y_start + row]
+                row_indices = source_row[tile_x_start:tile_x_start + tile_width]
+
+                # Convert to planar format (interleaved by plane for this row)
+                for plane_idx in range(planes):
+                    # Pack bits for this plane
+                    if tile_width == 8:
+                        # Single byte per plane
+                        byte_val = 0
+                        for bit_pos in range(8):
+                            if bit_pos < len(row_indices):
+                                idx = row_indices[bit_pos]
+                                bit = (idx >> plane_idx) & 1
+                                byte_val = (byte_val << 1) | bit
+                            else:
+                                byte_val = byte_val << 1
+                        lines.append(f"\tDC.B\t${byte_val:02X}\t; tile={tile_idx} y={row} plane={plane_idx}")
+                    else:  # tile_width == 16
+                        # Two bytes per plane (high byte, low byte)
+                        word_val = 0
+                        for bit_pos in range(16):
+                            if bit_pos < len(row_indices):
+                                idx = row_indices[bit_pos]
+                                bit = (idx >> plane_idx) & 1
+                                word_val = (word_val << 1) | bit
+                            else:
+                                word_val = word_val << 1
+                        # Store as word (Motorola big-endian: high byte first)
+                        lines.append(f"\tDC.W\t${word_val:04X}\t; tile={tile_idx} y={row} plane={plane_idx}")
     
     # Add palette data
     palette_label = f"{out_label}_palette"
@@ -188,7 +192,8 @@ def import_tileset_to_include(png_path: str, label_prefix: str = 'tileset', tile
     # Get image info for metadata
     img = Image.open(str(p))
     img_w, img_h = img.size
-    num_tiles = img_w // tile_width if img_w % tile_width == 0 else 0
+    num_tiles_x = img_w // tile_width if img_w % tile_width == 0 else 0
+    num_tiles_y = img_h // tile_height if img_h % tile_height == 0 else 0
     
     if regenerate or force:
         asm = export_tileset_asm(str(p), label, tile_width=tile_width, tile_height=tile_height, planes=planes, use_dither=use_dither)
@@ -202,7 +207,9 @@ def import_tileset_to_include(png_path: str, label_prefix: str = 'tileset', tile
     meta = {
         'tile_width': tile_width,
         'tile_height': tile_height,
-        'num_tiles': num_tiles,
+        'num_tiles': num_tiles_x * num_tiles_y,
+        'num_tiles_x': num_tiles_x,
+        'num_tiles_y': num_tiles_y,
         'image_width': img_w,
         'image_height': img_h,
         'planes': planes,
