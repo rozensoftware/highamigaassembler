@@ -6,6 +6,11 @@ All notable changes to the HAS (High Assembler) project will be documented in th
 
 ### Added
 
+- **BOB mirror APIs** in `lib/bob.s`:
+  - Added `MirrorBobHorizontally(handle) -> int`.
+  - Added `MirrorBobVertically(handle) -> int`.
+  - Both APIs create a new BOB handle with mirrored data+mask, preserve the source palette pointer, preserve save-background policy (including background allocation when enabled), return the new handle on success, and `-1` on failure.
+
 - **Dead-procedure elimination pass** (`--strip-unused-procs` / `--strip-unused-report`):
   - New module `hasc/reachability.py` performs conservative call-graph analysis after validation and before code generation.
   - Roots are discovered from `public` declarations that point to internal `proc` definitions.
@@ -32,6 +37,9 @@ All notable changes to the HAS (High Assembler) project will be documented in th
   - Added end-to-end example `examples/editbox_demo.has`.
 
 ### Changed
+
+- **BOB lifecycle update** in `lib/bob.s`:
+  - `DestroyBob(handle)` now frees mirrored owned data/mask buffers for handles created by mirror APIs, in addition to freeing background buffer (if present) and runtime struct.
 
 - `extern func` call emission now honors `__reg(...)` parameter annotations during code generation.
   - Register-annotated extern args are loaded into declared registers before `jsr`.

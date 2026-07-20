@@ -1,0 +1,126 @@
+// Regression test: BOB mirror APIs compile and are callable.
+// Expected runtime behavior (normal path):
+// - CreateBob returns a valid handle (not -1)
+// - MirrorBobHorizontally returns a valid handle (not -1)
+// - MirrorBobVertically returns a valid handle (not -1)
+// - Mirroring an already mirrored handle also returns valid handles
+// - save_background=1 creation path remains compatible with mirror APIs
+// - DestroyBob cleans up all handles
+
+code main:
+    extern func CreateBob(descriptor_ptr: int, save_background: int) -> int;
+    extern func MirrorBobHorizontally(handle: int) -> int;
+    extern func MirrorBobVertically(handle: int) -> int;
+    extern func DestroyBob(handle: int) -> void;
+    extern var bob_mirror_test_desc: int;
+
+    asm {
+        jsr main
+        rts
+    }
+
+    proc main() -> int {
+        var src: int;
+        var src_bg: int;
+        var mirrored_h: int;
+        var mirrored_v: int;
+        var mirrored_h2: int;
+        var mirrored_v2: int;
+        var mirrored_bg: int;
+
+        // Build base BOB from local descriptor.
+        src = CreateBob(&bob_mirror_test_desc, 0);
+        if (src == -1) {
+            return -10;
+        }
+
+        // Horizontal mirror should produce a valid new handle.
+        mirrored_h = MirrorBobHorizontally(src);
+        if (mirrored_h == -1) {
+            call DestroyBob(src);
+            return -20;
+        }
+
+        // Vertical mirror should produce a valid new handle.
+        mirrored_v = MirrorBobVertically(src);
+        if (mirrored_v == -1) {
+            call DestroyBob(mirrored_h);
+            call DestroyBob(src);
+            return -30;
+        }
+
+        // Mirror-of-mirror path catches ownership/flag propagation regressions.
+        mirrored_h2 = MirrorBobHorizontally(mirrored_h);
+        if (mirrored_h2 == -1) {
+            call DestroyBob(mirrored_v);
+            call DestroyBob(mirrored_h);
+            call DestroyBob(src);
+            return -40;
+        }
+
+        mirrored_v2 = MirrorBobVertically(mirrored_h);
+        if (mirrored_v2 == -1) {
+            call DestroyBob(mirrored_h2);
+            call DestroyBob(mirrored_v);
+            call DestroyBob(mirrored_h);
+            call DestroyBob(src);
+            return -50;
+        }
+
+        // save_background=1 path should also be mirror-compatible.
+        src_bg = CreateBob(&bob_mirror_test_desc, 1);
+        if (src_bg == -1) {
+            call DestroyBob(mirrored_v2);
+            call DestroyBob(mirrored_h2);
+            call DestroyBob(mirrored_v);
+            call DestroyBob(mirrored_h);
+            call DestroyBob(src);
+            return -60;
+        }
+
+        mirrored_bg = MirrorBobVertically(src_bg);
+        if (mirrored_bg == -1) {
+            call DestroyBob(src_bg);
+            call DestroyBob(mirrored_v2);
+            call DestroyBob(mirrored_h2);
+            call DestroyBob(mirrored_v);
+            call DestroyBob(mirrored_h);
+            call DestroyBob(src);
+            return -70;
+        }
+
+        call DestroyBob(mirrored_bg);
+        call DestroyBob(src_bg);
+
+        // Cleanup path for all successful allocations.
+        call DestroyBob(mirrored_v2);
+        call DestroyBob(mirrored_h2);
+        call DestroyBob(mirrored_v);
+        call DestroyBob(mirrored_h);
+        call DestroyBob(src);
+        return 0;
+    }
+
+    asm {
+    ; Minimal local BOB source data for compile-time regression.
+    ; Data/mask blocks include width/height headers used by bob.s mirrors.
+bob_mirror_test_data:
+        dc.w 16,1
+        dc.w $8000,$4000,$2000,$1000,$0800
+
+bob_mirror_test_mask:
+        dc.w 16,1
+        dc.w $F000
+
+bob_mirror_test_palette:
+        dc.w $000,$00F
+        even
+
+bob_mirror_test_desc:
+        dc.l bob_mirror_test_data
+        dc.l bob_mirror_test_mask
+        dc.l bob_mirror_test_palette
+        dc.w 16
+        dc.w 1
+        dc.w 2
+    }

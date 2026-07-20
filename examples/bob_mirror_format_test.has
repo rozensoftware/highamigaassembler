@@ -1,0 +1,228 @@
+// Regression test for BOB mirror row format.
+// The source BOB stores a 24px image in a 48px runtime row (2 image chunks +
+// 1 blitter scroll chunk, matching --add-word production format).  Horizontal
+// mirroring must ignore the padded and scroll bits; vertical mirroring must
+// preserve plane order inside each image row.
+
+code main:
+    extern func CreateBob(descriptor_ptr: int, save_background: int) -> int;
+    extern func MirrorBobHorizontally(handle: int) -> int;
+    extern func MirrorBobVertically(handle: int) -> int;
+    extern func DestroyBob(handle: int) -> void;
+    extern var bob_mirror_format_desc: int;
+
+    asm {
+        jsr main
+        rts
+    }
+
+    proc validate_horizontal(handle: int) -> int {
+        var status: int = 0;
+
+        asm {
+            move.l @handle,a0
+            move.l (a0),a0
+            addq.l #4,a0
+
+            cmpi.w #$6A2C,(a0)     ; row 0, pl 0, w0
+            bne.s .h_fail_10
+            cmpi.w #$4800,2(a0)    ; row 0, pl 0, w1
+            bne.s .h_fail_11
+            cmpi.w #$8769,24(a0)   ; row 0, pl 4, w0  (offset = 4*6)
+            bne.s .h_fail_12
+            cmpi.w #$D200,26(a0)   ; row 0, pl 4, w1
+            bne.s .h_fail_13
+            cmpi.w #$D9EA,36(a0)   ; row 1, pl 1, w0  (offset = 5*6+6)
+            bne.s .h_fail_14
+            cmpi.w #$C800,38(a0)   ; row 1, pl 1, w1
+            bne.s .h_fail_15
+
+            move.l @handle,a0
+            move.l 4(a0),a0
+            addq.l #4,a0
+            cmpi.w #$6A2C,(a0)
+            bne.s .h_fail_20
+            cmpi.w #$4800,2(a0)
+            bne.s .h_fail_21
+            bra.s .h_done
+
+.h_fail_10:
+            move.l #-110,@status
+            bra.s .h_done
+.h_fail_11:
+            move.l #-111,@status
+            bra.s .h_done
+.h_fail_12:
+            move.l #-112,@status
+            bra.s .h_done
+.h_fail_13:
+            move.l #-113,@status
+            bra.s .h_done
+.h_fail_14:
+            move.l #-114,@status
+            bra.s .h_done
+.h_fail_15:
+            move.l #-115,@status
+            bra.s .h_done
+.h_fail_20:
+            move.l #-120,@status
+            bra.s .h_done
+.h_fail_21:
+            move.l #-121,@status
+.h_done:
+        }
+
+        return status;
+    }
+
+    proc validate_vertical(handle: int) -> int {
+        var status: int = 0;
+
+        asm {
+            move.l @handle,a0
+            move.l (a0),a0
+            addq.l #4,a0
+
+            cmpi.w #$2468,(a0)     ; row 0, pl 0, w0  (= src row 1, pl 0, w0)
+            bne.s .v_fail_10
+            cmpi.w #$AC00,2(a0)    ; row 0, pl 0, w1
+            bne.s .v_fail_11
+            cmpi.w #$1357,6(a0)    ; row 0, pl 1, w0  (offset = 1*6)
+            bne.s .v_fail_12
+            cmpi.w #$0BAD,24(a0)   ; row 0, pl 4, w0  (offset = 4*6)
+            bne.s .v_fail_13
+            cmpi.w #$5E00,26(a0)   ; row 0, pl 4, w1
+            bne.s .v_fail_14
+            cmpi.w #$1234,30(a0)   ; row 1, pl 0, w0  (offset = 5*6)
+            bne.s .v_fail_15
+            cmpi.w #$5600,32(a0)   ; row 1, pl 0, w1
+            bne.s .v_fail_16
+
+            move.l @handle,a0
+            move.l 4(a0),a0
+            addq.l #4,a0
+            cmpi.w #$2468,(a0)
+            bne.s .v_fail_20
+            cmpi.w #$AC00,2(a0)
+            bne.s .v_fail_21
+            bra.s .v_done
+
+.v_fail_10:
+            move.l #-210,@status
+            bra.s .v_done
+.v_fail_11:
+            move.l #-211,@status
+            bra.s .v_done
+.v_fail_12:
+            move.l #-212,@status
+            bra.s .v_done
+.v_fail_13:
+            move.l #-213,@status
+            bra.s .v_done
+.v_fail_14:
+            move.l #-214,@status
+            bra.s .v_done
+.v_fail_15:
+            move.l #-215,@status
+            bra.s .v_done
+.v_fail_16:
+            move.l #-216,@status
+            bra.s .v_done
+.v_fail_20:
+            move.l #-220,@status
+            bra.s .v_done
+.v_fail_21:
+            move.l #-221,@status
+.v_done:
+        }
+
+        return status;
+    }
+
+    proc main() -> int {
+        var src: int;
+        var mirrored_h: int;
+        var mirrored_v: int;
+        var status: int;
+
+        src = CreateBob(&bob_mirror_format_desc, 0);
+        if (src == -1) {
+            return -10;
+        }
+
+        mirrored_h = MirrorBobHorizontally(src);
+        if (mirrored_h == -1) {
+            call DestroyBob(src);
+            return -20;
+        }
+
+        mirrored_v = MirrorBobVertically(src);
+        if (mirrored_v == -1) {
+            call DestroyBob(mirrored_h);
+            call DestroyBob(src);
+            return -30;
+        }
+
+        status = validate_horizontal(mirrored_h);
+        if (status != 0) {
+            call DestroyBob(mirrored_v);
+            call DestroyBob(mirrored_h);
+            call DestroyBob(src);
+            return status;
+        }
+
+        status = validate_vertical(mirrored_v);
+        if (status != 0) {
+            call DestroyBob(mirrored_v);
+            call DestroyBob(mirrored_h);
+            call DestroyBob(src);
+            return status;
+        }
+
+        call DestroyBob(mirrored_v);
+        call DestroyBob(mirrored_h);
+        call DestroyBob(src);
+        return 0;
+    }
+
+    asm {
+bob_mirror_format_data:
+        dc.w 40,2                       ; stored_width=40 (=24+16, add_word), height=2
+        dc.w $1234,$5600,$0000           ; row 0, plane 0  (w0,w1,scroll)
+        dc.w $89AB,$CD00,$0000           ; row 0, plane 1
+        dc.w $0FF0,$AA00,$0000           ; row 0, plane 2
+        dc.w $1122,$3300,$0000           ; row 0, plane 3
+        dc.w $4B96,$E100,$0000           ; row 0, plane 4
+        dc.w $2468,$AC00,$0000           ; row 1, plane 0
+        dc.w $1357,$9B00,$0000           ; row 1, plane 1
+        dc.w $55AA,$0F00,$0000           ; row 1, plane 2
+        dc.w $CAFE,$1200,$0000           ; row 1, plane 3
+        dc.w $0BAD,$5E00,$0000           ; row 1, plane 4
+
+bob_mirror_format_mask:
+        dc.w 40,2                       ; stored_width=40 (=24+16, add_word), height=2
+        dc.w $1234,$5600,$0000           ; row 0, plane 0
+        dc.w $89AB,$CD00,$0000           ; row 0, plane 1
+        dc.w $0FF0,$AA00,$0000           ; row 0, plane 2
+        dc.w $1122,$3300,$0000           ; row 0, plane 3
+        dc.w $4B96,$E100,$0000           ; row 0, plane 4
+        dc.w $2468,$AC00,$0000           ; row 1, plane 0
+        dc.w $1357,$9B00,$0000           ; row 1, plane 1
+        dc.w $55AA,$0F00,$0000           ; row 1, plane 2
+        dc.w $CAFE,$1200,$0000           ; row 1, plane 3
+        dc.w $0BAD,$5E00,$0000           ; row 1, plane 4
+
+bob_mirror_format_palette:
+        dc.w $000,$111,$222,$333,$444,$555,$666,$777
+        dc.w $888,$999,$AAA,$BBB,$CCC,$DDD,$EEE,$FFF
+        dc.w $012,$123,$234,$345,$456,$567,$678,$789
+        dc.w $89A,$9AB,$ABC,$BCD,$CDE,$DEF,$F0F,$0F0
+
+bob_mirror_format_desc:
+        dc.l bob_mirror_format_data
+        dc.l bob_mirror_format_mask
+        dc.l bob_mirror_format_palette
+        dc.w 48                         ; conv_w = 48 (3 chunks: 2 image + 1 scroll)
+        dc.w 2
+        dc.w 32
+    }

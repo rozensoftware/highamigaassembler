@@ -496,9 +496,29 @@ var bob: int = CreateBob(enemy_desc, 1);
 
 Frees the background buffer (if any) and the runtime struct. Pass the handle returned by `CreateBob`.
 
+If the handle was created by a mirror API, `DestroyBob` also frees the mirrored owned data/mask buffers.
+
 ```has
 extern func DestroyBob(handle: int) -> void;
 call DestroyBob(bob);
+```
+
+### `MirrorBobHorizontally(handle: int) -> int`
+
+Creates a new BOB handle with horizontally mirrored data and mask copied from `handle`. Preserves the source palette pointer and save-background policy (allocates background when the source handle has it). Returns the new handle on success, `-1` on failure.
+
+```has
+extern func MirrorBobHorizontally(handle: int) -> int;
+var bob_mirror_x: int = MirrorBobHorizontally(bob);
+```
+
+### `MirrorBobVertically(handle: int) -> int`
+
+Creates a new BOB handle with vertically mirrored data and mask copied from `handle`. Preserves the source palette pointer and save-background policy (allocates background when the source handle has it). Returns the new handle on success, `-1` on failure.
+
+```has
+extern func MirrorBobVertically(handle: int) -> int;
+var bob_mirror_y: int = MirrorBobVertically(bob);
 ```
 
 ### `PasteBob(handle: int, x: int, y: int, mode: int) -> void`

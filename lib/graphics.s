@@ -253,6 +253,9 @@ _SetGraphicsMode:
 
 .mode_320x256:
     move.w #%0000000111100000,DMACON(a5)    ; Disable selected DMA
+    move.w #0,FMODE(a5)                      ; AGA fetch mode off (ECS-compatible 16-bit fetch)
+    move.w #$0C00,BPLCON3(a5)                ; Default ECS/AGA compatibility state
+    move.w #$0011,BPLCON4(a5)                ; Default sprite/bitplane bank mapping
     move.w #0,gfx_current_mode              ; Set mode to 320x256x32
     lea gfx_screen1,a0                      ; Load gfx_screen1 address
     move.l a0,gfx_current_screen_ptr        ; Set initial screen
@@ -275,6 +278,9 @@ _SetGraphicsMode:
 
 .mode_640x256:
     move.w #%0000000111100000,DMACON(a5)    ; Disable selected DMA
+    move.w #0,FMODE(a5)                      ; AGA fetch mode off (ECS-compatible 16-bit fetch)
+    move.w #$0C00,BPLCON3(a5)                ; Default ECS/AGA compatibility state
+    move.w #$0011,BPLCON4(a5)                ; Default sprite/bitplane bank mapping
     move.w #1,gfx_current_mode              ; Set hires mode
     lea gfx_screen1_hires,a0                ; Load gfx_screen1_hires address
     move.l a0,gfx_current_screen_ptr        ; Set hires screen
@@ -301,6 +307,9 @@ _SetGraphicsMode:
 
 .mode_320x256_ham6:
     move.w #%0000000111100000,DMACON(a5)    ; Disable selected DMA
+    move.w #0,FMODE(a5)                      ; AGA fetch mode off (use classic HAM6 timings)
+    move.w #$0C00,BPLCON3(a5)                ; Default ECS/AGA compatibility state
+    move.w #$0011,BPLCON4(a5)                ; Default sprite/bitplane bank mapping
     move.w #2,gfx_current_mode              ; Set HAM6 mode
     lea gfx_screen1_ham6,a0                 ; Load gfx_screen1_ham6 address
     move.l a0,gfx_current_screen_ptr        ; Set initial screen

@@ -12,7 +12,9 @@ HEAP_BLOCK_OCCUPIED     EQU 1
 HEAP_MEMORY             EQU $fffc  ; total heap size in bytes (even, longword aligned)
 NULL                    EQU 0
 
-    SECTION heap_data,bss
+    ; Blitter-visible scratch/background buffers are allocated from this heap
+    ; (via bob.s), so keep it in CHIP RAM on machines with FAST RAM.
+    SECTION heap_data,bss_c
 
 heap_start:
     ds.b HEAP_MEMORY
