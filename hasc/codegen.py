@@ -2357,6 +2357,12 @@ class CodeGen:
                 elif isinstance(target, ast.ArrayAccess):
                     name = target.name
                     self.emit(indent + f"; {name}[...] = {expr_comment}")
+                    # Evaluate the RHS first so indexed LHS address registers stay intact.
+                    rhs_code = self._emit_expr(stmt.expr, params, locals_info, "d0", "d2", frame_reg=frame_reg)
+                    for l in rhs_code:
+                        for sub in str(l).splitlines():
+                            self.emit(sub if sub.startswith(indent) else indent + sub)
+
                     # Only global arrays supported currently
                     # Determine element size
                     elem_size_suffix = 'l'
@@ -2384,11 +2390,6 @@ class CodeGen:
                                 self.emit(sub if sub.startswith(indent) else indent + sub)
                         if shift_amount > 0:
                             self.emit(indent + f"lsl.l #{shift_amount},d1")
-                        # Evaluate RHS into d0 with element type hint
-                        rhs_code = self._emit_expr(stmt.expr, params, locals_info, "d0", "d2", frame_reg=frame_reg)
-                        for l in rhs_code:
-                            for sub in str(l).splitlines():
-                                self.emit(sub if sub.startswith(indent) else indent + sub)
                         self.emit(indent + f"move{size_suffix} d0,(a0,d1.l)")
                     elif len(target.indices) == 2:
                         # 2D store: base + (row*cols + col) * elem_size
@@ -2413,10 +2414,6 @@ class CodeGen:
                         self.emit(indent + f"add.l d1,d2")
                         if shift_amount > 0:
                             self.emit(indent + f"lsl.l #{shift_amount},d2")
-                        rhs_code = self._emit_expr(stmt.expr, params, locals_info, "d0", "d3", frame_reg=frame_reg)
-                        for l in rhs_code:
-                            for sub in str(l).splitlines():
-                                self.emit(sub if sub.startswith(indent) else indent + sub)
                         self.emit(indent + f"move{size_suffix} d0,(a0,d2.l)")
                     else:
                         self.emit(indent + f"; arrays with >2 dimensions not supported for stores")

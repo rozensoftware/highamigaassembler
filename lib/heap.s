@@ -9,7 +9,7 @@
 
 HEAP_BLOCK_FREE         EQU 0
 HEAP_BLOCK_OCCUPIED     EQU 1
-HEAP_MEMORY             EQU $fffc  ; total heap size in bytes (even, longword aligned)
+HEAP_MEMORY             EQU $1fffc ; total heap size in bytes (even, longword aligned)
 NULL                    EQU 0
 
     ; Blitter-visible scratch/background buffers are allocated from this heap
@@ -53,6 +53,7 @@ HeapAlloc:
     move.l (a0),d1                  ; d1 = header
     move.l d1,d2
     swap d2                         ; d2 = length (words)
+    and.l #$0000FFFF,d2             ; treat length as unsigned 16-bit
 
     tst.w d2
     beq .alloc_at_end               ; end marker reached
@@ -61,19 +62,19 @@ HeapAlloc:
     cmp.w #HEAP_BLOCK_OCCUPIED,d3
     beq .next_block                 ; skip occupied
 
-    ; free block and big enough?
-    cmp.w d0,d2
-    blt .next_block
+    ; free block and big enough? (unsigned compare)
+    cmp.l d0,d2
+    blo .next_block
 
     ; remaining after taking request
-    move.w d2,d4                    ; d4 = block length
-    sub.w d0,d4                     ; d4 = remaining words
+    move.l d2,d4                    ; d4 = block length (unsigned)
+    sub.l d0,d4                     ; d4 = remaining words
 
     ; if not enough room for a new header + at least 0 data, consume whole block
-    cmp.w #2,d4
+    cmp.l #2,d4
     ble .alloc_whole
 
-    subq.w #2,d4                    ; remove header cost for remainder
+    subq.l #2,d4                    ; remove header cost for remainder
 
     ; split block
     move.w d0,d1
@@ -110,8 +111,8 @@ HeapAlloc:
     rts
 
 .next_block:
-    move.w d2,d4                    ; use only length word
-    lsl.w #1,d4                     ; bytes of payload
+    move.l d2,d4                    ; use unsigned length in long
+    lsl.l #1,d4                     ; bytes of payload
     addq.l #4,d4                    ; header size
     add.l d4,a0                     ; advance
     bra .scan_loop
@@ -187,8 +188,8 @@ HeapFree:
     move.l (a0),d1                  ; current header (A0 points to header)
     move.l d1,d2
     swap d2                         ; d2 = current length (words)
-    move.w d2,d3                    ; cur_words
-    ext.l d3                        ; sign-extend to 32-bit
+    moveq #0,d3
+    move.w d2,d3                    ; cur_words (unsigned)
     move.l d3,d4
     lsl.l #1,d4                     ; bytes for data
     add.l #4,d4                     ; include header
@@ -206,10 +207,9 @@ HeapFree:
     move.l (a1),d5
     move.l d5,d6
     swap d6
-    move.w d6,d7                    ; next_words
-    ext.l d7                        ; sign-extend to 32-bit
+    moveq #0,d7
+    move.w d6,d7                    ; next_words (unsigned)
     move.l d3,d4                    ; cur_words -> use D4 as temp (preserve D0 for backward scan)
-    ext.l d4                        ; sign-extend to 32-bit
     add.l d7,d4
     add.l #2,d4                     ; account for removed header (2 words)
     move.l d4,d1                    ; move merged size to d1
@@ -226,8 +226,8 @@ HeapFree:
     move.l (a3),d1                  ; header at cursor
     move.l d1,d2
     swap d2
-    move.w d2,d3                    ; words
-    ext.l d3                        ; sign-extend to 32-bit
+    moveq #0,d3
+    move.w d2,d3                    ; words (unsigned)
     move.l d3,d4
     lsl.l #1,d4
     add.l #4,d4
@@ -251,13 +251,13 @@ HeapFree:
     move.l (a3),d1
     move.l d1,d2
     swap d2
-    move.w d2,d3                    ; prev_words
-    ext.l d3                        ; sign-extend to 32-bit
+    moveq #0,d3
+    move.w d2,d3                    ; prev_words (unsigned)
     move.l (a0),d4                  ; current header value (A0)
     move.l d4,d5
     swap d5
-    move.w d5,d6                    ; cur_words
-    ext.l d6                        ; sign-extend to 32-bit
+    moveq #0,d6
+    move.w d5,d6                    ; cur_words (unsigned)
     add.l d3,d6
     add.l #2,d6
     move.l d6,d1                    ; merged size to d1

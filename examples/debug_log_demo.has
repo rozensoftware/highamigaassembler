@@ -1,0 +1,63 @@
+// debug_log_demo.has
+// Demonstrates buffered debug logging for takeover-based games.
+//
+// Build with:
+//   python -m hasc.cli examples/debug_log_demo.has -o build/debug_log_demo.s
+//   vasmm68k_mot -Fhunkexe -I lib/ -o build/debug_log_demo.o build/debug_log_demo.s lib/takeover.s lib/debug.s
+//   vlink -bamigahunk build/debug_log_demo.o -o build/debug_log_demo.exe
+
+// Set to 0 in release builds to disable logging with minimal overhead.
+const DEBUG_LOG = 1;
+
+code demo:
+    extern func TakeSystem() -> void;
+    extern func ReleaseSystem() -> void;
+
+    extern func DebugSetEnabled(flag: int) -> int;
+    extern func DebugClear() -> int;
+    extern func DebugLogStr(msg: int) -> int;
+    extern func DebugLogHex(value: int) -> int;
+    extern func DebugLogInt(value: int) -> int;
+    extern func DebugFlushToDos() -> int;
+
+    public main;
+
+    asm {
+        jsr main
+        rts
+    }
+
+    proc main() -> int {
+        // Configure debug mode first.
+        call DebugSetEnabled(DEBUG_LOG);
+        call DebugClear();
+        call DebugLogStr(&msg_boot);
+
+        // Game takeover section: OS calls are unsafe in this window.
+        call TakeSystem();
+        call DebugLogStr(&msg_takeover);
+        call DebugLogHex($DEADBEEF);
+        call DebugLogInt(-12345);
+
+        // Simulate game loop/work.
+        call DebugLogStr(&msg_frame_1);
+        call DebugLogStr(&msg_frame_2);
+        call DebugLogStr(&msg_frame_3);
+
+        // Restore OS before any DOS output.
+        call ReleaseSystem();
+        call DebugLogStr(&msg_release);
+
+        // Safe post-release flush to shell output.
+        call DebugFlushToDos();
+
+        return 0;
+    }
+
+data log_messages:
+    msg_boot.b = "[DBG] boot", 0
+    msg_takeover.b = "[DBG] takeover active (buffer only)", 0
+    msg_frame_1.b = "[DBG] frame=1", 0
+    msg_frame_2.b = "[DBG] frame=2", 0
+    msg_frame_3.b = "[DBG] frame=3", 0
+    msg_release.b = "[DBG] system released", 0

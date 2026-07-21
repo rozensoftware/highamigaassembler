@@ -1,0 +1,21 @@
+// Regression test for indexed byte copy assignments.
+
+data my_data:
+    src.b[4] = {10, 20, 30, 40}
+    dst.b[4] = {0, 0, 0, 0}
+
+code main:
+    asm {
+        jmp test_copy
+    }
+
+    proc test_copy() -> int {
+        var i: int = 1;
+        var j: int = 2;
+        var result: int;
+
+        dst[i] = src[j];
+        result = dst[i];
+
+        return result;
+    }

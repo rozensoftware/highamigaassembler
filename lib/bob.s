@@ -127,10 +127,7 @@ CreateBob:
     rts
 .cb_fail:
     movem.l (sp)+,d1-d7/a0-a4
-    move.l d1,-(sp)           ; push size (words) on stack
-    jsr HeapAlloc             ; allocates, returns pointer in d0
-    addq.l #4,sp              ; clean up stack
-    move.l (sp)+,a2           ; restore runtime-struct pointer
+    moveq #-1,d0
     unlk a6
     rts
 .cb_alloc_fail:
