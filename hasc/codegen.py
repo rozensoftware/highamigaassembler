@@ -1223,6 +1223,7 @@ class CodeGen:
                     self._fail("Division by zero constant in expression.")
                 code.append(f"    ext.l {reg_right}  ; normalize divisor to signed 16-bit semantics")
                 code.append(f"    divs.w {reg_right},{reg_left}")
+                code.append(f"    ext.l {reg_left}  ; isolate quotient and clear remainder word")
             elif expr.op == '%':
                 # Modulo - after divs.w, remainder is in upper word
                 self._require_word_arith_operand(expr.right, 'modulo', 'right', locals_info, params)
