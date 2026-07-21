@@ -295,7 +295,7 @@ if args.generate:
 ### 1. Modify CLI
 
 ```python
-# src/hasc/cli.py
+# hasc/cli.py
 def main(argv=None):
     ap = argparse.ArgumentParser()
     ap.add_argument("input")
@@ -446,19 +446,18 @@ for op in ['add', 'sub', 'mul']:
 
 ## Recommendation
 
-**Start with external Python integration:**
+Use external Python integration as the baseline workflow:
 
-1. **Implement `--generate` option** in CLI (30 minutes)
-   - Add argument parsing
-   - Run Python script via subprocess
-   - Feed output to parser
+1. **Use the existing `--generate` option** in CLI
+    - Run Python script via subprocess
+    - Feed output to parser
 
-2. **Create example generators** (1 hour)
+2. **Create example generators**
    - Sin/cos tables
    - Dispatch tables
    - SIMD patterns
 
-3. **Document the pattern** (30 minutes)
+3. **Document the pattern**
    - Show examples
    - Explain best practices
    - Performance tips
@@ -477,8 +476,6 @@ Then later add `@macro` directive as needed.
 
 ## Next Steps
 
-1. Would you like me to implement the `--generate` option?
-2. Should we add `@macro` support alongside?
-3. Any specific use case you have in mind?
-
-Let me know which direction interests you most!
+1. Reuse `--generate` in build pipelines where generated HAS is part of the source flow.
+2. Add targeted generators for repetitive data and dispatch patterns.
+3. Keep generated examples in version control when reproducibility matters.

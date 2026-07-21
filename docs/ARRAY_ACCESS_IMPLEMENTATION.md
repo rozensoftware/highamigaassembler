@@ -2,11 +2,11 @@
 
 ## Changes Made
 
-### 1. AST Extension (`src/hasc/ast.py`)
+### 1. AST Extension (`hasc/ast.py`)
 - Added `ArrayAccess` dataclass to represent array indexing operations
 - Supports both 1D (`arr[i]`) and 2D (`matrix[row][col]`) array access
 
-### 2. Grammar Extension (`src/hasc/parser.py`)
+### 2. Grammar Extension (`hasc/parser.py`)
 - Added grammar rule: `CNAME ("[" expr "]")+ -> array_access`
 - Allows arbitrary expressions as array indices
 - Supports chained subscripts for multidimensional arrays
@@ -15,7 +15,7 @@
 - Implemented `array_access()` transformer in `ASTBuilder`
 - Creates `ArrayAccess` nodes with name and list of index expressions
 
-### 4. Code Generation (`src/hasc/codegen.py`)
+### 4. Code Generation (`hasc/codegen.py`)
 
 #### Array Dimension Tracking
 - Added `_build_array_dimensions()` to collect global array dimensions
@@ -57,7 +57,7 @@ move.l (a0,d2.l),d0        ; Load element
 - `a0`: Address register for array base
 - Stack: Preserve left operand in complex binary operations
 
-### 6. Validator Updates (`src/hasc/validator.py`)
+### 6. Validator Updates (`hasc/validator.py`)
 - Added `ArrayAccess` validation
 - Validates all index expressions recursively
 - Fixed for-loop counter handling to avoid false duplicate errors

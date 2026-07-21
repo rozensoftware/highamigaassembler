@@ -595,9 +595,6 @@ code while_loops:
 
 ### Do-While Loops
 
-**Note:** DO-WHILE loops are not yet implemented in the current version of the compiler. This feature is planned for a future release.
-
-<!-- Future syntax (not yet supported):
 ```has
 code do_while:
     proc run_once(n: long) -> long {
@@ -608,7 +605,18 @@ code do_while:
         return n;
     }
 ```
--->
+Do-while loops are supported and always execute the loop body at least once.
+
+```has
+code do_while:
+    proc run_once(n: long) -> long {
+        do {
+            n = n * 2;
+        } while (n < 0);  ; Body always executes once
+
+        return n;
+    }
+```
 
 ### For Loops
 ```has
@@ -1011,7 +1019,7 @@ code app:
     asm "rts";        ; Return to OS
 ```
 
-See [examples/execution_order_demo.has](examples/execution_order_demo.has) for a complete demonstration.
+See [examples/execution_order_demo.has](../examples/execution_order_demo.has) for a complete demonstration.
 
 ---
 
@@ -1344,7 +1352,7 @@ cat out.s | head -50
 ## Additional Resources
 
 - [COMPILER_FEATURES_SUMMARY.md](COMPILER_FEATURES_SUMMARY.md) - Detailed feature breakdown
-- [examples/](examples/) - 30+ working examples
-- [src/hasc/ast.py](src/hasc/ast.py) - Complete type system
-- [src/hasc/codegen.py](src/hasc/codegen.py) - Code generation patterns
-- [.github/copilot-instructions.md](.github/copilot-instructions.md) - Architecture guide
+- [examples/](../examples/) - 80+ working examples
+- [hasc/ast.py](../hasc/ast.py) - Complete type system
+- [hasc/codegen.py](../hasc/codegen.py) - Code generation patterns
+- [.github/copilot-instructions.md](../.github/copilot-instructions.md) - Architecture guide

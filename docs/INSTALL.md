@@ -113,8 +113,9 @@ source venv/bin/activate  # On Windows: venv\Scripts\activate
 # Install dependencies
 pip install -r requirements.txt
 
-# Run tests (if available)
-python -m pytest tests/
+# Run example-driven smoke checks
+python -m hasc.cli examples/add.has -o /tmp/add.s
+python -m hasc.cli examples/shift_operators_demo.has -o /tmp/shift.s
 ```
 
 ## Quick Test
@@ -138,7 +139,7 @@ Check the generated `test.s` file - it should contain valid 68000 assembly code.
 
 ## Next Steps
 
-- Read [README.md](README.md) for language overview
-- Check [QUICK_START_ALL_PHASES.md](QUICK_START_ALL_PHASES.md) for detailed tutorial
+- Read [README.md](../README.md) for language overview
+- Check [DEVELOPERS_GUIDE.md](DEVELOPERS_GUIDE.md) for a detailed language tutorial
 - Explore examples in the `examples/` directory
 - Review [COMPILER_DEVELOPERS_GUIDE.md](COMPILER_DEVELOPERS_GUIDE.md) for internals

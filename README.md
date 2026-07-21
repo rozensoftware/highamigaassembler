@@ -105,7 +105,7 @@ python -m hasc.cli hello.has -o hello.s
 
 ### Essential Guides
 
-- **[docs/QUICK_START_ALL_PHASES.md](docs/QUICK_START_ALL_PHASES.md)** - Complete tutorial for all features
+- **[docs/INSTALL.md](docs/INSTALL.md)** - Installation and quick verification
 - **[docs/COMPILER_DEVELOPERS_GUIDE.md](docs/COMPILER_DEVELOPERS_GUIDE.md)** - Architecture and internals
 - **[docs/DEVELOPERS_GUIDE.md](docs/DEVELOPERS_GUIDE.md)** - Language reference and usage patterns
 - **[docs/COMPILER_FEATURES_SUMMARY.md](docs/COMPILER_FEATURES_SUMMARY.md)** - Feature overview
@@ -125,7 +125,7 @@ python -m hasc.cli hello.has -o hello.s
 
 - **[docs/ARRAY_ACCESS_IMPLEMENTATION.md](docs/ARRAY_ACCESS_IMPLEMENTATION.md)** - Array indexing details
 - **[docs/GETREG_SETREG_IMPLEMENTATION.md](docs/GETREG_SETREG_IMPLEMENTATION.md)** - Direct register manipulation
-- **[docs/INCLUDE_SYSTEM_COMPLETION.md](docs/INCLUDE_SYSTEM_COMPLETION.md)** - Module system details
+- **[docs/EXTERNAL_MODULES.md](docs/EXTERNAL_MODULES.md)** - Include/module system details
 - **[docs/GRAPHICS_LIBRARY_INTERFACE.md](docs/GRAPHICS_LIBRARY_INTERFACE.md)** - Amiga graphics programming
 - **[docs/HAM6_SUPPORT.md](docs/HAM6_SUPPORT.md)** - HAM6 graphics mode implementation
 
@@ -136,7 +136,7 @@ The `examples/` directory contains numerous demonstrations:
 ### Basic Examples
 
 - `add.has` - Simple arithmetic operations
-- `vars_test.has` - Variable declarations and initialization
+- `varinit.has` - Variable declarations and initialization
 - `types_demo.has` - Data type demonstrations
 - `const_demo.has` - Constant usage
 
@@ -155,10 +155,10 @@ The `examples/` directory contains numerous demonstrations:
 
 ### Advanced Features
 
-- `macro_example.has` - Macro system usage
+- `include_test.has` - Include system and reusable definitions (including macros)
 - `python_directive.has` - @python directive examples
 - `asm_comprehensive_test.has` - Inline assembly
-- `include_test.has` - Module inclusion
+- `all_features_demo.has` - Combined language feature demonstration
 
 ### Amiga-Specific
 
@@ -264,7 +264,6 @@ python -m hasc.cli program.has -o program.s
 ```
 hasc/                   # Main compiler source code
 ├── __init__.py
-├── __main__.py        # Entry point
 ├── cli.py             # Command-line interface
 ├── parser.py          # Lark-based parser
 ├── ast.py             # AST node definitions
@@ -272,8 +271,10 @@ hasc/                   # Main compiler source code
 ├── codegen.py         # Code generation orchestration (~2900 lines)
 ├── register_allocator.py  # 68000 register allocation with spilling (~160 lines)
 ├── codegen_utils.py   # Code generation utilities (~310 lines)
+├── asm_substitution.py # Assembly placeholder substitution
+├── macro_expander.py   # Macro expansion support
 ├── peepholeopt.py     # Peephole optimization passes
-└── preprocessor.py    # Include and directive processing
+└── reachability.py     # Dead-procedure reachability analysis
 
 vscode-highamigassembler/  # VS Code extension
 ├── package.json       # Extension manifest
@@ -302,6 +303,8 @@ tools/                 # Asset conversion utilities
 ├── frame_merger.py    # Assembly frame file merger
 ├── c64_font_converter.py  # C64 font importer
 ├── c64_sprites_to_bobs.py # C64 sprite converter
+├── q16_helper.py       # Q16.16 conversion helper utility
+├── texturepacker_atlas_importer.py # TexturePacker atlas importer
 └── iff_importer.py    # IFF format importer
 docs/                  # Additional documentation
 ```

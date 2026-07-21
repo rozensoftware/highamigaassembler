@@ -198,7 +198,7 @@ This is a significant improvement for functions called frequently in tight loops
 
 ## See Also
 
-- [Register Parameters (__reg)](REGISTER_PARAMETERS.md)
-- [Assembly Blocks (asm {})](ASM_BLOCKS.md)
-- [Calling Conventions](CALLING_CONVENTIONS.md)
-- [Performance Optimization](PERFORMANCE_OPTIMIZATION.md)
+- [Developer's Guide](DEVELOPERS_GUIDE.md)
+- [Procedure vs Function Summary](PROC_VS_FUNC_SUMMARY.md)
+- [Compiler Developer's Guide](COMPILER_DEVELOPERS_GUIDE.md)
+- [Operators Reference](OPERATORS.md)

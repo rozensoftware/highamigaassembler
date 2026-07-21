@@ -33,12 +33,12 @@ HAS (High Assembler) is a **domain-specific compiler** that translates high-leve
 - **Assembly-first**: Output must be compatible with `vasm` assembler and `vlink` linker
 - **Zero-cost abstractions**: High-level constructs compile to efficient 68000 assembly
 - **Amiga-specific**: Designed for Motorola 68000 (Amiga platform)
-- **Regression coverage**: Pytest suite under `tests/` plus example-driven `.has` programs
+- **Regression coverage**: example-driven `.has` programs, with optional targeted Python tests when present
 
 ### Core Components
 
 ```
-src/hasc/
+hasc/
 ├── cli.py          # Command-line interface, orchestrates compilation
 ├── parser.py       # Lark-based parser, converts text → AST
 ├── ast.py          # AST node definitions, type system
@@ -708,7 +708,7 @@ Observe what's printed.
 
 Search for array access code generation:
 ```bash
-cd src/hasc
+cd hasc
 grep -n "_emit_array_access" codegen.py
 ```
 
@@ -815,7 +815,7 @@ If all pass, the fix is good!
 
 ### Testing Philosophy
 
-Use both the **pytest suite in `tests/`** and **example-driven `.has` programs**. Add a minimal pytest when fixing or adding features, and pair it with a small `.has` example when assembly inspection helps.
+Use **example-driven `.has` programs** as the baseline. Add a minimal Python test when introducing logic that benefits from isolated verification, and pair it with a small `.has` example when assembly inspection helps.
 
 ### Test File Organization
 
@@ -1324,8 +1324,8 @@ When working on the compiler, always:
 
 ### Internal Documentation
 
-- [README.md](README.md) - Project overview
-- [QUICK_START_ALL_PHASES.md](QUICK_START_ALL_PHASES.md) - Implementation guide
+- [README.md](../README.md) - Project overview
+- [INSTALL.md](INSTALL.md) - Setup and first compile
 - [OPERATORS.md](OPERATORS.md) - Operator precedence and implementation
 - [PROC_VS_FUNC_SUMMARY.md](PROC_VS_FUNC_SUMMARY.md) - Function declaration patterns
 

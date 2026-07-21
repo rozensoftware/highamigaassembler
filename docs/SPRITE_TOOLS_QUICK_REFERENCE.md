@@ -290,7 +290,7 @@ pip install pillow
 
 - Hardware Sprites: `docs/SPRITE_STRIP_IMPORTER.md`
 - BOBs: `docs/BOB_STRIP_IMPORTER.md`
-- Examples: `examples/sprite_strip_examples.md`
+- Examples: `docs/sprite_strip_examples.md`
 - Overview: `docs/SPRITE_TOOLS_OVERVIEW.md`
 - HW Sprite Runtime: `lib/sprite.s`
 

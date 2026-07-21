@@ -104,16 +104,14 @@ See [examples/shift_operators_demo.has](../examples/shift_operators_demo.has) fo
 
 ## Tests
 
-Comprehensive tests are in [tests/test_shift_operators.py](../tests/test_shift_operators.py):
-- `test_left_shift()` - Basic left shift
-- `test_right_shift()` - Basic right shift
-- `test_shift_constant_folding()` - Compile-time evaluation
-- `test_shift_variable()` - Runtime variable shifts
-- `test_shift_in_expression()` - Shifts in complex expressions
+Validation is example-driven in this repository. Use:
+- [examples/shift_operators_demo.has](../examples/shift_operators_demo.has) for shift behavior coverage
+- [examples/bitwise_comprehensive.has](../examples/bitwise_comprehensive.has) for combined bitwise+shift scenarios
 
-Run tests with:
+Compile checks:
 ```bash
-.venv/bin/python -m pytest tests/test_shift_operators.py -v
+python -m hasc.cli examples/shift_operators_demo.has -o /tmp/shift_operators_demo.s
+python -m hasc.cli examples/bitwise_comprehensive.has -o /tmp/bitwise_comprehensive.s
 ```
 
 ## Performance Notes

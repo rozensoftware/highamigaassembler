@@ -10,7 +10,7 @@ Successfully implemented three new compiler features for the HAS (High Assembler
 
 ## Implementation Details
 
-### 1. AST Node Additions (`src/hasc/ast.py`)
+### 1. AST Node Additions (`hasc/ast.py`)
 
 Added three new dataclass nodes:
 
@@ -32,7 +32,7 @@ class ConstDecl:
     value: int
 ```
 
-### 2. Parser Updates (`src/hasc/parser.py`)
+### 2. Parser Updates (`hasc/parser.py`)
 
 Added grammar rules to parse the new syntax:
 
@@ -49,14 +49,14 @@ const_decl: "const" CNAME "=" NUMBER ";"
 
 Implemented transformer methods in `ASTBuilder` class to convert parse trees to AST nodes.
 
-### 3. Validator Updates (`src/hasc/validator.py`)
+### 3. Validator Updates (`hasc/validator.py`)
 
 Enhanced the `Validator` class to:
 - Collect all `ConstDecl` nodes into a `self.constants` dictionary
 - Process `WarningDirective` nodes by printing them to console
 - Process `ErrorDirective` nodes by raising a `ValidationError` to stop compilation
 
-### 4. Code Generator Updates (`src/hasc/codegen.py`)
+### 4. Code Generator Updates (`hasc/codegen.py`)
 
 Enhanced the `CodeGen` class to:
 - Collect constants into a `self.constants` dictionary via `_build_constants()` method

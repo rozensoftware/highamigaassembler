@@ -38,6 +38,12 @@ All notable changes to the HAS (High Assembler) project will be documented in th
 
 ### Changed
 
+- **Documentation drift cleanup** across README and docs:
+  - Updated README project structure to match current `hasc/` and `tools/` layout.
+  - Replaced stale/missing documentation links with existing targets.
+  - Corrected outdated example references and sprite-tool cross-links.
+  - Aligned contributor/developer docs with current version and example-driven testing workflow.
+
 - **BOB lifecycle update** in `lib/bob.s`:
   - `DestroyBob(handle)` now frees mirrored owned data/mask buffers for handles created by mirror APIs, in addition to freeing background buffer (if present) and runtime struct.
 

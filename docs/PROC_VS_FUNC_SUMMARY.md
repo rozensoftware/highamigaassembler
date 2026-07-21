@@ -66,9 +66,9 @@ See `examples/forward_decl.has` and `examples/return_values.has` for working exa
 
 ## Files Changed
 
-1. **src/hasc/ast.py**: Added `FuncDecl` dataclass
-2. **src/hasc/parser.py**: Added `func_decl` grammar and transformer
-3. **src/hasc/codegen.py**: Skip code generation for forward declarations
+1. **hasc/ast.py**: Added `FuncDecl` dataclass
+2. **hasc/parser.py**: Added `func_decl` grammar and transformer
+3. **hasc/codegen.py**: Skip code generation for forward declarations
 4. **Fixed**: 2D array access to use new array_dims structure
 
 All examples compile successfully.

@@ -4,7 +4,7 @@ Thank you for your interest in contributing to the HAS (High Assembler) project!
 
 ## Project Status
 
-**Version 0.4 - In Constant Development**
+**Version 0.6 - In Constant Development**
 
 This compiler is actively being developed. We welcome contributions, bug reports, and suggestions.
 
@@ -122,10 +122,14 @@ Explain the problem this commit solves and why this approach was chosen.
 
 3. **Test Thoroughly**:
    ```bash
-   # Test with examples
-   python -m hasc.cli examples/*.has
-   
-   # Verify no regressions
+   # Test one example quickly
+   python -m hasc.cli examples/add.has -o /tmp/test.s
+
+   # Verify no regressions (split positive/negative example gate)
+   ./scripts/test_examples_split.sh
+
+   # Or compile all root examples in a loop
+   for f in examples/*.has; do python -m hasc.cli "$f" -o /tmp/test.s || exit 1; done
    ```
 
 4. **Update Documentation**:
@@ -141,7 +145,7 @@ Explain the problem this commit solves and why this approach was chosen.
 
 ### Areas Needing Help
 
-Current focus areas (Version 0.4):
+Current focus areas (Version 0.6):
 
 #### High Priority
 - **Test Suite**: Automated testing framework
@@ -171,8 +175,9 @@ hasc/
 ├── parser.py           # Lark grammar and AST builder
 ├── ast.py              # AST node definitions
 ├── validator.py        # Semantic analysis (2-pass)
-├── codegen.py          # Code generation (2500+ lines)
-└── preprocessor.py     # Include and directive processing
+├── codegen.py          # Code generation
+├── macro_expander.py   # Macro expansion support
+└── reachability.py     # Dead-procedure reachability analysis
 ```
 
 ### Compilation Pipeline

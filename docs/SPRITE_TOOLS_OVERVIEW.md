@@ -252,7 +252,7 @@ done
 ## Related Documentation
 
 - [SPRITE_STRIP_IMPORTER.md](SPRITE_STRIP_IMPORTER.md) - Detailed documentation
-- [sprite_strip_examples.md](../examples/sprite_strip_examples.md) - Practical examples
+- [sprite_strip_examples.md](sprite_strip_examples.md) - Practical examples
 - [GRAPHICS_LIBRARY_INTERFACE.md](GRAPHICS_LIBRARY_INTERFACE.md) - Graphics API
 - [lib/sprite.s](../lib/sprite.s) - Hardware sprite runtime library
 
