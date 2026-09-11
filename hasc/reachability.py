@@ -130,6 +130,11 @@ def _collect_direct_calls_from_stmt(stmt, out_calls: Set[str]) -> None:
             _collect_direct_calls_from_stmt(s, out_calls)
         return
 
+    if isinstance(stmt, ast.Loop):
+        for s in stmt.body:
+            _collect_direct_calls_from_stmt(s, out_calls)
+        return
+
 
 def _build_call_graph(module: ast.Module, internal_procs: Set[str]) -> Tuple[dict, Set[str], bool]:
     graph = {name: set() for name in internal_procs}

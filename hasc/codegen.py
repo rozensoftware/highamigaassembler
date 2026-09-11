@@ -723,6 +723,9 @@ class CodeGen:
                 elif isinstance(stmt, ast.RepeatLoop):
                     # Recursively collect locals in loop body
                     collect_locals(stmt.body)
+                elif isinstance(stmt, ast.Loop):
+                    # Recursively collect locals in loop body
+                    collect_locals(stmt.body)
                 elif isinstance(stmt, ast.If):
                     # Recursively collect locals in both branches
                     collect_locals(stmt.then_body)
@@ -3276,6 +3279,27 @@ class CodeGen:
             self.emit(f"{end_label}:")
             if self.annotate:
                 self.emit(indent + "; end while")
+
+            # Pop loop context
+            self.loop_stack.pop()
+        elif isinstance(stmt, ast.Loop):
+            # loop { body } - endless loop, equivalent to while(1){} but with no
+            # condition check emitted at all: just body + unconditional branch back to top.
+            start_label = self._next_label("loop")
+            end_label = self._next_label("endloop")
+
+            # Push loop context for break/continue
+            self.loop_stack.append((start_label, end_label))
+
+            self.emit(f"{start_label}:")
+
+            for s in stmt.body:
+                self._emit_stmt(s, params, locals_info, proc, indent, is_void, frame_reg=frame_reg)
+
+            self.emit(indent + f"bra {start_label}")
+            self.emit(f"{end_label}:")
+            if self.annotate:
+                self.emit(indent + "; end loop")
 
             # Pop loop context
             self.loop_stack.pop()

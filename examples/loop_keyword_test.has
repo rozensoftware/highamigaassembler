@@ -1,0 +1,47 @@
+// Demonstrates the `loop { }` keyword: an endless loop exited only via `break;`.
+// Equivalent to `while(1){}` but emits no condition check at all - just an
+// unconditional branch back to the top of the loop body.
+
+code test:
+    asm { jmp main }
+
+    proc main() -> void {
+        call count_to_five();
+        call sum_even_only();
+        asm "rts";
+    }
+
+    // loop + break: count up until i reaches 5.
+    proc count_to_five() -> int {
+        var i: int = 0;
+
+        loop
+        {
+            i = i + 1;
+            if (i >= 5) {
+                break;
+            }
+        }
+
+        return i;
+    }
+
+    // loop + continue + break together, mirroring while(1){} usage.
+    proc sum_even_only() -> int {
+        var i: int = 0;
+        var total: int = 0;
+
+        loop
+        {
+            i = i + 1;
+            if (i > 10) {
+                break;
+            }
+            if ((i % 2) != 0) {
+                continue;
+            }
+            total = total + i;
+        }
+
+        return total;
+    }

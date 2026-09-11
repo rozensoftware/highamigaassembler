@@ -93,7 +93,7 @@ asm_stmt: "asm" STRING [";"]
 
 ASMBLOCK: /\{BLOCK_\d+\}/
 
-?stmt: push_stmt | pop_stmt | var_decl | compound_assign_stmt | assign_stmt | return_stmt | if_stmt | while_stmt | do_while_stmt | for_stmt | repeat_stmt | expr_stmt | call_stmt | asm_stmt | break_stmt | continue_stmt | macro_call_stmt | python_stmt | starti_stmt | endi_stmt
+?stmt: push_stmt | pop_stmt | var_decl | compound_assign_stmt | assign_stmt | return_stmt | if_stmt | while_stmt | do_while_stmt | for_stmt | repeat_stmt | loop_stmt | expr_stmt | call_stmt | asm_stmt | break_stmt | continue_stmt | macro_call_stmt | python_stmt | starti_stmt | endi_stmt
 call_stmt: "call" CNAME "(" [arglist] ")" ";"
 macro_call_stmt: CNAME "(" [arglist] ")" ";"
 python_stmt: "@python" STRING ";"
@@ -121,6 +121,7 @@ while_stmt: "while" "(" expr ")" stmt_or_block
 do_while_stmt: "do" stmt_or_block "while" "(" expr ")" ";"
 for_stmt: "for" CNAME "=" expr "to" expr ["by" expr] stmt_or_block
 repeat_stmt: "repeat" expr stmt_or_block
+loop_stmt: "loop" stmt_or_block
 stmt_or_block: stmt_block | stmt
 stmt_block: "{" stmt* "}"
 expr_stmt: expr ";"
@@ -369,7 +370,7 @@ class ASTBuilder(Transformer):
         # Gather body statements (all remaining ast nodes)
         body = []
         for it in items[idx:]:
-            if isinstance(it, (ast.VarDecl, ast.Assign, ast.CompoundAssign, ast.Return, ast.If, ast.While, ast.DoWhile, ast.ForLoop, ast.RepeatLoop, ast.ExprStmt, ast.AsmBlock, ast.CallStmt, ast.PushRegs, ast.PopRegs, ast.Break, ast.Continue, ast.MacroCall, ast.PythonStmt, ast.StartInterrupt, ast.EndInterrupt)):
+            if isinstance(it, (ast.VarDecl, ast.Assign, ast.CompoundAssign, ast.Return, ast.If, ast.While, ast.DoWhile, ast.ForLoop, ast.RepeatLoop, ast.Loop, ast.ExprStmt, ast.AsmBlock, ast.CallStmt, ast.PushRegs, ast.PopRegs, ast.Break, ast.Continue, ast.MacroCall, ast.PythonStmt, ast.StartInterrupt, ast.EndInterrupt)):
                 body.append(it)
         
         return ast.Proc(name=name, params=params, rettype=rettype, body=body, native=False)
@@ -394,7 +395,7 @@ class ASTBuilder(Transformer):
         # Gather body statements (all remaining ast nodes)
         body = []
         for it in items[idx:]:
-            if isinstance(it, (ast.VarDecl, ast.Assign, ast.CompoundAssign, ast.Return, ast.If, ast.While, ast.DoWhile, ast.ForLoop, ast.RepeatLoop, ast.ExprStmt, ast.AsmBlock, ast.CallStmt, ast.PushRegs, ast.PopRegs, ast.Break, ast.Continue, ast.MacroCall, ast.PythonStmt, ast.StartInterrupt, ast.EndInterrupt)):
+            if isinstance(it, (ast.VarDecl, ast.Assign, ast.CompoundAssign, ast.Return, ast.If, ast.While, ast.DoWhile, ast.ForLoop, ast.RepeatLoop, ast.Loop, ast.ExprStmt, ast.AsmBlock, ast.CallStmt, ast.PushRegs, ast.PopRegs, ast.Break, ast.Continue, ast.MacroCall, ast.PythonStmt, ast.StartInterrupt, ast.EndInterrupt)):
                 body.append(it)
         
         return ast.Proc(name=name, params=params, rettype=rettype, body=body, native=True)
@@ -441,7 +442,7 @@ class ASTBuilder(Transformer):
         index = self._parse_number(self._val(items[1]))
         body = []
         for it in items[2:]:
-            if isinstance(it, (ast.VarDecl, ast.Assign, ast.CompoundAssign, ast.Return, ast.If, ast.While, ast.DoWhile, ast.ForLoop, ast.RepeatLoop, ast.ExprStmt, ast.AsmBlock, ast.CallStmt, ast.PushRegs, ast.PopRegs, ast.Break, ast.Continue, ast.MacroCall, ast.PythonStmt, ast.StartInterrupt, ast.EndInterrupt)):
+            if isinstance(it, (ast.VarDecl, ast.Assign, ast.CompoundAssign, ast.Return, ast.If, ast.While, ast.DoWhile, ast.ForLoop, ast.RepeatLoop, ast.Loop, ast.ExprStmt, ast.AsmBlock, ast.CallStmt, ast.PushRegs, ast.PopRegs, ast.Break, ast.Continue, ast.MacroCall, ast.PythonStmt, ast.StartInterrupt, ast.EndInterrupt)):
                 body.append(it)
         return ast.InterruptProc(name=name, index=index, body=body)
 
@@ -1091,6 +1092,11 @@ class ASTBuilder(Transformer):
         body = items[0] if len(items) > 0 else []
         cond = items[1] if len(items) > 1 else []
         return self._record_line(ast.DoWhile(body=body, cond=cond), meta)
+
+    @v_args(meta=True)
+    def loop_stmt(self, meta, items):
+        body = items[0] if len(items) > 0 else []
+        return self._record_line(ast.Loop(body=body), meta)
 
     @v_args(meta=True)
     def expr_stmt(self, meta, items):
@@ -1871,6 +1877,9 @@ def parse(text: str, base_dir: str = None) -> ast.Module:
             for stmt in _as_list(node.body):
                 restore_blocks(stmt)
         elif isinstance(node, ast.RepeatLoop):
+            for stmt in _as_list(node.body):
+                restore_blocks(stmt)
+        elif isinstance(node, ast.Loop):
             for stmt in _as_list(node.body):
                 restore_blocks(stmt)
     

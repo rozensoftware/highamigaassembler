@@ -141,10 +141,13 @@ for i = 0 to 10 { ... }          // BASIC-style, inclusive
 for i = 0 to 100 by 5 { ... }    // 'by' step; step may be a runtime expression
 for i = 10 to 0 by -1 { ... }    // descending via negative step - there is NO 'downto'
 repeat 10 { ... }                // repeat COUNT (expr allowed)
+loop { ... }                     // endless loop, exit only via `break;` - no condition at all
 ```
 
 There is **no** C-style `for (init; cond; step)`.
 `d7` is reserved compiler-wide for `dbra` counters used by `for`/`repeat`.
+`loop { }` is equivalent to `while(1){}` but emits only a body + unconditional `bra` back to the
+top - no comparison/branch is generated at all, since there's no condition to test.
 
 ### lvalues (`lvalue`)
 

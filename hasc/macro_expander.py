@@ -131,6 +131,9 @@ class MacroExpander:
             stmt.count = self.substitute_in_expr(stmt.count, substitutions)
             stmt.body = [self.substitute_in_stmt(s, substitutions) for s in stmt.body]
 
+        elif isinstance(stmt, ast.Loop):
+            stmt.body = [self.substitute_in_stmt(s, substitutions) for s in stmt.body]
+
         elif isinstance(stmt, ast.ExprStmt):
             stmt.expr = self.substitute_in_expr(stmt.expr, substitutions)
 

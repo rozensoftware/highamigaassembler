@@ -158,7 +158,7 @@
         },
         {
           "name": "keyword.control.highamigassembler",
-          "match": "\\b(?:extern|public|macro|const|var|struct|return|if|else|while|for|repeat|to|by|break|continue|call|asm|starti|endi|PUSH|POP)\\b"
+          "match": "\\b(?:extern|public|macro|const|var|struct|return|if|else|while|do|for|to|by|repeat|loop|break|continue|call|asm|starti|endi|PUSH|POP)\\b"
         },
         {
           "name": "keyword.other.decorator.highamigassembler",
@@ -167,6 +167,10 @@
         {
           "name": "keyword.other.register.highamigassembler",
           "match": "__reg"
+        },
+        {
+          "name": "support.function.builtin.highamigassembler",
+          "match": "\\b(?:GetReg|SetReg)\\b"
         }
       ]
     },
@@ -174,7 +178,7 @@
       "patterns": [
         {
           "name": "storage.type.highamigassembler",
-          "match": "\\b(?:int|word|long|void|byte|bool|u8|u16|u32|ptr)\\b"
+          "match": "\\b(?:int|word|long|void|byte|bool|u8|u16|u32|i8|i16|i32|ptr)\\b"
         }
       ]
     },

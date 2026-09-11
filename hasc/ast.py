@@ -266,6 +266,13 @@ class RepeatLoop:
 
 
 @dataclass
+class Loop:
+    """Infinite loop: loop { body }. Equivalent to while(1){} but with no condition
+    check emitted - just an unconditional branch back to the top. Exited only via break."""
+    body: List[Any]
+
+
+@dataclass
 class ExprStmt:
     expr: Any
 

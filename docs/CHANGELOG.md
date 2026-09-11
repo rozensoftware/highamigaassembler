@@ -4,6 +4,17 @@ All notable changes to the HAS (High Assembler) project will be documented in th
 
 ## [Unreleased]
 
+### Added
+
+- **New `loop { ... }` statement**: an endless loop, exited only via `break;`. Functionally
+  equivalent to `while(1){}`, but generates leaner code - no condition is ever evaluated or
+  branched on, just the loop body followed by an unconditional `bra` back to the top (`while(1){}`
+  by contrast still emits/evaluates the `1` condition on every iteration). `break`/`continue` work
+  exactly as in other loops (`continue` jumps straight back to the top, since there is no condition
+  check to jump to). New grammar rule `loop_stmt` (`hasc/parser.py`), new `ast.Loop` node, and
+  matching support in the validator, macro expander, reachability analysis, and codegen (including
+  both `--cpu 68000` and `--cpu 68020`). Example: [examples/loop_keyword_test.has](../examples/loop_keyword_test.has).
+
 ### Fixed
 
 - **Peephole optimizer could silently drop a real function call.** `_fold_immediate_to_memory`'s
