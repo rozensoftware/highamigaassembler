@@ -29,6 +29,13 @@ All notable changes to the HAS (High Assembler) project will be documented in th
   to protect against that specific case. Applies identically to `--cpu 68000` and `--cpu 68020`,
   and to `proc`, forward `func`, and `extern func` call sites alike (e.g. native library calls).
   No behavior change - fewer instructions only.
+  - Follow-up: the "provably side-effect-free" check now also recognizes any compile-time-constant
+    expression (e.g. a negative literal like `-1`, which parses as a unary-minus node rather than
+    a plain literal, or arithmetic of `const`s), not just bare literals/variables. Negative-literal
+    direction/step arguments are common in real `Scroll(...)` calls (e.g.
+    [examples/scroll_test.has](../examples/scroll_test.has),
+    [examples/dual_playfield_demo.has](../examples/dual_playfield_demo.has)), where the stash was
+    previously still forced on every earlier register argument in the same call.
 
 
 

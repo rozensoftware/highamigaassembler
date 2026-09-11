@@ -2151,10 +2151,15 @@ class CodeGen:
 
     def _is_simple_call_arg(self, expr) -> bool:
         """True if evaluating expr touches only its own destination register (a
-        plain literal or variable reference) - mirrors the classification
-        _emit_push_arg already uses to skip a temp register for stack args."""
+        plain literal, variable reference, or any compile-time-constant
+        expression such as a negative literal or const arithmetic) - mirrors
+        the classification _emit_push_arg already uses to skip a temp register
+        for stack args, extended to anything _fold_constant can resolve."""
         expr = self._normalize_expr(expr)
-        return isinstance(expr, (ast.Number, ast.VarRef))
+        if isinstance(expr, (ast.Number, ast.VarRef)):
+            return True
+        is_const, _ = self._fold_constant(expr)
+        return is_const
 
     def _reg_param_protection_flags(self, reg_params, args):
         """Decide, per (arg_idx, register) entry in reg_params (declaration order),
