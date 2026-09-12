@@ -1006,7 +1006,20 @@ DrawBobWithMaskDualpf:
     adda.w	d1,a2
     swap	d0			                    ; Move shift value to top word
 
-    ; Wait for blitter
+    ; BOB data now has exactly BITPLANESDUALPF (3) real bitplanes/row,
+    ; matching dual playfield's 3 owned planes 1:1 (both data and mask are
+    ; fully contiguous, row-interleaved, no padding between planes/rows),
+    ; so a single BLTSIZE run of height*3 units advances source and dest in
+    ; lockstep with zero source modulo - no per-plane skip loop needed.
+    move.w  d4,d7                   ; d7 = width
+    addi.w  #15,d7
+    lsr.w   #4,d7                   ; d7 = chunks
+    move.w  d7,d3
+    add.w   d3,d3                   ; d3 = chunks*2 = bytes per plane-row
+
+    move.w  #80,d2
+    sub.w   d3,d2                   ; d2 = dest modulo (80 = 3 owned planes/scanline)
+
     WAITBLIT
 
     move.l	a1,BLTAPT(a5)		        ; Source A = Mask
@@ -1016,29 +1029,19 @@ DrawBobWithMaskDualpf:
     move.w	#$FFFF,BLTAFWM(a5)	        ; No first word masking
     move.w	#$FFFF,BLTALWM(a5)	        ; No last word masking
     move.w	d0,BLTCON1(a5)		        ; Use shift for source B
-    or.w	#$0FCA,d0		            ; USEA,B, C and D. Minterm $CA, D=AB+/AC
-    move.w	d0,BLTCON0(a5)
-    move.w	#0,BLTAMOD(a5)		        ; No modulo - data is contiguous per plane
-    move.w	#0,BLTBMOD(a5)		        ; No modulo - data is contiguous per plane
-
-    ; chunks = ceil(width/16); modulo = 80 - chunks*2 (dual playfield per-row
-    ; modulo base is 80: 3 owned planes * 80 = 240 = one full 6-plane scanline)
-    move.w  d4,d7                   ; d7 = width
-    addi.w  #15,d7
-    lsr.w   #4,d7                   ; d7 = chunks
-    move.w  d7,d3
-    add.w   d3,d3                   ; d3 = chunks*2 bytes
-    move.w  #80,d2
-    sub.w   d3,d2                   ; d2 = 80 - chunks*2
+    move.w  d0,d4
+    or.w	#$0FCA,d4		            ; USEA,B, C and D. Minterm $CA, D=AB+/AC
+    move.w	d4,BLTCON0(a5)
+    move.w  #0,BLTAMOD(a5)          ; mask data contiguous, no gap
+    move.w  #0,BLTBMOD(a5)          ; object data contiguous, no gap
     move.w  d2,BLTDMOD(a5)
     move.w  d2,BLTCMOD(a5)
 
-    move.w  d5,d6                   ; d6 = height
-    mulu    #BITPLANESDUALPF,d6     ; d6 = height * planes (3 owned planes)
-    lsl.w   #6,d6                   ; shift into bits 15-6
-
-    or.w    d7,d6
-    move.w  d6,BLTSIZE(a5)
+    move.w  d5,d4                   ; d4 = height
+    mulu    #BITPLANESDUALPF,d4     ; d4 = height * 3 owned planes
+    lsl.w   #6,d4                   ; shift into bits 15-6
+    or.w    d7,d4
+    move.w  d4,BLTSIZE(a5)
     rts
 
 ; DrawBob: paste bob without mask (opaque copy)
@@ -1160,36 +1163,37 @@ DrawBobDualpf:
     adda.w	d1,a2
     swap	d0					; Move shift value to top word
 
-    ; Wait for blitter
+    ; BOB data now has exactly BITPLANESDUALPF (3) real bitplanes/row,
+    ; matching dual playfield's 3 owned planes 1:1 (contiguous, no padding
+    ; between planes/rows), so a single BLTSIZE run of height*3 units
+    ; advances source and dest in lockstep with zero source modulo.
+    move.w  d4,d7                   ; d7 = width
+    addi.w  #15,d7
+    lsr.w   #4,d7                   ; d7 = chunks
+    move.w  d7,d3
+    add.w   d3,d3                   ; d3 = chunks*2 = bytes per plane-row
+
+    move.w  #80,d2
+    sub.w   d3,d2                   ; d2 = dest modulo (80 = 3 owned planes/scanline)
+
     WAITBLIT
 
     move.l	a0,BLTAPT(a5)		; Source A = Object (opaque source)
     move.l	a2,BLTDPT(a5)		; Destination = Background
     move.w	#$FFFF,BLTAFWM(a5)		; No first word masking
     move.w	#$FFFF,BLTALWM(a5)		; No last word masking
-    or.w #$09F0,d0		        ; Minterm for D = A (opaque copy)
-    move.w	d0,BLTCON0(a5) 		; Use shift value in BLTCON0
+    move.w  d0,d4
+    or.w #$09F0,d4		        ; Minterm for D = A (opaque copy)
+    move.w	d4,BLTCON0(a5) 		; Use shift value in BLTCON0
     move.w #0,BLTCON1(a5) 		; No shift in BLTCON1
-    move.w	#0,BLTAMOD(a5) 		; No modulo - data is contiguous per plane
-
-    ; BLTSIZE = ((height*planes) << 6) | (chunks)
-    ; chunks = ceil(width/16); modulo = 80 - chunks*2 (dual playfield per-row
-    ; modulo base is 80: 3 owned planes * 80 = 240 = one full 6-plane scanline)
-    move.w  d4,d7                   ; d7 = width
-    addi.w  #15,d7
-    lsr.w   #4,d7                   ; d7 = chunks
-    move.w  d7,d3
-    add.w   d3,d3                   ; d3 = chunks*2 bytes
-    move.w  #80,d2
-    sub.w   d3,d2                   ; d2 = 80 - chunks*2
+    move.w  #0,BLTAMOD(a5)          ; source data contiguous, no gap
     move.w  d2,BLTDMOD(a5)
 
-    move.w  d5,d6                   ; d6 = height
-    mulu    #BITPLANESDUALPF,d6     ; d6 = height * planes (3 owned planes)
-    lsl.w   #6,d6                   ; shift into bits 15-6
-
-    or.w    d7,d6
-    move.w  d6,BLTSIZE(a5)
+    move.w  d5,d4                   ; d4 = height
+    mulu    #BITPLANESDUALPF,d4     ; d4 = height * 3 owned planes
+    lsl.w   #6,d4                   ; shift into bits 15-6
+    or.w    d7,d4
+    move.w  d4,BLTSIZE(a5)
     rts
 
 ; PasteBob(handle, x, y, mode)
