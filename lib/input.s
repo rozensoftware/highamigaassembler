@@ -26,6 +26,9 @@ mouse_lbtn_released  dc.w 0                 ; left mouse button release edge
 mouse_rbtn_prev      dc.w 0                 ; previous right mouse button state
 mouse_rbtn_pressed   dc.w 0                 ; right mouse button press edge
 mouse_rbtn_released  dc.w 0                 ; right mouse button release edge
+joy_fire_prev        dc.w 0                 ; previous joystick 0 fire state
+joy_fire_pressed     dc.w 0                 ; fire press edge
+joy_fire_released    dc.w 0                 ; fire release edge
             SECTION    code,CODE
             CNOP 0,4
 
@@ -71,6 +74,55 @@ ReadJoystickFire:
             bne.s .no_fire
             move.b #1,d0
 .no_fire:
+            rts
+
+;----------------------------------------------------------------
+; Function: UpdateJoystickFire
+; Input: none
+; Output: d0=current fire state (1 pressed, 0 otherwise)
+; Description: Samples joystick 0 fire and updates Hold/edge flags.
+; Notes: Call once per frame before GetJoystickFirePressed/Released.
+;----------------------------------------------------------------
+            xdef UpdateJoystickFire
+UpdateJoystickFire:
+            move.w  joy_fire_prev,d1
+            clr.w   d0
+            btst.b  #7,$bfe001
+            bne.s   .up
+            move.w  #1,d0
+.up:
+            move.w  d0,joy_fire_prev
+            move.w  d1,d2
+            not.w   d2
+            and.w   d0,d2
+            move.w  d2,joy_fire_pressed
+            move.w  d0,d2
+            not.w   d2
+            and.w   d1,d2
+            move.w  d2,joy_fire_released
+            ext.l   d0
+            rts
+
+;----------------------------------------------------------------
+; Function: GetJoystickFirePressed
+; Input: none
+; Output: d0=1 on fire press edge from latest UpdateJoystickFire
+;----------------------------------------------------------------
+            xdef GetJoystickFirePressed
+GetJoystickFirePressed:
+            move.w  joy_fire_pressed,d0
+            ext.l   d0
+            rts
+
+;----------------------------------------------------------------
+; Function: GetJoystickFireReleased
+; Input: none
+; Output: d0=1 on fire release edge from latest UpdateJoystickFire
+;----------------------------------------------------------------
+            xdef GetJoystickFireReleased
+GetJoystickFireReleased:
+            move.w  joy_fire_released,d0
+            ext.l   d0
             rts
 
 ;----------------------------------------------------------------

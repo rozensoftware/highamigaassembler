@@ -4,8 +4,27 @@ All notable changes to the HAS (High Assembler) project will be documented in th
 
 ## [Unreleased]
 
+### Fixed
+
+- **Takeover / interrupt VBR safety:** `lib/takeover.s` now saves and restores
+  level-2/3/4 vectors relative to `VBRBase` (`GetVBR` via Supervisor on
+  68010+). `lib/keyboard.s` and the `interrupt` keyword runtime
+  (`hasc/codegen.py` `_has_int_ensure_installed`) install through the same
+  base instead of absolute `$68`/`$6c`. Prevents dangling/wrong vectors on
+  machines with a relocated VBR.
+- **Takeover OS View handoff:** `TakeSystem` blanks with `LoadView(NULL)` +
+  `WaitTOF`×2 before OwnBlitter; `ReleaseSystem` restores the saved ActiView
+  the same way (plus double INTREQ clear / optional `CacheClearU`). Adapted
+  from ELMGames/AmigaGameEngine (MIT) while keeping HAS `a5 = CUSTOM`.
+- **Keyboard make/break:** ISR no longer stores break codes into
+  `current_key`. Adds `Keys[]`, `KeyDown()`, and `ClearKey()`.
+
 ### Added
 
+- **`lib/palette_fade.s`:** `PaletteFadeInit` / `PaletteFadeStep` for RGB4
+  fades into `COLOR00..31` (optional; linked when referenced).
+- **Joystick fire edges:** `UpdateJoystickFire` /
+  `GetJoystickFirePressed` / `GetJoystickFireReleased` in `lib/input.s`.
 - [Compiler diagnostic reference](COMPILER_DIAGNOSTICS.md) covering warnings,
   errors, asset-helper and toolchain failures, with causes, remedies and source
   links. Clarifies the pointer-parameter warning's naming heuristic and why

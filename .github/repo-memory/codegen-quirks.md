@@ -483,8 +483,8 @@
   only `jsr`'s 32-bit absolute reloc is. Always use `jsr`, never `bsr`, for
   any cross-section call the codegen emits.
 - Extended `lib/takeover.s` (`TakeSystem`/`ReleaseSystem`) to also save/
-  restore the level-3 autovector (`old_int3`, `$6c`) alongside the
-  pre-existing level-2/level-4 (`$68`/`$70`) - `ReleaseSystem`'s existing
+  restore the level-3 autovector (`old_int3`, `VBRBase+$6c`) alongside the
+  pre-existing level-2/level-4 (`VBRBase+$68`/`+$70`) - `ReleaseSystem`'s existing
   unconditional `move.w #$7fff,INTENA` already blanket-disabled VERTB too,
   so this closes the "Release must disable all not-stopped interrupts"
   requirement generically without any per-slot bookkeeping needed there.
@@ -520,7 +520,8 @@
   cycle in one run silently skipped re-patching `$6c` (VERTB routed back to
   the OS handler, user's interrupt proc silently stopped firing, no error).
   Fixed by making the check self-correcting: compare `$6c` against
-  `#_has_vblank_isr` directly (`move.l $6c,d0` / `cmp.l #_has_vblank_isr,d0`
+  `#_has_vblank_isr` directly (`move.l VBRBase,a0` / `move.l $6c(a0),d0` /
+  `cmp.l #_has_vblank_isr,d0`
   / `beq.s .done`) instead of a separate installed-flag - removed the
   `_has_int_installed` dc.w entirely. Still-open, documented-not-fixed risk:
   calling `starti()` *before* `TakeSystem()` makes `TakeSystem()` capture

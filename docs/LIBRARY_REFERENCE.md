@@ -108,9 +108,11 @@ Takes exclusive control of Amiga hardware and releases it cleanly.
 
 ### `TakeSystem() -> void`
 
-Disables OS multitasking, opens `graphics.library`, saves DMA/interrupt state, installs clean DMA/interrupt setup, and sets `a5 = $DFF000` (CUSTOM chip base) for use in subsequent hardware access.
+Disables OS multitasking, opens `graphics.library`, blanks the OS View (`LoadView(NULL)` + `WaitTOF`×2), saves DMA/interrupt state, installs clean DMA/interrupt setup, and sets `a5 = $DFF000` (CUSTOM chip base) for use in subsequent hardware access.
 
-**Saves and restores**: DMACON, INTENA, INTREQ, ADKCON, CIAAICR, copper list pointer, level-2/4 interrupt vectors.
+**Saves and restores**: DMACON, INTENA, INTREQ, ADKCON, CIAAICR, copper list pointer, ActiView, level-2/3/4 interrupt vectors **relative to `VBRBase`** (0 on 68000; relocated on 68010+ via `GetVBR`).
+
+Also exports `VBRBase` (long) and `GetVBR()` / `ClearCPUCache()` for other libraries and the `interrupt` keyword runtime.
 
 ```has
 extern func TakeSystem() -> void;
@@ -444,13 +446,37 @@ if GetMouseLBtnPressed() == 1 { ... }
 if GetMouseLBtnReleased() == 1 { ... }
 ```
 
+### Joystick fire edges
+
+Call `UpdateJoystickFire()` once per frame, then read edges (mirrors the mouse edge helpers):
+
+```has
+extern func UpdateJoystickFire() -> int;
+extern func GetJoystickFirePressed() -> int;
+extern func GetJoystickFireReleased() -> int;
+
+call UpdateJoystickFire();
+if (GetJoystickFirePressed() != 0) { /* just pressed */ }
+```
+
+---
+
+## palette_fade.s — RGB4 Palette Fade
+
+Optional helper (linked when referenced). Requires `a5 = CUSTOM` after `TakeSystem`.
+
+```has
+extern func PaletteFadeInit(src: *int) -> void;   ; NULL = seed from COLOR00..31
+extern func PaletteFadeStep(target: *int, step: int) -> int;  ; returns 1 while fading
+```
+
 ---
 
 ## keyboard.s — Keyboard Input
 
 ### `InitKeyboard() -> void`
 
-Installs a level-2 CIA-A interrupt handler that stores the last pressed key scancode in the `current_key` variable. Call once at startup before reading keys.
+Installs a level-2 CIA-A interrupt handler (via `VBRBase+$68`) that maintains a make/break table and the last MAKE scancode. Call once at startup after `TakeSystem()` before reading keys.
 
 ```has
 extern func InitKeyboard() -> void;
@@ -459,12 +485,25 @@ call InitKeyboard();
 
 ### `GetKey() -> int`
 
-Returns the current key scancode (zero-extended byte) from `current_key`. Returns the last pressed key; it is **not** cleared automatically — the caller must manage clearing if one-shot detection is needed.
+Returns the last **MAKE** scancode (zero-extended) from `current_key`. Key-up (break) events do not overwrite it. It is **not** cleared automatically — use `ClearKey()` or assign through game logic for one-shot detection.
 
 ```has
 extern func GetKey() -> int;
 var key: int = GetKey();
 ```
+
+### `KeyDown(code: int) -> int`
+
+Returns 1 if the given raw Amiga scancode (0..127) is currently held, else 0. Uses the `Keys[256]` make/break table (`$FF` held / `$00` up).
+
+```has
+extern func KeyDown(code: int) -> int;
+if (KeyDown($40) != 0) { /* Space held */ }
+```
+
+### `ClearKey() -> void`
+
+Clears `current_key` to 0 (consume helper for one-shot `GetKey` loops).
 
 Key scancodes are defined in `lib/keyboardcodes.i`. Common values:
 
