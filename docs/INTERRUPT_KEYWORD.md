@@ -111,22 +111,24 @@ interrupt proc body may use CPU-specific codegen as usual).
 
 `lib/takeover.s`'s `ReleaseSystem()` (paired with `TakeSystem()`) already
 unconditionally clears **all** `INTENA`/`INTREQ` bits (`#$7fff`) before
-restoring the OS's saved interrupt state, and now also saves/restores the
-level-3 autovector (`$6C`, where this feature installs its master VBlank
-ISR) alongside the pre-existing level-2/level-4 (`$68`/`$70`) save/restore.
-This means calling `ReleaseSystem()` before returning to DOS always disables
-VERTB and restores the original vector, regardless of whether the program
-called `endi()` on every slot it `starti()`'d - a program that forgets to
-`endi()` a slot still exits cleanly as long as it calls `ReleaseSystem()`.
+restoring the OS's saved interrupt state, and saves/restores the
+level-3 autovector at `VBRBase+$6C` (where this feature installs its master
+VBlank ISR) alongside level-2/level-4 (`VBRBase+$68` / `+$70`).
+`VBRBase` is 0 on 68000 and the relocated VBR on 68010+. This means calling
+`ReleaseSystem()` before returning to DOS always disables VERTB and restores
+the original vector, regardless of whether the program called `endi()` on
+every slot it `starti()`'d - a program that forgets to `endi()` a slot still
+exits cleanly as long as it calls `ReleaseSystem()`.
 
 **Mandatory ordering**: always call `TakeSystem()` before the *first*
-`starti()` in the program. If `starti()` runs first, it installs
-`_has_vblank_isr` into `$6C` and stashes the true original vector in its own
-`_has_old_vec3` - a variable `TakeSystem()`/`ReleaseSystem()` don't know
-about. A subsequent `TakeSystem()` call would then capture `_has_vblank_isr`
-itself (not the real OS vector) into its `old_int3`, and `ReleaseSystem()`
-would "restore" `$6C` right back to the (by-then-freed) interrupt handler
-instead of the OS default - a dangling vector after the program exits.
+`starti()` in the program (also so `VBRBase` is initialized). If `starti()`
+runs first, it installs `_has_vblank_isr` into `VBRBase+$6C` and stashes the
+true original vector in its own `_has_old_vec3` - a variable
+`TakeSystem()`/`ReleaseSystem()` don't know about. A subsequent
+`TakeSystem()` call would then capture `_has_vblank_isr` itself (not the
+real OS vector) into its `old_int3`, and `ReleaseSystem()` would "restore"
+the vector right back to the (by-then-freed) interrupt handler instead of
+the OS default - a dangling vector after the program exits.
 
 In practice, always structure the program's entry exactly like this, with
 `TakeSystem()` as the first instruction and `ReleaseSystem()` as the last:
@@ -226,6 +228,31 @@ Practical checklist for `interrupt` slot bodies:
   same slot - kick it and check next frame.
 - When in doubt, measure: a slot that takes "a while" every single VBlank,
   forever, is far riskier than one that occasionally takes a while once.
+
+## FramePending idiom (optional)
+
+`WaitVBlank` in `lib/helpers.s` busy-polls beam position (PAL line 303). For
+a decoupled main loop (logic once per vertical blank, without spinning on
+`VPOSR` in the mainline), use one interrupt slot as a frame gate:
+
+```has
+extern var frame_pending: int;
+
+interrupt vbl_gate(0) {
+    frame_pending = 1;
+}
+
+; after TakeSystem + starti(0):
+while (quit == 0) {
+    while (frame_pending == 0) { /* spin at IPL 0 */ }
+    frame_pending = 0;
+    ; one frame of game logic / draw here
+}
+```
+
+This mirrors the AGE `FramePending` / `MainLoop` pattern while staying inside
+HAS `interrupt` + `a5 = CUSTOM` conventions. Keep the slot body tiny (flag
+only); do blits and `GetKey` work in the main loop.
 
 ## Restrictions
 
