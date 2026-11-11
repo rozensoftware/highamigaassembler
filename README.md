@@ -1,6 +1,6 @@
 ﻿# HAS - High Assembler for Motorola 68000 (Amiga)
 
-**Version:** 0.9.11
+**Version:** 0.9.12
 
 **Release status:** Feature-frozen; stabilizing toward 1.0.0.
 
@@ -621,7 +621,7 @@ external assembly interfaces must match their declared ABI.
 
 ## 🛠️ Development Status
 
-**Version 0.9.11** - Feature-frozen; stabilizing toward 1.0.0
+**Version 0.9.12** - Feature-frozen; stabilizing toward 1.0.0
 
 Current project work focuses on stabilization and regression coverage:
 

@@ -4,6 +4,8 @@ All notable changes to the HAS (High Assembler) project will be documented in th
 
 ## [Unreleased]
 
+## [0.9.12] - 2026-11-11
+
 ### Fixed
 
 - **Takeover / interrupt VBR safety:** `lib/takeover.s` now saves and restores

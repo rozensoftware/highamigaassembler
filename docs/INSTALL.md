@@ -222,7 +222,7 @@ python -m hasc.cli examples/shift_operators_demo.has -o /tmp/shift.s
     `dist/`. Pass an output directory as its first argument when needed.
 4. Install the produced wheel into a clean environment to verify `hasc --version` and a sample
     compilation.
-5. Commit the release changes, create a matching tag such as `v0.9.11`, and push the tag. The
+5. Commit the release changes, create a matching tag such as `v0.9.12`, and push the tag. The
     GitHub Release workflow verifies the tag/version match, rebuilds, tests, and attaches the
     wheel and source distribution to the release.
 6. In a clean Windows terminal, install the attached wheel with pipx, verify `where hasc`, and
