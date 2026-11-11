@@ -101,6 +101,7 @@ LIB_SOURCES=(
     "$LIB_DIR/gui.s"
     "$LIB_DIR/gui_keyboard.s"
     "$LIB_DIR/graphics.s"
+    "$LIB_DIR/copper.s"
     "$LIB_DIR/font8x8.s"
     "$LIB_DIR/helpers.s"
     "$LIB_DIR/takeover.s"
@@ -163,7 +164,12 @@ while [[ $changed -eq 1 ]]; do
                 done
                 ;;
             graphics.s)
-                for dep in "$LIB_DIR/helpers.s" "$LIB_DIR/sprite.s" "$LIB_DIR/takeover.s"; do
+                for dep in "$LIB_DIR/helpers.s" "$LIB_DIR/sprite.s" "$LIB_DIR/takeover.s" "$LIB_DIR/copper.s"; do
+                    if [[ -z "${WANT_LIB[$dep]:-}" ]]; then WANT_LIB["$dep"]=1; changed=1; fi
+                done
+                ;;
+            copper.s)
+                for dep in "$LIB_DIR/graphics.s" "$LIB_DIR/helpers.s"; do
                     if [[ -z "${WANT_LIB[$dep]:-}" ]]; then WANT_LIB["$dep"]=1; changed=1; fi
                 done
                 ;;
@@ -198,6 +204,7 @@ ORDERED_LIBS=(
     "$LIB_DIR/helpers.s"
     "$LIB_DIR/takeover.s"
     "$LIB_DIR/graphics.s"
+    "$LIB_DIR/copper.s"
     "$LIB_DIR/font8x8.s"
     "$LIB_DIR/input.s"
     "$LIB_DIR/keyboard.s"

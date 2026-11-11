@@ -4,6 +4,8 @@ All notable changes to the HAS (High Assembler) project will be documented in th
 
 ## [Unreleased]
 
+## [0.9.12] - 2026-11-11
+
 ### Fixed
 
 - **Takeover / interrupt VBR safety:** `lib/takeover.s` now saves and restores
@@ -21,6 +23,12 @@ All notable changes to the HAS (High Assembler) project will be documented in th
 
 ### Added
 
+- **User copper lists (`lib/copper.s`):** builder helpers (`CopperReset` /
+  `CopperWait` / `CopperMove` / `CopperEnd` / `CopperColor`) plus
+  `AttachCopperTail` / `DetachCopperTail` for COP2 effect tails after the
+  active mode copper list. Existing `SetGraphicsMode` / `Show` /
+  `UpdateCopperList` / `SetColor` paths stay unchanged when no tail is
+  attached. Example: `examples/demos/raster_bars.has`.
 - **`lib/palette_fade.s`:** `PaletteFadeInit` / `PaletteFadeStep` for RGB4
   fades into `COLOR00..31` (optional; linked when referenced).
 - **Joystick fire edges:** `UpdateJoystickFire` /

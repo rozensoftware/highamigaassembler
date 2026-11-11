@@ -101,6 +101,7 @@ LIB_SOURCES=(
     "$LIB_DIR/gui.s"
     "$LIB_DIR/gui_keyboard.s"
     "$LIB_DIR/graphics.s"
+    "$LIB_DIR/copper.s"
     "$LIB_DIR/font8x8.s"
     "$LIB_DIR/helpers.s"
     "$LIB_DIR/takeover.s"
@@ -122,6 +123,7 @@ LIB_SOURCES=(
 
 declare -A SYM_TO_LIB=()
 for lib in "${LIB_SOURCES[@]}"; do
+    [[ -f "$lib" ]] || continue
     while IFS= read -r sym; do
         [[ -z "$sym" ]] && continue
         [[ "$sym" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] || continue
@@ -208,7 +210,12 @@ while [[ $changed -eq 1 ]]; do
                 done
                 ;;
             graphics.s)
-                for dep in "$LIB_DIR/helpers.s" "$LIB_DIR/sprite.s" "$LIB_DIR/takeover.s"; do
+                for dep in "$LIB_DIR/helpers.s" "$LIB_DIR/sprite.s" "$LIB_DIR/takeover.s" "$LIB_DIR/copper.s"; do
+                    if [[ -z "${WANT_LIB[$dep]:-}" ]]; then add_dep "$dep"; changed=1; fi
+                done
+                ;;
+            copper.s)
+                for dep in "$LIB_DIR/graphics.s" "$LIB_DIR/helpers.s"; do
                     if [[ -z "${WANT_LIB[$dep]:-}" ]]; then add_dep "$dep"; changed=1; fi
                 done
                 ;;
@@ -253,6 +260,7 @@ ORDERED_LIBS=(
     "$LIB_DIR/helpers.s"
     "$LIB_DIR/takeover.s"
     "$LIB_DIR/graphics.s"
+    "$LIB_DIR/copper.s"
     "$LIB_DIR/font8x8.s"
     "$LIB_DIR/input.s"
     "$LIB_DIR/keyboard.s"

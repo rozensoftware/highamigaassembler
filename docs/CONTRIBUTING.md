@@ -4,7 +4,7 @@ Thank you for your interest in contributing to the HAS (High Assembler) project!
 
 ## Project Status
 
-**Version 0.9.11 - Feature-frozen; stabilizing toward 1.0.0**
+**Version 0.9.12 - Feature-frozen; stabilizing toward 1.0.0**
 
 Bug reports, documentation improvements, examples, and regression fixes are
 welcome. Proposals that expand compiler behavior should account for the
