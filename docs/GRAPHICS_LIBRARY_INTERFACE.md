@@ -431,6 +431,67 @@ greeting:
     }
 ```
 
+## Custom Copper Tails (`lib/copper.s`)
+
+Mode copper lists in `graphics.s` still own palette, bitplane pointers, and
+sprite pointers. For mid-frame effects (raster bars, splits), attach a user
+**COP2 effect tail** after the active mode list. Programs that never call
+`AttachCopperTail` behave exactly as before.
+
+### Flow
+
+1. `SetGraphicsMode(mode)` installs the builtin COP1 list and records its END.
+2. Build a chip-RAM list (`bss_chip` / `data_chip`) with WAIT/MOVE/END helpers.
+3. `AttachCopperTail(list)` sets `COP2LC` and patches the mode END to
+   `MOVE COPJMP2,0`.
+4. Keep calling `Show` / `UpdateCopperList` / `SetColor` as usual — they only
+   touch the COP1 mode list.
+5. `DetachCopperTail()` restores END. `SetGraphicsMode` auto-detaches first.
+
+### Builder API
+
+```has
+extern func CopperReset(list: int) -> void;
+extern func CopperWait(list: int, vpos: int, hpos: int) -> int;
+extern func CopperMove(list: int, reg: int, value: int) -> int;
+extern func CopperEnd(list: int) -> int;
+extern func CopperColor(list: int, index: int, rgb12: int) -> int;
+extern func AttachCopperTail(list: int) -> int;
+extern func DetachCopperTail() -> int;
+extern func GetCopperTail() -> int;
+extern func SetCopperList(list: int) -> int;  // advanced: replace COP1 entirely
+```
+
+- Buffer must be **chip RAM** (`bss_chip` / `data_chip`). Fast-RAM lists will not DMA correctly.
+- Rebuild during VBlank **after** the previous tail has finished (or double-buffer
+  and swap `COP2LC` / re-`AttachCopperTail` in VB). In-place rebuild while the
+  copper is still fetching the same buffer can tear.
+- `CopperReset` sets a static write cursor; append helpers are not reentrant.
+  Always call `CopperReset` before appending.
+- `SetCopperList` is an escape hatch that bypasses the library mode lists —
+  after it, `Show`/`SetColor` no longer drive the active display unless you
+  still point COP1 at a builtin list. It also detaches any COP2 tail and
+  clears the attach end pointer; `AttachCopperTail` needs a fresh
+  `SetGraphicsMode` first.
+
+`CopperMove` writes any copper-reachable custom register (offsets from
+[`lib/hardware.i`](../lib/hardware.i)). `CopperColor` is only a convenience for
+`COLOR0 + index`. Example — mid-frame scroll plus a color change:
+
+```has
+const BPLCON1 = $102;
+const COLOR0  = $180;
+
+call CopperReset(&bars);
+call CopperWait(&bars, $60, $07);
+call CopperMove(&bars, BPLCON1, $0011);   // scroll
+call CopperMove(&bars, COLOR0, $00F);     // same as CopperColor(&bars, 0, $00F)
+call CopperEnd(&bars);
+call AttachCopperTail(&bars);
+```
+
+Full raster-bars demo: [`examples/demos/raster_bars.has`](../examples/demos/raster_bars.has).
+
 ## Opt-in Memory Savings: Disabling Unused Screen Buffers and Copper Lists
 
 By default, `lib/graphics.s` reserves chip-RAM screen buffers for all four

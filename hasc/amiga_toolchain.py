@@ -36,6 +36,7 @@ _DEFAULT_LIB_ORDER: Sequence[str] = (
     "helpers.s",
     "takeover.s",
     "graphics.s",
+    "copper.s",
     "amiga_gfx.s",
     "font8x8.s",
     "input.s",
@@ -66,7 +67,10 @@ _DEFAULT_LIB_ORDER: Sequence[str] = (
 _LIB_DEPS: Dict[str, Sequence[str]] = {
     "gui.s": ("gui_keyboard.s", "graphics.s", "input.s"),
     "gui_keyboard.s": ("gui.s", "keyboard.s"),
-    "graphics.s": ("helpers.s", "sprite.s", "takeover.s"),
+    # copper.s is required because SetGraphicsMode XREFs DetachCopperTail
+    # (no-op when unused). copper.s in turn XREFs gfx_active_copper_end.
+    "graphics.s": ("helpers.s", "sprite.s", "takeover.s", "copper.s"),
+    "copper.s": ("graphics.s", "helpers.s"),
     "amiga_gfx.s": ("helpers.s",),
     "input.s": ("helpers.s",),
     "keyboard.s": ("takeover.s",),

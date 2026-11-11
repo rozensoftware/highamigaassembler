@@ -77,6 +77,9 @@ WAITBLIT:MACRO
     XDEF gfx_sprcop_dualpf
     XDEF gfx_active_playfield
     XDEF gfx_font_ptr
+    XDEF gfx_active_copper_end
+
+    XREF DetachCopperTail
 
 ; ---------- Graphics support wrappers ----------
 ; These minimal wrappers map the public names used by generated code
@@ -1227,6 +1230,9 @@ _SetGraphicsMode:
     ; Parameters: 8(a6) = mode (0=320x256x32, 1=640x256x16, 2=320x256 HAM6)
     link a6,#0                 ; Set up stack frame
     movem.l d1-d7/a0-a4,-(sp)  ; Save registers
+    ; Drop any COP2 effect tail before installing a new mode copper list.
+    ; DetachCopperTail is a no-op when unused (backward compatible).
+    jsr DetachCopperTail
     move.l 8(a6),d1            ; Get mode parameter
     cmp.l #3,d1                ; Compare mode with max value
     bgt .error                 ; Invalid mode if > 3
@@ -1266,6 +1272,8 @@ _SetGraphicsMode:
     lea.l gfx_copperlist_lores,a1           ; Load copper list
     move.l a1,COP1LCH(a5)                   ; Set copper pointer
     clr.w COPJMP1(a5)                       ; Strobe to start Copper at new list
+    lea gfx_copend_lores,a0                 ; Terminal END for COP2 tail attach
+    move.l a0,gfx_active_copper_end
     move.w #%1000000111100000,DMACON(a5)    ; Enable DMA (SET|MASTER|bitplane|copper|sprite|blitter)
     bra .success
 
@@ -1296,6 +1304,8 @@ _SetGraphicsMode:
     lea.l gfx_copperlist_hires,a1           ; Load hires copper
     move.l a1,COP1LCH(a5)                   ; Set copper pointer
     clr.w COPJMP1(a5)                       ; Strobe to start Copper at new list
+    lea gfx_copend_hires,a0                 ; Terminal END for COP2 tail attach
+    move.l a0,gfx_active_copper_end
     move.w #%1000000111100000,DMACON(a5)    ; Enable DMA (SET|MASTER|bitplane|copper|sprite|blitter)
     lea gfx_screen2_hires,a0                ; Load gfx_screen2_hires address
     move.l a0,gfx_current_screen_ptr        ; Set second screen
@@ -1328,6 +1338,8 @@ _SetGraphicsMode:
     lea.l gfx_copperlist_ham6,a1            ; Load HAM6 copper list
     move.l a1,COP1LCH(a5)                   ; Set copper pointer
     clr.w COPJMP1(a5)                       ; Strobe to start Copper at new list
+    lea gfx_copend_ham6,a0                  ; Terminal END for COP2 tail attach
+    move.l a0,gfx_active_copper_end
     ; HAM6 mode: disable blitter DMA to avoid conflicts with color register
     move.w #%1000000110100000,DMACON(a5)    ; Enable DMA (SET|MASTER|bitplane|copper|sprite) - no blitter
     bra .success
@@ -1359,6 +1371,8 @@ _SetGraphicsMode:
     lea.l gfx_copperlist_dualpf,a1           ; Load copper list
     move.l a1,COP1LCH(a5)                   ; Set copper pointer
     clr.w COPJMP1(a5)                       ; Strobe to start Copper at new list
+    lea gfx_copend_dualpf,a0                ; Terminal END for COP2 tail attach
+    move.l a0,gfx_active_copper_end
     move.w #%1000000111100000,DMACON(a5)    ; Enable DMA (SET|MASTER|bitplane|copper|sprite|blitter)
     bra .success
 
@@ -3227,6 +3241,11 @@ gfx_text_cursor_y:
 gfx_current_mode:
     dc.w 0  ; Current graphics mode
 
+; Pointer to the active mode copper list's terminal END pair ($FFFF,$FFFE).
+; Set by each successful SetGraphicsMode path; used by AttachCopperTail.
+gfx_active_copper_end:
+    dc.l 0
+
 ; Active playfield for drawing calls in dual-playfield mode (1 or 2). Only
 ; meaningful when gfx_current_mode=3; see SetActivePlayfield.
 gfx_active_playfield:
@@ -3322,12 +3341,15 @@ gfx_sprcop_lores:
     dc.w SPR7PTH,0
     dc.w SPR7PTL,0
 
+gfx_copend_lores:
     dc.w $FFFF,$FFFE
     else
     ds.b 2
 gfx_bplcop_lores:
     ds.b 2
 gfx_sprcop_lores:
+    ds.b 2
+gfx_copend_lores:
     ds.b 2
     endif
 
@@ -3383,13 +3405,16 @@ gfx_sprcop_hires:
     dc.w SPR6PTL,0
     dc.w SPR7PTH,0
     dc.w SPR7PTL,0
-    
+
+gfx_copend_hires:
     dc.w $FFFF,$FFFE
     else
     ds.b 2
 gfx_bplcop_hires:
     ds.b 2
 gfx_sprcop_hires:
+    ds.b 2
+gfx_copend_hires:
     ds.b 2
     endif
 
@@ -3449,12 +3474,15 @@ gfx_sprcop_ham6:
     dc.w SPR6PTL,0
     dc.w SPR7PTH,0
     dc.w SPR7PTL,0
+gfx_copend_ham6:
     dc.w $FFFF,$FFFE
     else
     ds.b 2
 gfx_bplcop_ham6:
     ds.b 2
 gfx_sprcop_ham6:
+    ds.b 2
+gfx_copend_ham6:
     ds.b 2
     endif
 
@@ -3515,12 +3543,15 @@ gfx_sprcop_dualpf:
     dc.w SPR7PTH,0
     dc.w SPR7PTL,0
 
+gfx_copend_dualpf:
     dc.w $FFFF,$FFFE
     else
     ds.b 2
 gfx_bplcop_dualpf:
     ds.b 2
 gfx_sprcop_dualpf:
+    ds.b 2
+gfx_copend_dualpf:
     ds.b 2
     endif
 

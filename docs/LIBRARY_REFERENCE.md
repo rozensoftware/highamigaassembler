@@ -11,6 +11,7 @@ Libraries with dedicated documentation are listed first; libraries documented he
 | Library file      | Purpose                                   | Documentation                                        |
 |-------------------|-------------------------------------------|------------------------------------------------------|
 | `graphics.s`      | Bare-metal screen modes, drawing, colour  | [GRAPHICS_LIBRARY_INTERFACE.md](GRAPHICS_LIBRARY_INTERFACE.md) |
+| `copper.s`        | User copper builder + COP2 effect tails   | [GRAPHICS_LIBRARY_INTERFACE.md](GRAPHICS_LIBRARY_INTERFACE.md#custom-copper-tails-libcoppers) |
 | `amiga_gfx.s`     | OS Intuition custom screens (OpenScreen)  | [AMIGA_OS_GFX_API.md](AMIGA_OS_GFX_API.md)           |
 | `gui_intuition.s` | Workbench Intuition dialogs               | [GUI_INTUITION_RUNTIME_SPEC.md](GUI_INTUITION_RUNTIME_SPEC.md) |
 | `gui.s`           | Rectangles, boxes, buttons, gadgets       | [GUI_LIBRARY.md](GUI_LIBRARY.md)                     |
@@ -460,6 +461,46 @@ if (GetJoystickFirePressed() != 0) { /* just pressed */ }
 ```
 
 ---
+
+## copper.s — User Copper Lists / COP2 Tails
+
+Opt-in helpers for building chip-RAM copper lists and attaching them as a COP2
+effect tail after the active `graphics.s` mode list. See
+[Custom Copper Tails](GRAPHICS_LIBRARY_INTERFACE.md#custom-copper-tails-libcoppers).
+
+```has
+extern func CopperReset(list: int) -> void;
+extern func CopperWait(list: int, vpos: int, hpos: int) -> int;
+extern func CopperMove(list: int, reg: int, value: int) -> int;
+extern func CopperEnd(list: int) -> int;
+extern func CopperColor(list: int, index: int, rgb12: int) -> int;
+extern func AttachCopperTail(list: int) -> int;
+extern func DetachCopperTail() -> int;
+extern func GetCopperTail() -> int;
+extern func SetCopperList(list: int) -> int;
+```
+
+Requires `a5 = CUSTOM` (after `TakeSystem`). Buffer must be chip RAM
+(`bss_chip` / `data_chip`). `SetGraphicsMode` auto-detaches any previous tail.
+`SetCopperList` detaches any tail and disables `AttachCopperTail` until the
+next successful `SetGraphicsMode`. Rebuild tails in VBlank after the previous
+list has ended (or double-buffer).
+
+`CopperMove(list, reg, value)` accepts any custom-chip offset from
+[`lib/hardware.i`](../lib/hardware.i) (`BPLCON1`, `BPLxMOD`, `COLOR0`, …).
+`CopperColor` is only a palette helper.
+
+```has
+const BPLCON1 = $102;
+const COLOR0  = $180;
+
+call CopperReset(&bars);
+call CopperWait(&bars, $60, $07);
+call CopperMove(&bars, BPLCON1, $0011);   // scroll
+call CopperMove(&bars, COLOR0, $00F);     // same as CopperColor(&bars, 0, $00F)
+call CopperEnd(&bars);
+call AttachCopperTail(&bars);
+```
 
 ## palette_fade.s — RGB4 Palette Fade
 

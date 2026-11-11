@@ -1,0 +1,96 @@
+// Raster bars via the COP2 effect-tail API (AttachCopperTail).
+// Builds a chip-RAM copper list that waits on successive scanlines and
+// writes COLOR0, then patches the active mode END to jump into that tail.
+
+const COLOR0_REG = $180;
+const BAR_LINES  = 16;
+const BASE_Y     = $50;
+
+bss_chip copper_chip:
+    bars.w: 256
+
+bss state:
+    bar_y.w: 1
+
+code main:
+    extern func SetGraphicsMode(mode: int) -> int;
+    extern func SetColor(id: int, col: int) -> int;
+    extern func Show() -> int;
+    extern func WaitVBlank() -> int;
+
+    extern func CopperReset(list: int) -> void;
+    extern func CopperWait(list: int, vpos: int, hpos: int) -> int;
+    extern func CopperMove(list: int, reg: int, value: int) -> int;
+    extern func CopperEnd(list: int) -> int;
+    extern func CopperColor(list: int, index: int, rgb12: int) -> int;
+    extern func AttachCopperTail(list: int) -> int;
+    extern func DetachCopperTail() -> int;
+
+    public main;
+
+    asm {
+        jsr TakeSystem  ; a5 = CUSTOM
+        jsr main
+        jmp ReleaseSystem
+    }
+
+    // Build a rising-then-falling red ramp of BAR_LINES starting at y.
+    proc build_bars(list: int, y: int) -> void {
+        var i: int;
+        var line: int;
+        var intens: int;
+        var rgb: int;
+
+        call CopperReset(list);
+
+        for i = 0 to BAR_LINES - 1 {
+            line = y + i;
+            if (i < 8) {
+                intens = i + 1;
+            } else {
+                intens = BAR_LINES - i;
+            }
+            rgb = (intens << 8);   // red channel only (0xR00)
+            call CopperWait(list, line, $07);
+            call CopperColor(list, 0, rgb);
+        }
+
+        // Restore backdrop after the last bar line.
+        call CopperWait(list, y + BAR_LINES, $07);
+        call CopperMove(list, COLOR0_REG, $000);
+        call CopperEnd(list);
+    }
+
+    proc main() -> int {
+        var list: int;
+        var i: int;
+        var y: int;
+
+        call SetGraphicsMode(0);
+        call SetColor(0, $000);
+
+        list = &bars;
+        bar_y = BASE_Y;
+
+        call build_bars(list, bar_y);
+        call AttachCopperTail(list);
+
+        for i = 0 to 299 {
+            call WaitVBlank();
+
+            // Bounce the bar block slowly down then wrap.
+            y = bar_y + 1;
+            if (y > $C0) {
+                y = BASE_Y;
+            }
+            bar_y = y;
+
+            call build_bars(list, bar_y);
+            // Rebuild writes a fresh list at the same chip buffer; COP2LC
+            // already points here from AttachCopperTail.
+            call Show();
+        }
+
+        call DetachCopperTail();
+        return 0;
+    }

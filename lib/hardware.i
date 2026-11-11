@@ -28,8 +28,10 @@ COP1LCH	    EQU	$080		; Copper list 1 pointer high
 COP1LCL	    EQU	$082		; Copper list 1 pointer low
 COPJMP1	    EQU	$088		; Copper jump strobe 1
 COP1LC      EQU $080
-
-
+COP2LCH	    EQU	$084		; Copper list 2 pointer high
+COP2LCL	    EQU	$086		; Copper list 2 pointer low
+COP2LC      EQU $084
+COPJMP2	    EQU	$08A		; Copper jump strobe 2
 
 BLTCPT      EQU $048
 BLTBPT      EQU $04C
