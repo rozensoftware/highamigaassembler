@@ -4,6 +4,27 @@ All notable changes to the HAS (High Assembler) project will be documented in th
 
 ## [Unreleased]
 
+### Added
+
+- **Storage volume helpers:** `FileGetHardDriveVolume(buffer, capacity)` and
+  `FileGetLaunchVolume(buffer, capacity)` copy an actual `Volume:` root, with
+  distinct unavailable, error, too-small and unsupported statuses. HDD lookup
+  requires DOS/Exec V36+, prefers the current `SYS:` volume only when confirmed
+  as fixed, nonremovable direct-access storage, then falls back to DOS device
+  enumeration order. This does not identify every physical HDD or guarantee
+  the physical boot device or writable save storage. Launch lookup uses
+  `GetProgramDir()` on V36+, then a borrowed lock registered with
+  `FileSetLaunchDirectory(lock)` (returns `0`). `WBGetLaunchDirectory()` in
+  `lib/wbstartup.s` supplies the first Workbench argument's borrowed directory
+  lock, including on OS 1.3; keep it alive and clear registration before
+  `WBExit()`. There is no current-directory fallback for CLI 1.3. Query while
+  the OS is running; copied strings can be used during takeover.
+  See [File I/O Library](FILE_IO_LIBRARY.md#volume-query-results) and
+  [storage_media_demo.has](../examples/storage_media_demo.has).
+- **File I/O example builds:** the generic example builder now discovers and
+  links `lib/fileio.s`. Storage definitions are provided by the local
+  `lib/fileio.i`; no external NDK installation is required.
+
 ## [0.9.12] - 2026-11-11
 
 ### Fixed

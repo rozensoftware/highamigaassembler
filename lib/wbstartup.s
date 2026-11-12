@@ -14,6 +14,12 @@
 ;   jsr ReleaseSystem
 ;   jmp WBExit           ; last thing before returning to DOS
 ;
+; WBGetLaunchDirectory() returns the borrowed BPTR of the tool's directory
+; from WBStartup's first WBArg, or 0 without a startup argument. Never UnLock
+; it. With fileio, the caller may register it using FileSetLaunchDirectory
+; after WBStartup and must clear that registration before WBExit. There is
+; no link dependency in either direction between these libraries.
+;
 ; (c) 2026 by Piotr Rozentreter (Rozsoft)
 ;****************************************************************
 
@@ -21,6 +27,11 @@
 
 pr_MsgPort  EQU $5c                       ; Process.pr_MsgPort
 pr_CLI      EQU $ac                       ; Process.pr_CLI (0 => started from Workbench)
+
+; NDK workbench/startup.i fields, prefixed to avoid its WBStartup symbol.
+WB_SM_NUMARGS EQU 28
+WB_SM_ARGLIST EQU 36
+WB_WA_LOCK    EQU 0
 
     SECTION wbstartup_data,DATA
     CNOP 0,4
@@ -57,6 +68,33 @@ WBStartup:
             movem.l    (sp)+,d1-d7/a0-a5
             rts
 
+
+;----------------------------------------------------------------
+; Function: WBGetLaunchDirectory
+; Input: none (stack ABI)
+; Output: d0=borrowed directory lock BPTR, or 0 if unavailable
+; Notes: Only valid after WBStartup and before WBExit; do not UnLock.
+;----------------------------------------------------------------
+            xdef       WBGetLaunchDirectory
+WBGetLaunchDirectory:
+            link       a6,#0
+            move.l     a0,-(sp)
+            move.l     wb_msg,d0
+            beq.s      .done
+            move.l     d0,a0
+            cmpi.l     #1,WB_SM_NUMARGS(a0)
+            blt.s      .unavailable
+            move.l     WB_SM_ARGLIST(a0),d0
+            beq.s      .done
+            move.l     d0,a0
+            move.l     WB_WA_LOCK(a0),d0
+            bra.s      .done
+.unavailable:
+            moveq      #0,d0
+.done:
+            move.l     (sp)+,a0
+            unlk       a6
+            rts
 
 ;----------------------------------------------------------------
 ; Function: WBExit

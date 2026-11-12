@@ -1,0 +1,79 @@
+// System-friendly storage queries; run from CLI to see stdout.
+// Link with lib/dos.s, lib/fileio.s and lib/wbstartup.s. No takeover needed.
+// Volumes vary by machine; success reports an actual Volume: root, not SYS:.
+
+#include "includes/fileio_defs.has";
+#include "includes/dos_defs.has";
+
+const VOLUME_CAPACITY = 256;
+
+extern func WBStartup() -> void;
+extern func WBGetLaunchDirectory() -> int;
+extern func WBExit() -> void;
+
+code storage_media_demo:
+    public main;
+
+    asm {
+        jsr WBStartup
+        jsr main
+        jmp WBExit
+    }
+
+    proc main() -> int {
+        var status: int;
+
+        // Borrowed until WBExit: never FileUnLock this directory lock.
+        call FileSetLaunchDirectory(WBGetLaunchDirectory());
+        if (InitDOS() != 0) {
+            call FileSetLaunchDirectory(0);
+            return -1;
+        }
+
+        status = FileIoInit();
+        call PrintOut(&init_label);
+        call PrintNum(status);
+        call PrintOut(&newline);
+        if (status == 0) {
+            status = FileGetHardDriveVolume(&hard_drive_volume, VOLUME_CAPACITY);
+            call PrintVolume(&hard_drive_label, &hard_drive_volume, status);
+
+            status = FileGetLaunchVolume(&launch_volume, VOLUME_CAPACITY);
+            call PrintVolume(&launch_label, &launch_volume, status);
+
+            // expect: FILE_VOLUME_ERROR (-1) for a null output buffer.
+            status = FileGetLaunchVolume(0, VOLUME_CAPACITY);
+            call PrintOut(&null_label);
+            call PrintNum(status);
+            call PrintOut(&newline);
+        }
+
+        call FileIoDone();
+        call FileSetLaunchDirectory(0);
+        call CloseDOS();
+        // Return through main's RTS, then tail-jump to WBExit as the last call.
+        return 0;
+    }
+
+    proc PrintVolume(label: ptr, buffer: ptr, status: int) -> int {
+        call PrintOut(label);
+        call PrintNum(status);
+        if (status == FILE_VOLUME_OK) {
+            call PrintOut(&value_separator);
+            call PrintOut(buffer);
+        }
+        call PrintOut(&newline);
+        return 0;
+    }
+
+data storage_media_strings:
+    init_label.b = "FileIoInit status: ",0
+    hard_drive_label.b = "Hard drive volume status: ",0
+    launch_label.b = "Launch volume status: ",0
+    null_label.b = "Null buffer status (expected -1): ",0
+    value_separator.b = "  volume: ",0
+    newline.b = 10,0
+
+bss storage_media_buffers:
+    hard_drive_volume.b[VOLUME_CAPACITY]
+    launch_volume.b[VOLUME_CAPACITY]

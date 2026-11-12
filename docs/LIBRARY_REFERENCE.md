@@ -155,6 +155,18 @@ call TakeSystem();
 
 See [FILE_IO_LIBRARY.md](FILE_IO_LIBRARY.md) for full API details and constants.
 
+Volume helpers `FileGetHardDriveVolume(buffer, capacity)` and
+`FileGetLaunchVolume(buffer, capacity)` copy actual `Volume:` roots while the OS
+is running. HDD lookup requires DOS/Exec V36+ and confirmed fixed-device
+geometry. Launch lookup uses `GetProgramDir()` on V36+, then a borrowed lock
+registered with `FileSetLaunchDirectory(lock)`; there is no current-directory
+fallback. `WBGetLaunchDirectory()` from `lib/wbstartup.s` can supply that lock
+after `WBStartup()`; clear registration before `WBExit()`.
+See [volume query results](FILE_IO_LIBRARY.md#volume-query-results) for statuses
+and lifetime rules. Storage constants are supplied by the local `lib/fileio.i`;
+no external NDK installation is required. See
+[build linkage](FILE_IO_LIBRARY.md#build-linkage).
+
 ---
 
 ## trackio.s — DOS-Free Track Loader

@@ -1,5 +1,5 @@
 // HAS <-> lib/fileio.s interop declarations.
-// Use these APIs only while the system is released (ReleaseSystem called).
+// Use only while the OS is running: before TakeSystem or after ReleaseSystem.
 
 const DOS_MODE_READWRITE = 1004;
 const DOS_MODE_OLDFILE = 1005;
@@ -12,9 +12,21 @@ const DOS_OFFSET_END = 1;
 const DOS_SHARED_LOCK = -2;
 const DOS_EXCLUSIVE_LOCK = -1;
 
+const FILE_VOLUME_OK = 1;
+const FILE_VOLUME_UNAVAILABLE = 0;
+const FILE_VOLUME_ERROR = -1;
+const FILE_VOLUME_TOO_SMALL = -2;
+const FILE_VOLUME_UNSUPPORTED = -3;
+
 extern func FileIoInit() -> int;
 extern func FileIoDone() -> int;
 extern func FileIoErr() -> int;
+
+// On success, copies the actual NUL-terminated Volume: root, not an assign.
+extern func FileGetHardDriveVolume(buffer: ptr, capacity: int) -> int;
+extern func FileGetLaunchVolume(buffer: ptr, capacity: int) -> int;
+// Registers a borrowed lock; 0 clears it. Returns 0; never unlocks the lock.
+extern func FileSetLaunchDirectory(lock: int) -> int;
 
 extern func FileOpen(path: ptr, mode: int) -> int;
 extern func FileClose(handle: int) -> int;
