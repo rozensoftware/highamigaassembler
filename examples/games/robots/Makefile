@@ -7,17 +7,17 @@
 # Linux-only configuration (Windows logic removed)
 
 # Paths
-PROJ_ROOT := ../../..
+PROJ_ROOT := $(realpath ../../..)
 BUILD_ROOT := .
 LIB_DIR := $(PROJ_ROOT)/lib
 BUILD_DIR := $(BUILD_ROOT)/build
 SRC_DIR := .
 
 # Python / tools (Linux)
-ifneq (,$(wildcard $(PROJ_ROOT)/.venv/bin/python))
+ifneq (,$(wildcard $(PROJ_ROOT)/.venv/bin/python3))
+	PYTHON := $(PROJ_ROOT)/.venv/bin/python3
+else ifneq (,$(wildcard $(PROJ_ROOT)/.venv/bin/python))
 	PYTHON := $(PROJ_ROOT)/.venv/bin/python
-else ifneq (,$(wildcard $(PROJ_ROOT)/venv/bin/python))
-	PYTHON := $(PROJ_ROOT)/venv/bin/python
 else
 	PYTHON := python3
 endif
@@ -41,9 +41,11 @@ HAS_OBJS := $(MAIN_OBJ) $(OTHER_OBJS)
 
 EXE_FILE := $(BUILD_DIR)/robots.exe
 
-LIB_SRCS := $(wildcard $(LIB_DIR)/*.s)
+# No audio in this example — omit audio.s / ptplayer.s (need music_table/sfx_table)
+LIB_SRCS := $(filter-out $(LIB_DIR)/audio.s $(LIB_DIR)/ptplayer.s,$(wildcard $(LIB_DIR)/*.s))
 LIB_OBJS := $(LIB_SRCS:$(LIB_DIR)/%.s=$(BUILD_DIR)/%.o)
-GAME_SRCS := $(wildcard $(SRC_DIR)/*.s)
+# Prebuilt BOB/tileset assembly only (no stub sounds_data.s)
+GAME_SRCS := $(filter-out $(SRC_DIR)/sounds_data.s,$(wildcard $(SRC_DIR)/*.s))
 GAME_OBJS := $(GAME_SRCS:$(SRC_DIR)/%.s=$(BUILD_DIR)/%.o)
 
 # Flags

@@ -2,10 +2,6 @@
 
 #include "includes/robots_defs.has";
 
-const MAX_BULLETS = 10;
-const MAX_BULLET_FRAMES = 4;
-const BULLET_SPEED = 7;
-
     extern func IsPositionWalkable(x:u16, y:u16, area:u8) -> u8;
 
     extern var bob_frame000_Bullet1_frame_000: int;
@@ -139,4 +135,4 @@ code bullet_code:
 
 bss bullet_bss:
     bullet_anim.l[MAX_BULLET_FRAMES]
-    struct bullet[MAX_BULLETS] { x.w, y.w, anim_delay.b, active.b, frame.b, direction.b }
+    struct bullet[MAX_BULLETS] { x: u16, y: u16, anim_delay: u8, active: u8, frame: u8, direction: u8 }
