@@ -106,11 +106,11 @@ Create a file `hello.has`:
 
 ```has
 code main:
-    ; Program execution starts HERE (first instruction)
-    call main();  ; Explicitly call our main procedure
-    asm "rts";    ; Return to OS
+    // Program execution starts HERE (first instruction)
+    call main();  // Explicitly call our main procedure
+    asm "rts";    // Return to OS
     
-    ; This procedure only runs when called above
+    // This procedure only runs when called above
     proc main() -> int {
         var result:int = 42;
         return result;
