@@ -46,15 +46,12 @@ code player_code:
 
     proc InitPlayer(start_x:word, start_y:word) -> void
     {
-        var p:player*;
-        p = &player[0];
-
-        p->x = start_x;
-        p->y = start_y;
-        p->anim_delay = ANIM_DELAY;
-        p->active = 1;
-        p->frame = 0;
-        p->direction = ROBOT_DIR_DOWN;
+        player.x = start_x;
+        player.y = start_y;
+        player.anim_delay = ANIM_DELAY;
+        player.active = 1;
+        player.frame = 0;
+        player.direction = ROBOT_DIR_DOWN;
     }
 
     proc LoadPlayerShapes() -> int
@@ -115,12 +112,12 @@ code player_code:
         if(id == -1) { return -1; }
         player_right[3] = id;
 
-        pal = GetBobPalette(player_down);
+        pal = GetBobPalette(player_down[0]);
         i = 0;
         while (i < MAX_COLORS)
         {
             call SetColor(i, peek_w(pal + (i<<1)));
-            i = i + 1;
+            i += 1;
         }
         return 0;
     }
@@ -174,8 +171,7 @@ code player_code:
             bob_id = player_down[frame];
         }
 
-        PasteBob(bob_id, x, y, 1);
-        return;
+        call PasteBob(bob_id, x, y, 1);
     }
 
     proc MovePlayer() -> void
@@ -193,10 +189,10 @@ code player_code:
 
         joy = ReadJoystick();
 
-        if(joy & (1<<9))  { x = x - PLAYER_SPEED; dir = ROBOT_DIR_LEFT; move = TRUE; }
-        if(joy & 2)  { x = x + PLAYER_SPEED; dir = ROBOT_DIR_RIGHT; move = TRUE; }
-        if(joy & 4)  { y = y + PLAYER_SPEED; dir = ROBOT_DIR_DOWN; move = TRUE; }
-        if(joy & (1<<10))  { y = y - PLAYER_SPEED; dir = ROBOT_DIR_UP; move = TRUE; }
+        if(joy & JOY_LEFT)  { x = x - PLAYER_SPEED; dir = ROBOT_DIR_LEFT; move = TRUE; }
+        if(joy & JOY_RIGHT)  { x = x + PLAYER_SPEED; dir = ROBOT_DIR_RIGHT; move = TRUE; }
+        if(joy & JOY_DOWN)  { y = y + PLAYER_SPEED; dir = ROBOT_DIR_DOWN; move = TRUE; }
+        if(joy & JOY_UP)  { y = y - PLAYER_SPEED; dir = ROBOT_DIR_UP; move = TRUE; }
 
         if(x < 0) { x = 0; }
         if(y < 0) { y = 0; }
@@ -251,4 +247,4 @@ bss player_bss:
     player_left.l[ROBOT_FRAMES]
     player_right.l[ROBOT_FRAMES]
 
-    struct player { x.w, y.w, anim_delay.b, active.b, frame.b, direction.b }
+    struct player { x: u16, y: u16, anim_delay: u8, active: u8, frame: u8, direction: u8 }

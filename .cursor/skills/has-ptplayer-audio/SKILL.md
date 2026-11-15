@@ -10,7 +10,8 @@ description: >-
 
 **Prefer `#import music` / `#import sound` + `lib/audio.s`** for new code. The
 manual `music_data.s` / `sounds_data.s` + inline `_mt_*` pattern remains valid
-for existing games (Graveyard Shadows, astronautjetpac, launchers).
+for existing games (Graveyard Shadows, astronautjetpac). Example
+`examples/games/launchers` uses the preferred `#import` + `InitAudio` path.
 
 ## Preferred path (`#import` + `audio.s`)
 
@@ -101,5 +102,6 @@ vs sound). With hand-built tables, define `const SFX_… = N` matching
 ## References
 
 - Preferred API: [docs/LIBRARY_REFERENCE.md](../../../docs/LIBRARY_REFERENCE.md) (`audio.s`)
-- Working legacy games: `graveyardshadowsamiga`, `astronautjetpac/jetpac.has`, `examples/games/launchers`
+- Working preferred example: `examples/games/launchers`
+- Working legacy games: `graveyardshadowsamiga`, `astronautjetpac/jetpac.has`
 - Do not fight music channel 0; SFX use remaining Paula channels via `play_sfx`

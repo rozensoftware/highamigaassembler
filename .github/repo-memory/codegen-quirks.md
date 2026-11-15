@@ -685,9 +685,9 @@
   Net effect: writes through address 0/near-0 (instant crash on real hardware/most emulators) and any
   stored "handle" is truncated to 8 bits even if it didn't crash.
 - Root cause: `self.array_dims` (consulted by the indexed-address codegen path) is only populated for
-  the **dims** form, `NAME[.suffix][N]` (e.g. `buf_heli_x.l[2]` in
-  `examples/games/caveride/caveride.has`, the proven-working precedent for exactly this
-  double-buffer-state-array pattern). The colon/count form only reserves raw storage
+  the **dims** form, `NAME[.suffix][N]` (e.g. `launcher_x.l[MAX_LAUNCHERS]` in
+  `examples/games/launchers/launchers.has`, the proven-working precedent for exactly this
+  indexable BSS-array pattern). The colon/count form only reserves raw storage
   (`ds.suffix COUNT`) - it is *not* registered as an array at all, so `name[i]` on it silently fell
   through to codegen's *intentional* "non-array globals are treated as byte pointers" fallback
   (`hasc/codegen.py` around `emit_untyped_global_pointer_read`/`emit_typed_pointer_store`) - a real,

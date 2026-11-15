@@ -164,26 +164,45 @@ code level_code:
         }
     }
 
-    proc ClearLevelBuffer() -> void
+    // Clear offscreen level buffer via Blitter (mode 0: 320×256×5 = 51200 bytes).
+    // BLTSIZE height=400, width=0 → 64 words/row (same recipe as ClearScreen).
+    // a5 = $DFF000 (#pragma lockreg). level_screen must be CHIP (bss_chip).
+    native proc ClearLevelBuffer() -> void
     {
         asm {
-            move.l #level_screen,a0
-            move.l #320*256/32*5-1,d0
-            moveq #0,d1
-.l1:        move.l d1,(a0)+
-            dbra d0,.l1
+.clb_idle1:
+            btst    #6,$002(a5)         ; DMACONR BBUSY
+            bne.s   .clb_idle1
+            move.l  #level_screen,$054(a5)  ; BLTDPT
+            move.w  #0,$066(a5)         ; BLTDMOD
+            move.w  #0,$042(a5)         ; BLTCON1
+            move.w  #$0100,$040(a5)     ; BLTCON0: USE_D, minterm 0 → D=0
+            move.w  #400<<6,$058(a5)    ; BLTSIZE — start blit
+.clb_idle2:
+            btst    #6,$002(a5)
+            bne.s   .clb_idle2
         }
     }
 
-    proc CopyLevelBuffer() -> void
+    // Blitter copy level_screen → current back buffer (A→D, D=A).
+    native proc CopyLevelBuffer() -> void
     {
         asm {
-            move.l #level_screen,a0
-            move.l gfx_current_screen_ptr,a1
-            move.l #320*256/32*5-1,d0
-.copy_loop:
-            move.l (a0)+,(a1)+
-            dbra d0,.copy_loop
+.cpb_idle1:
+            btst    #6,$002(a5)
+            bne.s   .cpb_idle1
+            move.l  #level_screen,$050(a5)  ; BLTAPT source
+            move.l  gfx_current_screen_ptr,$054(a5) ; BLTDPT dest
+            move.w  #$FFFF,$044(a5)     ; BLTAFWM
+            move.w  #$FFFF,$046(a5)     ; BLTALWM
+            move.w  #0,$064(a5)         ; BLTAMOD
+            move.w  #0,$066(a5)         ; BLTDMOD
+            move.w  #$09F0,$040(a5)     ; BLTCON0: USE_A|USE_D, D=A
+            move.w  #0,$042(a5)         ; BLTCON1
+            move.w  #400<<6,$058(a5)    ; BLTSIZE — start blit
+.cpb_idle2:
+            btst    #6,$002(a5)
+            bne.s   .cpb_idle2
         }
     }
 
@@ -224,5 +243,8 @@ data data_map1:
 bss level_bss:
     level_start_x.b: 1
     level_start_y.b: 1
-    map_data.l: 1  // u8* pointer (4 bytes, untyped)
+    map_data.l: 1  // u8* pointer
+
+// Blitter DMA destination/source — must live in CHIP RAM
+bss_chip level_chip:
     level_screen.b[51200]   // 320 * 256 / 8 * 5 bitplanes

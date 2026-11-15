@@ -2,33 +2,17 @@
 
 #include "includes/robots_defs.has";
 
-// t=Atoi(&number);
-// str = ItoaAlloc(t);
-
-// call Text(5, 5, str, 22);
-// call HeapFree(str); 
-// call Text(5,10,&txt,22);
-
-
-// str = Q16ToStringAlloc(TEST_VALUE);
-// call Text(5,15,str,22);
-// call HeapFree(str);
-
-const BULLET_FRAMES = 4;
-const MAX_ENEMY_ROBOTS = 10;
-const MAX_BULLETS = 20;
-
 extern func LoadPlayerShapes() -> int;
 extern func LoadBulletShapes() -> int;
 extern func MovePlayer() -> void;
-extern func InitPlayer(start_x:word, start_y:word) -> void;
+extern func InitPlayer(start_x: word, start_y: word) -> void;
 extern func InitBullets() -> void;
 extern func MoveBullets() -> void;
-extern func CreateMap(level:byte) -> void;
+extern func CreateMap(level: byte) -> void;
 extern func CopyLevelBuffer() -> void;
 
-extern var level_start_x:u8;
-extern var level_start_y:u8;
+extern var level_start_x: u8;
+extern var level_start_y: u8;
 extern var fonts: int;
 
     public main;
@@ -45,44 +29,32 @@ code game_code:
         jmp ReleaseSystem   ;release system and exit
     }
 
-    // proc peek_l(__reg(a0) a:long) -> long {
-    //     asm {
-    //         move.l (a0),d0
-    //     }
-    // }
-
     proc GameLoop() -> void
     {
-        var run:bool = TRUE;
-        var key:byte;
-        var t:int;
-        var str:ptr;
+        var run: bool = TRUE;
+        var key: u8;
 
         call InitBullets();
-        call CreateMap(1);   // Create level 1 map
-        call InitPlayer(level_start_x * 8, level_start_y * 8); // Initialize player at level start position
+        call CreateMap(1);
+        call InitPlayer(level_start_x * 8, level_start_y * 8);
 
-        // Game loop implementation goes here
         while (run == TRUE)
         {
-            call SwapScreen();  // Switch to back buffer
-            //call ClearScreen(); // Clear back buffer
+            call SwapScreen();
+            call CopyLevelBuffer();
 
-            call CopyLevelBuffer(); // Copy level buffer to screen
-            
-            key = GetKey();  // Read the return value into variable
+            key = GetKey();
 
-            call MovePlayer(); // Update player position based on input
-            call MoveBullets(); // Update bullet positions
-                
-            // Example: exit loop if ESC key (code 69) is pressed
+            call MovePlayer();
+            call MoveBullets();
+
             if (key == KEY_ESC)
             {
                 run = FALSE;
             }
 
-            call WaitVBlank();  // Wait for vertical blanking interval
-            call Show();        // Display the back buffer
+            call WaitVBlank();
+            call Show();
         }
     }
 
@@ -106,7 +78,7 @@ code game_code:
         call HeapInit();
 
         if(SetGraphicsMode(0) == -1)
-        {                
+        {
             return -1;
         }
 
@@ -121,14 +93,8 @@ code game_code:
         return 0;
     }
 
-    // Main game procedure
     proc main() -> void {
         if(Init() == 0) {
             call GameLoop();
         }
     }
-
-data game_data:
-    txt.b = "Robots Game Example", 0
-    number.b = "12345", 0
-    hello_txt.b = "Hello, Robots!", 0
