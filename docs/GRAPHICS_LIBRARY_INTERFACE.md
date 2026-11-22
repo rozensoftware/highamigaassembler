@@ -348,11 +348,11 @@ hud = PrintToBob(&new_msg, 1, 3);
 ### Color Functions
 
 #### SetColor(idx: int, value: int) -> int
-Sets a palette color in the assembled copper lists (lores always when present; hires and dual-playfield when `idx` is 0–15).
-- **idx**: Color index (0-31 lores, 0-15 hires/dualpf)
+Sets a palette color in the assembled copper lists (lores always when present; hires, HAM6, and dual-playfield when `idx` is 0–15).
+- **idx**: Color index (0-31 lores, 0-15 hires/HAM6/dualpf)
 - **value**: 12-bit Amiga color value (0x0RGB format)
 - Returns 0 on success, -1 if index out of range
-- Writes to a copper list are skipped when that mode was omitted with `DISABLE_320x256` / `DISABLE_640x256` / `DISABLE_DUALPF`, so placeholder copper data is not overwritten
+- Writes to a copper list are skipped when that mode was omitted with `DISABLE_320x256` / `DISABLE_640x256` / `DISABLE_HAM` / `DISABLE_DUALPF`, so placeholder copper data is not overwritten
 
 ```has
 call SetColor(1, 0x0F00);  // Set color 1 to bright red

@@ -516,11 +516,22 @@ call AttachCopperTail(&bars);
 
 ## palette_fade.s — RGB4 Palette Fade
 
-Optional helper (linked when referenced). Requires `a5 = CUSTOM` after `TakeSystem`.
+Optional helper (linked when referenced). Uses the HAS stack ABI (`link a6`) like
+`SetColor` / `LoadPalette`. Each step updates the same copper palette words as
+`SetColor` (lores always when present; hires / HAM6 / dual-playfield for
+indices 0–15 when those lists are assembled) and also pokes `COLOR00..31` for
+an immediate visual before the next copper pass.
 
 ```has
-extern func PaletteFadeInit(src: *int) -> void;   ; NULL = seed from COLOR00..31
-extern func PaletteFadeStep(target: *int, step: int) -> int;  ; returns 1 while fading
+extern func PaletteFadeInit(src: *int) -> int;
+// Seed work palette from a 32-word RGB4 memory buffer. Required — NULL is a
+// no-op and returns -1 (COLOR registers are write-only; never used as source).
+// Returns 0 on success.
+
+extern func PaletteFadeStep(target: *int, step: int) -> int;
+// Advance each RGB4 channel by at most `step` toward `target` (32 words).
+// `step` of 0 is treated as 1. NULL `target` is a no-op returning 0.
+// Returns 1 while still fading, 0 when already at target.
 ```
 
 ---

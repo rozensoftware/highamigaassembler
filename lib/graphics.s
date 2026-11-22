@@ -63,6 +63,10 @@ WAITBLIT:MACRO
     XDEF gfx_sprcop_lores
     XDEF gfx_sprcop_hires
     XDEF gfx_sprcop_ham6
+    XDEF gfx_copperlist_lores
+    XDEF gfx_copperlist_hires
+    XDEF gfx_copperlist_ham6
+    XDEF gfx_copperlist_dualpf
     XDEF gfx_current_screen_ptr
     XDEF gfx_screen1
     XDEF gfx_screen2
@@ -1846,11 +1850,11 @@ SetColor:
     move.w d1,(a0)         ; write new color value
     endif
 
-    ; Update hires / dualpf copperlist palette entries if idx in 0..15.
-    ; Guard with ifnd so DISABLE_640x256 / DISABLE_DUALPF placeholders are not
-    ; treated as full copper lists (would overwrite following DATA_C words,
-    ; including gfx_null_sprite). Per-list idx checks avoid a dead branch when
-    ; both optional lists are assembled out.
+    ; Update hires / HAM6 / dualpf copperlist palette entries if idx in 0..15.
+    ; Guard with ifnd so DISABLE_640x256 / DISABLE_HAM / DISABLE_DUALPF
+    ; placeholders are not treated as full copper lists (would overwrite
+    ; following DATA_C words, including gfx_null_sprite). Per-list idx checks
+    ; avoid a dead branch when optional lists are assembled out.
     ifnd DISABLE_640x256
     cmp.l #15,d0
     bgt.s .sc_after_hires
@@ -1862,6 +1866,19 @@ SetColor:
     addq.l #2,a0
     move.w d1,(a0)
 .sc_after_hires:
+    endif
+
+    ifnd DISABLE_HAM
+    cmp.l #15,d0
+    bgt.s .sc_after_ham6
+    move.l d0,d2
+    lsl.l #2,d2
+    lea gfx_copperlist_ham6,a0
+    addq.l #4,a0
+    add.l d2,a0
+    addq.l #2,a0
+    move.w d1,(a0)
+.sc_after_ham6:
     endif
 
     ifnd DISABLE_DUALPF

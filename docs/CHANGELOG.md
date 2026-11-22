@@ -6,14 +6,26 @@ All notable changes to the HAS (High Assembler) project will be documented in th
 
 ### Fixed
 
+- **`lib/graphics.s` SetColor + `lib/palette_fade.s` HAM6 copper:** both now
+  write indices 0..15 into `gfx_copperlist_ham6` (gated with
+  `ifnd DISABLE_HAM`), matching `LoadPalette` and the hires address math.
+  `gfx_copperlist_ham6` is `XDEF`'d for the fade helper XREF.
+- **`lib/palette_fade.s` copper + HAS ABI:** `PaletteFadeInit` /
+  `PaletteFadeStep` now use the stack ABI (`link a6`) like `SetColor`.
+  Init requires a memory palette pointer (NULL is a no-op / `-1`; never
+  reads write-only `COLOR` registers). Each step updates copper palette
+  words (SetColor pattern: lores + hires/HAM6/dualpf 0..15 with `DISABLE_*`
+  guards) and pokes `COLOR00..31` for immediate visual. Exports
+  `gfx_copperlist_lores` / `_hires` / `_ham6` / `_dualpf` from `graphics.s`
+  for the XREFs.
 - **`lib/input.s` ReadJoystick comments/docs:** clarify the Coppi idiom —
   `move.l JOY0DAT(a5),d0` loads port 1 in the high word and port 2
   (`JOY1DAT`) in the low word; existing low-word masks and fire (`CIAA PRA`
   bit 7) already match port 2. No register change (switching the long read
   to `JOY1DAT` would break callers).
 - **`lib/graphics.s` SetColor + DISABLE_*:** palette writes to hires /
-  dual-playfield / lores copper lists are gated with `ifnd DISABLE_*`, so
-  2-byte placeholders are not treated as full copper lists.
+  HAM6 / dual-playfield / lores copper lists are gated with `ifnd DISABLE_*`,
+  so 2-byte placeholders are not treated as full copper lists.
 - **`lib/graphics.s` screen exports:** `gfx_screen1` / `gfx_screen2` are
   `XDEF`'d for external panel/COP2 use.
 - **`lib/trackio.s` MFM buffer:** `trackio_encoded` (and decoded companion)
