@@ -47,10 +47,10 @@ Use `extern` declarations to call library functions from HAS source:
 extern func TakeSystem() -> void;
 extern func ReleaseSystem() -> void;
 extern func WaitVBlank() -> void;
-extern func HeapInit(size_words: int) -> int;
+extern func HeapInit() -> void;   // size is assemble-time HEAP_MEMORY, not an argument
 ```
 
-The linker resolves these to the compiled `.o` objects from `lib/`. See [EXTERNAL_MODULES.md](EXTERNAL_MODULES.md) for full include mechanics.
+The linker resolves these to the compiled `.o` objects from `lib/`. See [EXTERNAL_MODULES.md](EXTERNAL_MODULES.md) for full include mechanics. Heap size is set when assembling `lib/heap.s` (`-D HEAP_MEMORY=...`, default 10 KB); see [`lib/HEAP_README.md`](../lib/HEAP_README.md).
 
 ---
 
@@ -374,7 +374,7 @@ call HeapFree(s);
 
 ### `ReadJoystick() -> int`
 
-Reads joystick port 0 (JOY0DAT). Returns a packed longword describing direction bits. Typically used with bitwise tests against direction flags rather than raw comparison.
+Reads both controller ports with one longword from `JOY0DAT` (high word = port 1 / `JOY0DAT`, low word = port 2 / `JOY1DAT` — adjacent custom registers). After the Coppi decode, in-tree direction masks (`JOY_RIGHT=2`, `JOY_DOWN=4`, `JOY_LEFT=512`, `JOY_UP=1024`) test the **low word** (port 2), matching `ReadJoystickFire`. Do not change the long read to `JOY1DAT` without remasking — that would put `CLXDAT` in the low word.
 
 ```has
 extern func ReadJoystick() -> int;
@@ -383,7 +383,7 @@ var joy: int = ReadJoystick();
 
 ### `ReadJoystickFire() -> int`
 
-Returns `1` if the joystick fire button (port 0) is pressed, `0` otherwise.
+Returns `1` if the port-2 joystick fire button is pressed (`CIAA PRA` bit 7), `0` otherwise.
 
 ```has
 extern func ReadJoystickFire() -> int;

@@ -14,6 +14,8 @@ During `TakeSystem()` takeover, calling `dos.library` is unsafe.
 - Call `TrackIoInit()` after takeover is active.
 - Perform reads with `TrackIoReadSector` and `TrackIoReadFile`.
 - Call `TrackIoDone()` before handing control back or exiting.
+- The MFM DMA buffer (`trackio_encoded`) is in chip RAM (`BSS_C`); keep the
+  trackio object linked into chip-capable memory on machines with fast/slow RAM.
 
 ## Include declarations
 

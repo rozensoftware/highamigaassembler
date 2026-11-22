@@ -64,6 +64,8 @@ WAITBLIT:MACRO
     XDEF gfx_sprcop_hires
     XDEF gfx_sprcop_ham6
     XDEF gfx_current_screen_ptr
+    XDEF gfx_screen1
+    XDEF gfx_screen2
     XDEF SetColor
     XDEF LoadPalette
     XDEF ShowPicture
@@ -1833,7 +1835,8 @@ SetColor:
     cmp.l #31,d0
     bgt.s .sc_error        ; idx > 31 -> error
 
-    ; Update lores copperlist palette entry
+    ; Update lores copperlist palette entry (skip when mode 0 copper is omitted)
+    ifnd DISABLE_320x256
     move.l d0,d2
     lsl.l #2,d2            ; d2 = idx * 4 (bytes per palette pair)
     lea gfx_copperlist_lores,a0
@@ -1841,10 +1844,16 @@ SetColor:
     add.l d2,a0            ; point to pair for idx (first word = register)
     addq.l #2,a0           ; advance to value word
     move.w d1,(a0)         ; write new color value
+    endif
 
-    ; Update hires copperlist palette entry if idx in 0..15
+    ; Update hires / dualpf copperlist palette entries if idx in 0..15.
+    ; Guard with ifnd so DISABLE_640x256 / DISABLE_DUALPF placeholders are not
+    ; treated as full copper lists (would overwrite following DATA_C words,
+    ; including gfx_null_sprite). Per-list idx checks avoid a dead branch when
+    ; both optional lists are assembled out.
+    ifnd DISABLE_640x256
     cmp.l #15,d0
-    bgt.s .sc_done
+    bgt.s .sc_after_hires
     move.l d0,d2
     lsl.l #2,d2
     lea gfx_copperlist_hires,a0
@@ -1852,9 +1861,13 @@ SetColor:
     add.l d2,a0
     addq.l #2,a0
     move.w d1,(a0)
+.sc_after_hires:
+    endif
 
-    ; Update dual-playfield copperlist palette entry if idx in 0..15
-    ; (idx 1-7 are PF1 colors, 9-15 are PF2 colors - see docs for the map)
+    ifnd DISABLE_DUALPF
+    cmp.l #15,d0
+    bgt.s .sc_done
+    ; idx 1-7 are PF1 colors, 9-15 are PF2 colors - see docs for the map
     move.l d0,d2
     lsl.l #2,d2
     lea gfx_copperlist_dualpf,a0
@@ -1862,6 +1875,7 @@ SetColor:
     add.l d2,a0
     addq.l #2,a0
     move.w d1,(a0)
+    endif
 
 .sc_done:
     moveq #0,d0

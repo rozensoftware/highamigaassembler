@@ -46,9 +46,15 @@ joy_fire_released    dc.w 0                 ; fire release edge
 ;----------------------------------------------------------------
 ; Function: ReadJoystick
 ; Input: none
-; Output: d0,d1=joystick state bits
-; Description: Reads joystick 0 direction state from JOY0DAT.
-; Notes: Returns the raw decoded axis state used by existing callers.
+; Output: d0,d1=joystick state bits (Coppi decode)
+; Description: Decodes both controller ports via one longword custom read.
+; Notes: `move.l JOY0DAT(a5),d0` loads JOY0DAT in the high word and the
+;        adjacent JOY1DAT in the low word. After the Coppi decode, port-2
+;        direction bits sit in the low word (masks such as JOY_RIGHT=2,
+;        JOY_DOWN=4, JOY_LEFT=512, JOY_UP=1024). That matches
+;        ReadJoystickFire (CIAA PRA bit 7 = port-2 fire). Do NOT switch the
+;        long read to JOY1DAT without remasking — that would put JOY1DAT in
+;        the high word and CLXDAT in the low word and break existing callers.
 ;----------------------------------------------------------------
             xdef       ReadJoystick
 ReadJoystick:
@@ -64,8 +70,9 @@ ReadJoystick:
 ; Function: ReadJoystickFire
 ; Input: none
 ; Output: d0=1 if pressed, 0 otherwise
-; Description: Reads joystick 0 fire button state.
-; Notes: Uses CIAA button input for the fire trigger.
+; Description: Reads game joystick fire (controller port 2).
+; Notes: CIAA PRA bit 7 is port-2 fire; bit 6 is port-1 / mouse left button.
+;        Direction bits for the same stick are in the low word of ReadJoystick.
 ;----------------------------------------------------------------
             xdef ReadJoystickFire
 ReadJoystickFire:
@@ -80,7 +87,7 @@ ReadJoystickFire:
 ; Function: UpdateJoystickFire
 ; Input: none
 ; Output: d0=current fire state (1 pressed, 0 otherwise)
-; Description: Samples joystick 0 fire and updates Hold/edge flags.
+; Description: Samples port-2 fire and updates Hold/edge flags.
 ; Notes: Call once per frame before GetJoystickFirePressed/Released.
 ;----------------------------------------------------------------
             xdef UpdateJoystickFire

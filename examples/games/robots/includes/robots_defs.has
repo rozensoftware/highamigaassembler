@@ -11,7 +11,7 @@ const KEY_DOWN = 77;
 const KEY_LEFT = 79;
 const KEY_RIGHT = 78;
 
-// Joystick port 1 bits (ReadJoystick)
+// Joystick port 2 bits (low word of ReadJoystick's JOY0DAT long read)
 const JOY_RIGHT = 2;
 const JOY_DOWN = 4;
 const JOY_LEFT = 512;   // bit 9

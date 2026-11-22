@@ -707,7 +707,9 @@ TrackIo_DecLong:
     move.l d0,(a2)+
     rts
 
-    SECTION trackio_bss,BSS
+; MFM DMA destination must be chip RAM (DSKPTH). Decoded track stays with it
+; so the section is never empty when only one buffer is referenced.
+    SECTION trackio_bss,BSS_C
     CNOP 0,4
 
 trackio_encoded:         ds.b 12960

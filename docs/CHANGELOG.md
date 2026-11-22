@@ -4,6 +4,23 @@ All notable changes to the HAS (High Assembler) project will be documented in th
 
 ## [Unreleased]
 
+### Fixed
+
+- **`lib/input.s` ReadJoystick comments/docs:** clarify the Coppi idiom —
+  `move.l JOY0DAT(a5),d0` loads port 1 in the high word and port 2
+  (`JOY1DAT`) in the low word; existing low-word masks and fire (`CIAA PRA`
+  bit 7) already match port 2. No register change (switching the long read
+  to `JOY1DAT` would break callers).
+- **`lib/graphics.s` SetColor + DISABLE_*:** palette writes to hires /
+  dual-playfield / lores copper lists are gated with `ifnd DISABLE_*`, so
+  2-byte placeholders are not treated as full copper lists.
+- **`lib/graphics.s` screen exports:** `gfx_screen1` / `gfx_screen2` are
+  `XDEF`'d for external panel/COP2 use.
+- **`lib/trackio.s` MFM buffer:** `trackio_encoded` (and decoded companion)
+  live in `BSS_C` so disk DMA targets chip RAM.
+- **Docs:** `HeapInit` takes no arguments (heap size is assemble-time
+  `HEAP_MEMORY`); joystick docs document the JOY0DAT long-read idiom.
+
 ### Added
 
 - **Storage volume helpers:** `FileGetHardDriveVolume(buffer, capacity)` and

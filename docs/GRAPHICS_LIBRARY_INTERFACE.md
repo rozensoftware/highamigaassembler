@@ -348,10 +348,11 @@ hud = PrintToBob(&new_msg, 1, 3);
 ### Color Functions
 
 #### SetColor(idx: int, value: int) -> int
-Sets a palette color.
-- **idx**: Color index (0-31 lores, 0-15 hires)
+Sets a palette color in the assembled copper lists (lores always when present; hires and dual-playfield when `idx` is 0–15).
+- **idx**: Color index (0-31 lores, 0-15 hires/dualpf)
 - **value**: 12-bit Amiga color value (0x0RGB format)
 - Returns 0 on success, -1 if index out of range
+- Writes to a copper list are skipped when that mode was omitted with `DISABLE_320x256` / `DISABLE_640x256` / `DISABLE_DUALPF`, so placeholder copper data is not overwritten
 
 ```has
 call SetColor(1, 0x0F00);  // Set color 1 to bright red
@@ -532,7 +533,10 @@ entire `screen` section down to a small placeholder.
   `gfx_screen2_hires`, `gfx_screen1_ham6`, `gfx_screen1_dualpf`,
   `gfx_screen2_dualpf`) always stay defined regardless of which `DISABLE_*`
   constants are set, so other code in `graphics.s` that references them
-  still assembles and links normally.
+  still assembles and links normally. Mode 0 buffers `gfx_screen1` /
+  `gfx_screen2` are `XDEF`'d for external code that needs the absolute base
+  (panel strips, COP2 tails); prefer `gfx_current_screen_ptr` for the active
+  back buffer.
 - `SetGraphicsMode()` refuses to activate a mode whose buffer was disabled at
   assembly time: it returns `d0 = -1` (its existing error code) instead of
   proceeding to use the shrunk placeholder buffer. Callers must still check
