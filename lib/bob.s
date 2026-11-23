@@ -1058,7 +1058,7 @@ DrawBob:
     tst.w d6
     beq.s .db_lores_body
     cmp.w #1,d6
-    beq.s DrawBobHires
+    beq DrawBobHires
     cmp.w #3,d6
     beq DrawBobDualpf
     rts
