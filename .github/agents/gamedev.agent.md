@@ -139,6 +139,7 @@ blitter_wait:
 - Do not recommend OS calls (`exec.library`, `graphics.library`) for time-critical game-loop code without explaining the latency/ownership tradeoff; use direct hardware access only when the execution environment permits it.
 - Do not use `.l` or `.w` based on folklore; choose the smallest size that preserves signedness, range, and ABI semantics.
 - DO NOT leave Blitter operations unguarded — always check/wait for BBUSY before issuing a new blit.
+- **Never clobber `a5` in `lib/*.s` or takeover-window hardware code** — after `TakeSystem()`, `a5` always points at CUSTOM (`$DFF000`); use other address registers for scratch and keep CUSTOM-relative `FOO(a5)` addressing valid across calls.
 - Keep only custom-chip DMA-visible buffers in chip RAM; keep ordinary game state in fast RAM unless the platform contract says otherwise.
 - Do not invent cache APIs, cache-line sizes, L2 registers, CACR masks, or DMA coherency guarantees.
 

@@ -29,6 +29,11 @@
 - Chip RAM is scarce and slower for CPU access. Never widen a section to chip RAM for convenience.
 - **If you are not sure which memory type a block needs, ask the user instead of guessing.**
 
+### Register ABI: a5 = CUSTOM (libs)
+- After `TakeSystem()`, **`a5` always points at CUSTOM (`$DFF000`)**.
+- **Never clobber `a5` in `lib/*.s`** or other takeover-window hardware code; use other address registers for scratch and keep `FOO(a5)` CUSTOM addressing valid across calls.
+- Full note: `.github/repo-memory/codegen-quirks.md` (`ABI: a5 = CUSTOM`).
+
 ### Core Philosophy
 - **Assembly-first**: Every high-level construct must compile to clean, inspectable 68000 assembly
 - **Zero-cost abstractions**: High-level features should not add runtime overhead

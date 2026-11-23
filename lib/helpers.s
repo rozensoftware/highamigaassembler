@@ -31,6 +31,8 @@ rnd_seed:
 ; Notes: Uses CUSTOM register polling and waits for leave-then-enter timing.
 ; -----------------------------------------------------------------------------
 WaitVBlank:
+    ; Do not assume caller still has a5=CUSTOM (heap/Scroll/etc. may scratch it).
+    lea $dff000,a5
 .WaitLeaveVBlank:
     move.l $004(a5),d0
     and.l #$1ff00,d0

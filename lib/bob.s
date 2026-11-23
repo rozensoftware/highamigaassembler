@@ -1214,6 +1214,8 @@ DrawBobDualpf:
 PasteBob:
     link a6,#0
     movem.l d1-d7/a0-a4,-(sp)
+    ; Blitter ops require a5=CUSTOM; repair if a caller/library scratched it.
+    lea CUSTOM,a5
     
     move.l 8(a6),a1        ; a1 = handle (runtime struct pointer)
     move.l 12(a6),d0       ; d0 = x

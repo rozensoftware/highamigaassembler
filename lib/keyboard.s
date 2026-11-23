@@ -111,6 +111,9 @@ ClearKey:
 ;****************************************************************
 keyb_interrupt:
              movem.l    d0-a6,-(sp)
+; Interrupted code may not have a5=CUSTOM (HAS lockreg is not IRQ-safe for every
+; library scratch use). Reload before any custom-chip access / INTENA checks.
+             lea        CUSTOM,a5
 ; reading the icr we also cause its reset, so the int is "cancelled" as in intreq
              move.b     CIAAICR,d0
 ; if bit IR = 0, returns

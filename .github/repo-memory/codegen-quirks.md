@@ -5,6 +5,19 @@
 > and Windows dev machines. Re-export after adding notes; treat drift between the two as a bug.
 
 
+## ABI: a5 = CUSTOM in libs (do not clobber) — ALL AGENTS (2026-11-23)
+
+- After `TakeSystem()`, **`a5` always points at the Amiga CUSTOM chip base (`$DFF000`)**.
+- Hand-written `lib/*.s` (and any hardware-banging game code that shares that contract) **must not
+  clobber `a5`**: do not use it as a general scratch, do not leave it pointing elsewhere on return,
+  and do not overwrite it across calls that expect CUSTOM-relative addressing (`FOO(a5)`).
+- Prefer other address registers (`a0`–`a4`) for temps; keep `a5` live as CUSTOM for the whole
+  takeover window until `ReleaseSystem()`.
+- HAS codegen itself historically avoids emitting `a5` (treat as reserved for this ABI). Reviewers
+  and lib editors: flag any `movem`/`lea`/`move` that destroys `a5` without an immediate restore
+  before the next CUSTOM access or callee that assumes `a5 = CUSTOM`.
+
+
 ## Parser: comparison operators are now eagerly normalized (updated 2026-07-27)
 - `hasc/parser.py` `ASTBuilder` now defines `eq`, `ne`, `lt`, `le`, `gt`, `ge`, so all six
   comparison operators parse directly to `ast.BinOp`.

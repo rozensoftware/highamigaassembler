@@ -12,6 +12,7 @@ Evidence-first documentation. Sync README, `docs/`, and `docs/CHANGELOG.md` with
 
 - State which CPU target(s) behavior applies to; never present 68020-only as default.
 - Prefer targeted edits over broad rewrites.
+- Lib/takeover/CUSTOM docs: `a5` must not be clobbered after `TakeSystem()` (`a5 = $DFF000`).
 - Include tested commands and realistic examples.
 - Changelog for user-visible changes.
 - Do not create implementation summaries, completion reports, final reports, work logs, or other documents about what a task fixed, changed, completed, or validated.

@@ -25,7 +25,7 @@ Code-quality and regression-risk specialist for compiler and generated-assembly 
 
 ## HAS-Specific Gates
 
-1. Register lifecycle: every allocation path must free, including error and early-return paths.
+1. Register lifecycle: every allocation path must free, including error and early-return paths. Flag `a5` clobber in `lib/*.s` / CUSTOM paths (`a5` must remain `$DFF000` after `TakeSystem()`).
 2. Operand size correctness: `.b/.w/.l` must match type intent.
 3. Validator integrity: preserve two-pass symbol collection and semantic validation order.
 4. AST immutability in validation: avoid embedding transient validation state in nodes.

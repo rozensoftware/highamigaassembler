@@ -20,7 +20,7 @@ Regression testing specialist for HAS compiler behavior.
 2. Tiered testing: smoke first, targeted next, full sweep for risky changes.
 	If a change spans multiple subsystems, run targeted tests for each affected subsystem before escalating to a full sweep, rather than jumping directly to full sweep.
 3. Environment clarity: report missing toolchain components (for example vasm not installed).
-4. Fast triage: classify failures into parser, validator, codegen, or assembly-tool errors.
+4. Fast triage: classify failures into parser, validator, codegen, or assembly-tool errors. For `lib/*.s` / hardware regressions, also check accidental `a5` clobber (CUSTOM base ABI after `TakeSystem()`).
 5. Runtime confidence: prefer Musashi execution-based checks for behavior validation when available.
 6. Reproducibility: include exact commands used.
 

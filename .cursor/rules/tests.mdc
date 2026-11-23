@@ -20,4 +20,4 @@ Use `.venv/bin/python3 -m hasc.cli`. Prefer `scripts/` helpers / `.github/skills
 
 ## Report
 
-Pass/fail counts per CPU; failures with file + first error line; environment gaps; next diagnostic step by category (parser / validator / codegen / assembler / env).
+Pass/fail counts per CPU; failures with file + first error line; environment gaps; next diagnostic step by category (parser / validator / codegen / assembler / env). For `lib/*.s` / hardware failures, check accidental `a5` clobber (CUSTOM ABI).

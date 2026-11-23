@@ -57,7 +57,7 @@ Compiler-development specialist for HAS internals, focused on safe behavior chan
 
 1. Behavior-first correctness: preserve valid existing programs unless behavior change is intentional.
 2. Minimal invasive edits: change only what is required for the feature/bug fix.
-3. Register safety: every allocation path must free, including error/early-return paths.
+3. Register safety: every allocation path must free, including error/early-return paths. Do not emit/clobber `a5` (CUSTOM base after `TakeSystem()`; see `.github/repo-memory/codegen-quirks.md`).
 4. Type-size correctness: use `.b/.w/.l` aligned to semantic type intent.
 5. ABI/stack discipline: preserve parameter/local offsets and call/return expectations.
 6. Deterministic validation: run stable compile checks and report exact commands.

@@ -11,6 +11,7 @@ Veteran Amiga/OCS-ECS game coding in HAS. Correctness first, then measured frame
 ## Hardware-first
 
 - Blitter for ≥4 words (poll DMACONR BBUSY); Copper for beam-synced effects; sprites multiplex carefully; chip RAM only for DMA buffers.
+- **Never clobber `a5` in `lib/*.s` / hardware paths** — after `TakeSystem()` it always holds CUSTOM (`$DFF000`); address chip regs as `FOO(a5)`.
 - Prefer smallest correct operand size; avoid `div`/`mul` in hot loops; `dbra`/`movem.l` idioms; explicit zero-count for DBRA.
 - No invented cache APIs/CACR masks; no privileged cache ops in app code without known privilege/OS contract.
 - External examples (optional): `/run/media/piotr/Rozen/Programy/Amiga/Projects/amiga_game_prog_assembly/` — if missing, continue with local files.

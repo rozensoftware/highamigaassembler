@@ -12,7 +12,7 @@ Implement/fix `hasc/` only: parser, validator, codegen, register_allocator, peep
 
 1. Preserve valid programs unless behavior change is intentional.
 2. Minimal invasive edits.
-3. Register safety on every path; d7 reserved for `dbra` (see codegen-quirks).
+3. Register safety on every path; d7 reserved for `dbra`; **do not emit/clobber `a5`** (CUSTOM base ABI after `TakeSystem()` — see codegen-quirks).
 4. Type-size correctness via `ast.size_suffix()`.
 5. Stable ABI / frame offsets (`+8(a6)` params, negative locals).
 6. Dual-CPU: branch on `TargetSpec` flags; test both `--cpu` values.

@@ -29,6 +29,7 @@ Specialized workflow for reviewing generated 68000 or 68020 assembly and identif
 3. Type-size consistency: `.b`, `.w`, `.l` usage must match source type intent.
 4. Stack discipline: pushes/pops, frame setup, and cleanup stay balanced.
 5. Amiga context awareness: respect hardware register semantics and side effects.
+6. CUSTOM base ABI: after `TakeSystem()`, `a5` must remain `$DFF000` — flag any `lib/*.s` / hardware path that clobbers `a5` without restoring it before CUSTOM access or return.
 
 ## Procedure
 

@@ -821,7 +821,7 @@ InitSpriteSlots:
 	add.l #16,a1               ; advance to next table entry (16 bytes)
 	dbf d2,.init_loop
 	moveq #0,d0
-	movem.l (sp)+,d1-d2/a0-a2
+	movem.l (sp)+,d1-d2/a0-a1
 	rts
 
 ; Sprite_ApplyPalette: internal worker - copy sprite's stored 3-word palette

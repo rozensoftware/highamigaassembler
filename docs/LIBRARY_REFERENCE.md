@@ -111,6 +111,8 @@ Takes exclusive control of Amiga hardware and releases it cleanly.
 
 Disables OS multitasking, opens `graphics.library`, blanks the OS View (`LoadView(NULL)` + `WaitTOF`×2), saves DMA/interrupt state, installs clean DMA/interrupt setup, and sets `a5 = $DFF000` (CUSTOM chip base) for use in subsequent hardware access.
 
+**ABI rule:** after `TakeSystem()`, `a5` remains the CUSTOM base until `ReleaseSystem()`. Hand-written `lib/*.s` and hardware game code **must not clobber `a5`** — address chip registers as `FOO(a5)` and use other address registers for scratch.
+
 **Saves and restores**: DMACON, INTENA, INTREQ, ADKCON, CIAAICR, copper list pointer, ActiView, level-2/3/4 interrupt vectors **relative to `VBRBase`** (0 on 68000; relocated on 68010+ via `GetVBR`).
 
 Also exports `VBRBase` (long) and `GetVBR()` / `ClearCPUCache()` for other libraries and the `interrupt` keyword runtime.

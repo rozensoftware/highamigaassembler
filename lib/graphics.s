@@ -1531,6 +1531,7 @@ gfx_scroll_screen:
 ; the CPU loop.
 gfx_clear_screen:
     movem.l d0-d2/a0,-(sp)
+    lea CUSTOM,a5
     move.l gfx_current_screen_ptr,a0
 
     ; Check current mode to determine buffer size / clear strategy

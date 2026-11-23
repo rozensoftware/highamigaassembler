@@ -70,7 +70,7 @@ proc open_file(name_ptr: byte*) -> int {
 
 ## Constraints
 
-- Hardware access is allowed, but ONLY through official Kickstart/OS API calls (`graphics.library`, `intuition.library`, `timer.device`, `exec.library` I/O requests, etc.) — never via direct custom-chip register access (`$DFF0xx`) or raw hardware ports.
+- Hardware access is allowed, but ONLY through official Kickstart/OS API calls (`graphics.library`, `intuition.library`, `timer.device`, `exec.library` I/O requests, etc.) — never via direct custom-chip register access (`$DFF0xx`) or raw hardware ports. If the user forces a hybrid/takeover path, never clobber `a5` (`a5 = CUSTOM` after `TakeSystem()`); hand that work to the gamedev agent.
 - DO NOT disable multitasking (`Forbid`/`Disable`) for standard DOS/Workbench tools unless the user explicitly needs a brief, correctly-guarded critical section — that is otherwise the domain of the gamedev/hardware agent, not this one.
 - DO NOT assume CLI-only startup; always consider Workbench (`WBStartup`) launch unless the user says the tool is Shell-only.
 - DO NOT invent exact NDK structure field offsets from memory when precision matters — say so explicitly and point the user to verify against their NDK includes, since offsets vary slightly by NDK version.

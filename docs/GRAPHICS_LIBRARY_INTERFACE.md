@@ -555,7 +555,7 @@ nearly all of the chip RAM.
 
 1. **Chip RAM Requirement**: The screen buffers in graphics.s are in CHIP RAM (required for Amiga display hardware). Make sure your linker script places the `screen_data` section in chip RAM.
 
-2. **Custom Register Base**: graphics.s expects register `a5` to contain the custom chip base address ($DFF000). Initialize this before calling graphics functions:
+2. **Custom Register Base**: graphics.s expects register `a5` to contain the custom chip base address ($DFF000). `TakeSystem()` sets this; **do not clobber `a5`** in lib or game hardware code while using CUSTOM-relative addressing. Initialize this before calling graphics functions if you are not using takeover:
    ```asm
    lea $DFF000,a5
    ```

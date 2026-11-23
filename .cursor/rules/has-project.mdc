@@ -25,6 +25,7 @@ Python compiler: `.has` → Motorola 68000/68020 assembly for Amiga (`vasm` + `v
 - Use `ast.size_suffix()` for `.b/.w/.l` — do not default everything to `.l`.
 - Preserve ABI / stack layout; document intentional breaks.
 - Chip RAM (`data_chip` / `bss_chip` / `DATA_C`) only for DMA-visible data; ask if unsure.
+- **`a5` = CUSTOM (`$DFF000`) after `TakeSystem()`** — never clobber `a5` in `lib/*.s` or other hardware code that relies on that base; use other address registers for scratch.
 - Linux: always `.venv/bin/python3` — never bare `python` / `python3`.
 
 ## Agent map (Cursor ↔ GitHub)

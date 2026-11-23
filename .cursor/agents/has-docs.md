@@ -12,6 +12,7 @@ Project documentation specialist for HAS (High Assembler), focused on correctnes
 - Keep [README.md](../../README.md), docs files, and [docs/CHANGELOG.md](../../docs/CHANGELOG.md) synchronized with implementation.
 - Add or revise feature docs for parser, validator, codegen, and register allocator changes.
 - Improve cross-linking and migration notes for behavior changes.
+- When documenting `lib/*.s` / takeover / CUSTOM hardware, restate that **`a5` must not be clobbered** after `TakeSystem()` (`a5 = $DFF000`).
 - HAS supports two CPU targets via `--cpu`: `68000` (default) and `68020`. When documenting codegen/addressing/instruction-selection changes, always state which CPU target(s) the behavior applies to - never describe 68020-only behavior as if it were the general/default case, and never assume a change silently applies to both targets without verifying with the compiler/tests agents. See [docs/CPU_68020_IMPLEMENTATION_PLAN.md](../../docs/CPU_68020_IMPLEMENTATION_PLAN.md) for current 68020 phase status.
 
 ## Documentation Boundaries
