@@ -1280,7 +1280,7 @@ _SetGraphicsMode:
     clr.w COPJMP1(a5)                       ; Strobe to start Copper at new list
     lea gfx_copend_lores,a0                 ; Terminal END for COP2 tail attach
     move.l a0,gfx_active_copper_end
-    move.w #%1000000111100000,DMACON(a5)    ; Enable DMA (SET|MASTER|bitplane|copper|sprite|blitter)
+    move.w #%1000001111100000,DMACON(a5)    ; Enable DMA (SET|DMAEN|BPL|COP|BLT|SPR)
     bra .success
 
 .mode_640x256:
@@ -1312,7 +1312,7 @@ _SetGraphicsMode:
     clr.w COPJMP1(a5)                       ; Strobe to start Copper at new list
     lea gfx_copend_hires,a0                 ; Terminal END for COP2 tail attach
     move.l a0,gfx_active_copper_end
-    move.w #%1000000111100000,DMACON(a5)    ; Enable DMA (SET|MASTER|bitplane|copper|sprite|blitter)
+    move.w #%1000001111100000,DMACON(a5)    ; Enable DMA (SET|DMAEN|BPL|COP|BLT|SPR)
     lea gfx_screen2_hires,a0                ; Load gfx_screen2_hires address
     move.l a0,gfx_current_screen_ptr        ; Set second screen
     jsr gfx_clear_screen_hires              ; Clear second screen
@@ -1347,7 +1347,7 @@ _SetGraphicsMode:
     lea gfx_copend_ham6,a0                  ; Terminal END for COP2 tail attach
     move.l a0,gfx_active_copper_end
     ; HAM6 mode: disable blitter DMA to avoid conflicts with color register
-    move.w #%1000000110100000,DMACON(a5)    ; Enable DMA (SET|MASTER|bitplane|copper|sprite) - no blitter
+    move.w #%1000001110100000,DMACON(a5)    ; Enable DMA (SET|DMAEN|BPL|COP|SPR) - no blitter
     bra .success
 
 .mode_320x256_dualpf:
@@ -1379,7 +1379,7 @@ _SetGraphicsMode:
     clr.w COPJMP1(a5)                       ; Strobe to start Copper at new list
     lea gfx_copend_dualpf,a0                ; Terminal END for COP2 tail attach
     move.l a0,gfx_active_copper_end
-    move.w #%1000000111100000,DMACON(a5)    ; Enable DMA (SET|MASTER|bitplane|copper|sprite|blitter)
+    move.w #%1000001111100000,DMACON(a5)    ; Enable DMA (SET|DMAEN|BPL|COP|BLT|SPR)
     bra .success
 
 .error:

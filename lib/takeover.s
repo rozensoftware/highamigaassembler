@@ -118,7 +118,9 @@ ClearCPUCache:
 TakeSystem:
               move.l     ExecBase,a6                  ; base address of Exec
               jsr        _LVOForbid(a6)               ; disables O.S. multitasking
-              jsr        _LVODisable(a6)              ; disables O.S. interrupts
+              ; NOTE: Do NOT Disable() before WaitTOF — graphics.library WaitTOF
+              ; waits on a VERTB-driven signal. With IDNestCnt raised, that signal
+              ; never arrives and TakeSystem hangs forever (black screen, no ESC).
 
               lea        gfx_name,a1                  ; OpenLibrary takes 1 parameter: library name in a1
               jsr        _LVOOldOpenLibrary(a6)       ; opens graphics.library
@@ -129,7 +131,7 @@ TakeSystem:
               move.l     GB_ACTIVIEW(a6),saved_view   ; save OS View
               move.l     GB_COPINIT(a6),sys_coplist   ; saves system copperlist address
 
-              ; Blank OS display before OwnBlitter (AGE pattern)
+              ; Blank OS display before OwnBlitter (AGE pattern) — IRQs still live
               suba.l     a1,a1                        ; LoadView(NULL)
               jsr        _LVOLoadView(a6)
               jsr        _LVOWaitTOF(a6)
@@ -138,6 +140,9 @@ TakeSystem:
               jsr        _LVOOwnBlitter(a6)           ; takes the Blitter exclusive
 
 .no_gfx:
+              move.l     ExecBase,a6
+              jsr        _LVODisable(a6)              ; soft-disable OS IRQs now that WaitTOF is done
+
               lea        CUSTOM,a5                    ; a5 will always contain CUSTOM chips base address $dff000
 
               move.w     DMACONR(a5),old_dma          ; saves state of DMA channels in a variable

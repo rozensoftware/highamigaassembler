@@ -43,7 +43,6 @@ Keys         dcb.b      256,0                            ; Keys[code]=$FF if hel
 ;----------------------------------------------------------------
              xdef       InitKeyboard
 InitKeyboard:
-
 ; disables all CIAA IRQs
 ;                         76543210
              move.b     #%01111111,CIAAICR
@@ -55,9 +54,9 @@ InitKeyboard:
              move.l     VBRBase,a0
              move.l     #keyb_interrupt,$68(a0)
 
-; enables keyboard interrupts (bit 3)
+; enables keyboard interrupts (bit 3) + master INTEN
 ;                         5432109876543210
-             move.w     #%1100000000001000,INTENA(A5)
+             move.w     #%1100000000001000,INTENA(a5)
 
              rts
 
@@ -77,12 +76,16 @@ GetKey:
 
 ;----------------------------------------------------------------
 ; Function: KeyDown
-; Input: d0.w = raw Amiga scancode (0..127; break bit ignored)
+; Input: 8(a6) = raw Amiga scancode (0..127; break bit ignored)
 ; Output: d0.l = 1 if key is held, 0 otherwise
 ; Description: Tests the Keys[] make/break state table.
+; Notes: HAS cdecl stack arg only (push.l code / jsr / addq #4,a7).
+;        Asm callers must push the scancode; register d0 on entry is ignored.
 ;----------------------------------------------------------------
              xdef       KeyDown
 KeyDown:
+             link       a6,#0
+             move.l     8(a6),d0
              and.w      #$007f,d0
              lea        Keys,a0
              moveq      #0,d1
@@ -92,6 +95,7 @@ KeyDown:
              beq.s      .up
              moveq      #1,d0
 .up:
+             unlk       a6
              rts
 
 ;----------------------------------------------------------------

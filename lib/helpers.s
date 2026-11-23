@@ -27,23 +27,24 @@ rnd_seed:
 ; Function: WaitVBlank
 ; Input: none
 ; Output: none
-; Description: Waits for one full VBlank transition.
-; Notes: Uses CUSTOM register polling and waits for leave-then-enter timing.
+; Description: Waits for one vertical beam wrap (new frame).
+; Notes: Requires a5=CUSTOM (set by TakeSystem). Uses a long read of
+;        VPOSR/VHPOSR ($dff004) — byte reads of VHPOSR are unreliable on OCS
+;        and can spin forever. PAL+NTSC safe: wait until VPOS>=160, then until
+;        VPOS wraps below 160 (beam passes through vblank). Never waits for
+;        line 303 (NTSC hang).
 ; -----------------------------------------------------------------------------
 WaitVBlank:
-    ; Do not assume caller still has a5=CUSTOM (heap/Scroll/etc. may scratch it).
-    lea $dff000,a5
-.WaitLeaveVBlank:
-    move.l $004(a5),d0
-    and.l #$1ff00,d0
-    cmp.l #303<<8,d0
-    bge.b .WaitLeaveVBlank
-
-.WaitNextVBlank:
-    move.l $004(a5),d0
-    and.l #$1ff00,d0
-    cmp.l #303<<8,d0
-    blt.b .WaitNextVBlank
+.WaitPastMid:
+    move.l  $004(a5),d0             ; VPOSR:VHPOSR — V8 in bit16, V7-0 in bits15-8
+    and.l   #$1ff00,d0
+    cmp.l   #160<<8,d0
+    blo.s   .WaitPastMid            ; until beam is in lower half of display
+.WaitWrap:
+    move.l  $004(a5),d0
+    and.l   #$1ff00,d0
+    cmp.l   #160<<8,d0
+    bhs.s   .WaitWrap               ; until beam wraps through vblank to top
     rts
 
 ; =============================================================================
