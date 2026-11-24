@@ -6,6 +6,14 @@ All notable changes to the HAS (High Assembler) project will be documented in th
 
 ### Fixed
 
+- **Legacy `.b`/`.w` array element loads sign-extend:** BSS/data arrays such as
+  `brick_vy.w[8]` now emit `ext.l` (or `ext.w`+`ext.l` for bytes) so negative
+  velocities reload as negative `int` values, not `65534`/`254`. Typed
+  `u8`/`u16`/`UWORD` arrays still zero-extend; legacy **scalar** `.b`/`.w`
+  globals are unchanged (still zero-extend). BSS typed arrays
+  (`name: i16[8]`, etc.) are supported. Regression:
+  `examples/tests/compiler/signed_array_element_load_test.has`. See
+  [Arrays](DEVELOPERS_GUIDE.md#arrays) in the developer's guide.
 - **`lib/graphics.s` SetColor + `lib/palette_fade.s` HAM6 copper:** both now
   write indices 0..15 into `gfx_copperlist_ham6` (gated with
   `ifnd DISABLE_HAM`), matching `LoadPalette` and the hires address math.
@@ -732,6 +740,8 @@ All notable changes to the HAS (High Assembler) project will be documented in th
   as it already did for scalar globals. Typed pointer reads classify the
   pointee type with `ast.is_signed()`, which treats `byte`, `word`, `char`,
   `BYTE` and `WORD` as signed.
+  *(Superseded for arrays: Unreleased now sign-extends legacy `.b[N]`/`.w[N]`
+  element loads; scalars stay zero-extended. Use `u8`/`u16` for unsigned arrays.)*
 
   **Generated output changes.** Four of the shipped examples gained extension
   instructions (`games/robots/level.has`, `tests/compiler/array_comprehensive_test.has`,

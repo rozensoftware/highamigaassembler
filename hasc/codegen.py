@@ -495,6 +495,27 @@ class CodeGen:
 
         return sigs
 
+    @staticmethod
+    def _global_elem_size_and_signed(var):
+        """Return ('b'|'w'|'l', signed) for a data/bss GlobalVarDecl.
+
+        Policy:
+        - Typed form (``name: i16`` / ``name: u16[N]``): signedness from the type.
+        - Legacy ``.b``/``.w`` **arrays**: signed (bare ``arr`` and ``arr[0]`` agree).
+        - Legacy ``.b``/``.w`` **scalars** and ``.l`` anything: unsigned / no ext.
+        """
+        size = var.size_suffix if getattr(var, 'size_suffix', None) else (
+            var.size if getattr(var, 'size', None) in ('b', 'w', 'l') else 'l'
+        )
+        if size not in ('b', 'w', 'l'):
+            size = 'l'
+        type_name = getattr(var, 'type_name', None)
+        if type_name is not None:
+            return size, ast.is_signed(type_name)
+        if getattr(var, 'is_array', False) and size in ('b', 'w'):
+            return size, True
+        return size, False
+
     def _build_array_dimensions(self, module: ast.Module):
         """Collect array dimensions and element size for global arrays."""
         array_info = {}
@@ -504,16 +525,12 @@ class CodeGen:
                     if isinstance(var, ast.StructVarDecl):
                         continue
                     if getattr(var, 'is_array', False):
-                        elem_size = var.size_suffix if var.size_suffix else (var.size if var.size in ('b', 'w', 'l') else 'l')
-                        if elem_size not in ('b', 'w', 'l'):
-                            elem_size = 'l'
+                        elem_size, elem_signed = self._global_elem_size_and_signed(var)
                         dims = var.dimensions if var.dimensions else []
                         array_info[var.name] = {
                             'dims': dims,
                             'size': elem_size,
-                            # Only the typed "name: type = value" form carries signedness;
-                            # the legacy ".b"/".w" suffix form stays unsigned.
-                            'signed': getattr(var, 'signed', False),
+                            'signed': elem_signed,
                         }
         return array_info
 
@@ -557,9 +574,9 @@ class CodeGen:
         return constants
 
     def _build_globals(self, module: ast.Module):
-        # Value shape: {'size': 'b'|'w'|'l', 'signed': bool}. 'signed' is only True for
-        # the opt-in "name: type = value" typed form (ast.GlobalVarDecl.signed); the
-        # legacy ".b"/".w"/".l" suffix form always yields signed=False (unchanged behavior).
+        # Value shape: {'size': 'b'|'w'|'l', 'signed': bool}.
+        # Must match _build_array_dimensions for array symbols so bare VarRef
+        # loads (``return arr``) agree with ``arr[0]`` on sign-/zero-extension.
         globals_map = {}
         for item in module.items:
             if isinstance(item, ast.DataSection) or isinstance(item, ast.BssSection):
@@ -567,11 +584,8 @@ class CodeGen:
                     if isinstance(var, ast.StructVarDecl):
                         globals_map[var.name] = {'size': 'l', 'signed': False}  # default width when used as scalar
                     else:
-                        # Prioritize size_suffix over size (size is byte count, size_suffix is 'b'/'w'/'l')
-                        size = var.size_suffix if hasattr(var, 'size_suffix') and var.size_suffix else (var.size if var.size else 'l')
-                        if size not in ('b', 'w', 'l'):
-                            size = 'l'
-                        globals_map[var.name] = {'size': size, 'signed': getattr(var, 'signed', False)}
+                        size, signed = self._global_elem_size_and_signed(var)
+                        globals_map[var.name] = {'size': size, 'signed': signed}
         # #import labels: addressable symbols defined via INCLUDE at file end.
         # music/sound are const IDs, not addressable globals — skip them here.
         for asset in getattr(module, "asset_imports", None) or []:

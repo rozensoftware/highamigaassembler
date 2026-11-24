@@ -376,21 +376,22 @@ This convention keeps HAS-compatible with the provided `lib/*.s` libraries and t
 
 **Sign Extension for Signed Types:**
 
-When loading 8-bit or 16-bit values (from global variables, local variables, or procedure parameters), the behavior depends on the variable's declared type:
+When loading 8-bit or 16-bit values (from global variables, local variables, or procedure parameters), the behavior depends on the variable's declared type **and** whether it is a scalar or an array element:
 
-- **Typed form** (`var name: i8` / `i16` / `byte` / `word` in typed syntax): Sign-extended (for negative values)
-  - 68020: Single `extb.l` (for `i8`) or `ext.l` (for `i16`) instruction
-  - 68000: Two-instruction sequence (`ext.w`+`ext.l`)
-  
-- **Legacy form** (`var name.b` / `.w`): Always zero-extended (unsigned)
-  - Both targets: `andi.l #$FF` (byte) or `andi.l #$FFFF` (word)
+- **Typed form** (`name: i8` / `i16` / `u8` / `u16`, including arrays `name: i16[N]`):
+  - Signed types (`i8`/`i16`/`byte`/`word`): sign-extended (`ext.l`, or `ext.w`+`ext.l` / `extb.l` on 68020 for bytes)
+  - Unsigned types (`u8`/`u16`/`UBYTE`/`UWORD`): zero-extended (`clr.l` then narrow move, or `andi.l`)
+- **Legacy scalar** (`name.b` / `name.w`): still zero-extended (unsigned) — unchanged
+- **Legacy array** (`name.b[N]` / `name.w[N]`): **sign-extended** on element load (so negative velocities/coords round-trip through `int`)
+  - Prefer `name: u8[N]` / `name: u16[N]` when elements are unsigned bit patterns (≥ `0x80` / ≥ `0x8000`)
 
 This applies to:
-- Global variables declared with `name: type = value;` (typed) vs. `name.b = value;` (legacy)
+- Global variables declared with `name: type = value;` (typed) vs. `name.b = value;` (legacy scalar)
+- BSS/data arrays: legacy `.b`/`.w` dims vs typed `i16[N]` / `u16[N]`
 - External variables declared with `extern var name: type;` (typed)
 - Local procedure parameters (always use declared type)
 
-**Example: Sign vs. Zero Extension**
+**Example: Sign vs. Zero Extension (scalars)**
 
 ```has
 data globals:
@@ -417,10 +418,10 @@ code checks:
 
 HAS supports two forms of global variable declaration in `data` sections, each with distinct sign-extension behavior:
 
-#### Legacy Form (Zero-Extends)
+#### Legacy Form (Scalars Zero-Extend; Arrays Sign-Extend)
 ```has
 data globals:
-    counter = 100        // Initialize with value (always zero-extends)
+    counter = 100        // Initialize with value
     name = "Game"        // String data
 
 code variables:
@@ -434,7 +435,7 @@ code variables:
     }
 ```
 
-The legacy form uses no type annotation. When loaded, byte/word values are always zero-extended (unsigned interpretation):
+Legacy **scalar** `.b`/`.w` globals still zero-extend (unsigned interpretation):
 
 ```has
 data legacy_globals:
@@ -442,9 +443,13 @@ data legacy_globals:
     myWord.w = 0xFFFF   // 0xFFFF is loaded as 65535 (unsigned)
 ```
 
+Legacy **array** elements (`.b[N]` / `.w[N]`) sign-extend on load — safe for
+per-entity velocities such as `brick_vy.w[8]`. For unsigned bit patterns in
+arrays, use typed `u8`/`u16`/`UWORD` instead.
+
 #### Typed Form (Sign-Extends for Signed Types)
 
-**New in 0.9.5**: Opt-in syntax for explicit type annotation:
+**New in 0.9.5**: Opt-in syntax for explicit type annotation (data and BSS):
 
 ```has
 data typed_globals:
@@ -452,6 +457,10 @@ data typed_globals:
     signedWord: i16 = 0xFFFF // -1 (sign-extended)
     unsignedByte: u8 = 0xFB  // 251 (zero-extended)
     counter: int = 100       // 32-bit signed (no extension needed)
+
+bss typed_bss:
+    brick_vy: i16[8]         // signed word array (explicit)
+    tile_id: u16[64]         // unsigned word array (zero-extends)
 ```
 
 When loaded, signed-typed values use sign-extension:
@@ -460,11 +469,12 @@ When loaded, signed-typed values use sign-extension:
 - `u8`, `u16`, `int`, `long`: Zero-extend (unchanged)
 
 **When to Use:**
-- Use **typed form** for signed arithmetic globals that must preserve sign (e.g., velocity, offset)
-- Use **legacy form** for bit patterns and masks that need zero-extension
-- Both forms compile correctly; the difference is semantic
+- Use **typed signed** (`i8`/`i16`) or legacy **`.w[N]` / `.b[N]` arrays** for signed arithmetic (velocity, delta, offset)
+- Use **typed unsigned** (`u8`/`u16`/`UWORD`) for bit patterns, IDs, and masks that must zero-extend
+- Use **legacy scalar** `.b`/`.w` only when you intentionally want zero-extension (or migrate scalars to `i8`/`i16` for signed values)
+- Prefer `.l` / `int` when values need the full 32-bit range (positions that can exceed ±32767, pointers, accumulators)
 
-**Example: Sign Difference**
+**Example: Sign Difference (scalars)**
 ```has
 data values:
     signed: i8 = -5      // 0xFB, loads as -5 → comparisons like "if (signed < 0)" work
@@ -482,7 +492,8 @@ code checks:
     }
 ```
 
-See [examples/global_signed_byte_test.has](../examples/global_signed_byte_test.has) for complete demonstration.
+See [examples/global_signed_byte_test.has](../examples/global_signed_byte_test.has) and
+[examples/tests/compiler/signed_array_element_load_test.has](../examples/tests/compiler/signed_array_element_load_test.has).
 
 ### Local Variables
 ```has
@@ -535,11 +546,29 @@ bss uninitialized:
 
 ## Arrays
 
+### Element size and signedness (gamedev)
+
+| Declaration | Element size | Load into `int` |
+|---|---|---|
+| `name[N]` / `name.l[N]` | 32-bit | no extension |
+| `name.w[N]` (legacy) | 16-bit | **sign-extend** (`ext.l`) |
+| `name.b[N]` (legacy) | 8-bit | **sign-extend** |
+| `name: i16[N]` / `WORD[N]` | 16-bit signed | sign-extend |
+| `name: i8[N]` | 8-bit signed | sign-extend |
+| `name: u16[N]` / `UWORD[N]` | 16-bit unsigned | zero-extend |
+| `name: u8[N]` | 8-bit unsigned | zero-extend |
+
+**Velocities / deltas that can be negative:** `brick_vy.w[8]` or `brick_vy: i16[8]`
+are both correct after the signed-array-load fix; `-2` reloads as `-2`, not `65534`.
+Use `.l` only when the value needs more than ±32767 (or you want uniform long math).
+**IDs / masks / raw bit patterns** with the high bit set need `u16`/`u8`, not legacy `.w`/`.b` arrays.
+
 ### Single-Dimensional Arrays
 ```has
 data arrays:
     numbers[10]                      // Declare array of 10 longs
     scores = { 100, 200, 300 }      // Initialize with values
+    brick_vy.w[8] = {0, 0, 0, 0, 0, 0, 0, 0}  // signed word velocities (legacy)
 
 code array_access:
     proc get_element(index: long) -> long {
@@ -1066,10 +1095,11 @@ the low word of each operand, so wider values are silently truncated at
 runtime; turning the pragma `on` makes that a compile-time error instead. The
 prover accepts literals in range, byte- and signed-word-typed locals and
 parameters, named constants, global and extern scalars, byte-sized struct
-fields, and `x & C` masks with a constant `C` in range. It deliberately rejects
-word-sized struct fields and global array elements, because those are read
-without sign extension and so cannot be proven to fit a signed word. The pragma
-has no effect under `--cpu 68020`, where `muls.l`/`divsl.l` handle full 32-bit
+fields, signed global array elements (legacy `.w[N]` / `.b[N]` and typed
+`i16`/`i8` arrays), and `x & C` masks with a constant `C` in range. It
+rejects unsigned word array elements (`u16`/`UWORD`) and word-sized struct
+fields (legacy `.w` fields still zero-extend to 0..65535). The pragma has no
+effect under `--cpu 68020`, where `muls.l`/`divsl.l` handle full 32-bit
 operands natively.
 
 #### Asset `#import`

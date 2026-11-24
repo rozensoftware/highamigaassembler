@@ -22,6 +22,8 @@ data gamedata:
     scalars.w = 0
     bytes.b[8] = {{1,2,3,4,5,6,7,8}}
     words.w[8] = {{1,2,3,4,5,6,7,8}}
+    ubytes: u8[8] = {{1,2,3,4,5,6,7,8}}
+    uwords: u16[8] = {{1,2,3,4,5,6,7,8}}
     sbytes: i8[8] = {{1,2,3,4,5,6,7,8}}
     swords: i16[8] = {{1,2,3,4,5,6,7,8}}
     struct sprite {{ sb.b, sw.w, sl.l }}
@@ -45,7 +47,9 @@ def _gen(expr, target):
     "blob[1].bb * 3",         # struct-array byte field: same zero-extended read
     "(sprite.sl & 255) * 3",  # andi.l with a non-negative constant bounds to 0..255
     "(sprite.sl & 32767) * 3",
-    "bytes[1] * 3",           # unsigned byte element: clr.l + move.b -> 0..255
+    "bytes[1] * 3",           # legacy .b element: sign-extended -> -128..127
+    "words[1] * 3",           # legacy .w element: sign-extended -> -32768..32767
+    "ubytes[1] * 3",          # typed u8 element: clr.l + move.b -> 0..255
     "sbytes[1] * 3",          # signed byte element: move.b + ext -> -128..127
     "swords[1] * 3",          # signed word element: move.w + ext.l -> -32768..32767
 ])
@@ -90,9 +94,11 @@ def test_mask_proof_rests_on_a_full_width_andi():
 
 
 @pytest.mark.parametrize("expr,load,extension", [
-    ("bytes[1] * 3", "move.b", "clr.l"),
+    ("bytes[1] * 3", "move.b", "ext"),       # legacy .b: sign-extend
+    ("ubytes[1] * 3", "move.b", "clr.l"),    # typed u8: zero-extend
     ("sbytes[1] * 3", "move.b", "ext"),
     ("swords[1] * 3", "move.w", "ext.l"),
+    ("words[1] * 3", "move.w", "ext.l"),     # legacy .w: sign-extend
 ])
 def test_array_element_proof_rests_on_an_actual_extending_load(expr, load, extension):
     """Guard the premise: global array elements are only provable because the
@@ -113,7 +119,7 @@ def test_array_element_proof_rests_on_an_actual_extending_load(expr, load, exten
 @pytest.mark.parametrize("expr", [
     "sprite.sw * 3",     # word field is zero-extended: 0..65535 overflows signed 16-bit
     "sprite.sl * 3",     # long field is unbounded
-    "words[1] * 3",      # legacy .w element is unsigned: 0..65535 overflows signed 16-bit
+    "uwords[1] * 3",     # typed u16 element is zero-extended: 0..65535 overflows signed 16-bit
     "(sprite.sl & 65535) * 3",   # mask still allows 65535 > 32767
     "(sprite.sl | 255) * 3",     # `|` does not bound the result
     "(sprite.sl + 255) * 3",     # `+` can overflow a word
@@ -126,8 +132,8 @@ def test_unprovable_signed_word_operands_still_rejected_under_strict(expr):
 
 @pytest.mark.parametrize("expr", [
     "sprite.sw * 3",
-    "words[1] * 3",
-    "bytes[1] * 3",
+    "uwords[1] * 3",
+    "ubytes[1] * 3",
 ])
 def test_68020_ignores_strict16arith_for_the_same_operands(expr):
     """68020 lowers to the native 32-bit MULS.L, so the 16-bit proof never runs."""

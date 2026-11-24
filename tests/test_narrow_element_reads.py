@@ -334,3 +334,137 @@ def test_unsigned_word_pointer_read_is_zero_extended(target):
     idx = lines.index(load)
     assert (lines[idx - 1] == f"clr.l {dest}"
             or lines[idx + 1] == f"andi.l #$FFFF,{dest}"), body
+
+
+# --- BSS legacy .w/.b and typed i16/u16 (signed velocity round-trip) ----------
+# Store -2 and reload into int: signed paths must ext.l; u16 must stay zero-extended.
+
+BSS_SIGNED_SOURCE = """
+bss demo:
+    brick_vy.w[8]
+    brick_i16: i16[8]
+    brick_u16: u16[8]
+    brick_b.b[8]
+    brick_i8: i8[8]
+
+code main:
+    proc r_legacy_w() -> int {
+        brick_vy[0] = 0 - 2;
+        return brick_vy[0];
+    }
+    proc r_typed_i16() -> int {
+        brick_i16[0] = 0 - 2;
+        return brick_i16[0];
+    }
+    proc r_typed_u16() -> int {
+        brick_u16[0] = 0 - 2;
+        return brick_u16[0];
+    }
+    proc r_legacy_b() -> int {
+        brick_b[0] = 0 - 2;
+        return brick_b[0];
+    }
+    proc r_typed_i8() -> int {
+        brick_i8[0] = 0 - 2;
+        return brick_i8[0];
+    }
+    proc end() -> int { return 0; }
+"""
+
+PROC_ORDER_BSS = [
+    "r_legacy_w", "r_typed_i16", "r_typed_u16", "r_legacy_b", "r_typed_i8", "end",
+]
+
+
+@pytest.mark.parametrize("target", TARGETS, ids=("68000", "68020"))
+@pytest.mark.parametrize("proc,suffix,signed", [
+    ("r_legacy_w", ".w", True),
+    ("r_typed_i16", ".w", True),
+    ("r_typed_u16", ".w", False),
+    ("r_legacy_b", ".b", True),
+    ("r_typed_i8", ".b", True),
+])
+def test_bss_narrow_array_reads_extend(target, proc, suffix, signed):
+    body = _bodies(BSS_SIGNED_SOURCE, PROC_ORDER_BSS, target)[proc]
+    lines = [ln.strip() for ln in body.splitlines()]
+    # Return path loads the element into d0 (constant index -> absolute operand).
+    load = next(ln for ln in lines
+                if ln.startswith(f"move{suffix} ") and "," in ln
+                and not ln.startswith(f"move{suffix} d"))
+    dest = load.split(",")[-1]
+    idx = lines.index(load)
+    if signed:
+        expected = (_sign_extend_bytes(target) if suffix == ".b" else ["ext.l"])
+        assert lines[idx + 1:idx + 1 + len(expected)] == [
+            f"{op} {dest}" for op in expected
+        ], body
+        assert lines[idx - 1] != f"clr.l {dest}", body
+    else:
+        assert lines[idx - 1] == f"clr.l {dest}", body
+
+
+# Bare ``return arr`` must use the same extension as ``return arr[0]``.
+VARREF_VS_INDEX_SOURCE = """
+data narrow:
+    leg.w[4] = {1, 2, 3, 4}
+    leb.b[4] = {1, 2, 3, 4}
+    uw: u16[4] = {1, 2, 3, 4}
+
+code main:
+    proc r_leg_var() -> int { return leg; }
+    proc r_leg_idx() -> int { return leg[0]; }
+    proc r_leb_var() -> int { return leb; }
+    proc r_leb_idx() -> int { return leb[0]; }
+    proc r_uw_var() -> int { return uw; }
+    proc r_uw_idx() -> int { return uw[0]; }
+    proc end() -> int { return 0; }
+"""
+
+PROC_ORDER_VARREF = [
+    "r_leg_var", "r_leg_idx", "r_leb_var", "r_leb_idx",
+    "r_uw_var", "r_uw_idx", "end",
+]
+
+
+def _extension_ops_after_move(body, suffix):
+    lines = [ln.strip() for ln in body.splitlines()]
+    load = next(ln for ln in lines if ln.startswith(f"move{suffix} "))
+    dest = load.split(",")[-1]
+    idx = lines.index(load)
+    ops = []
+    for ln in lines[idx + 1:]:
+        if not ln or ln.startswith(";"):
+            continue
+        head = ln.split(" ")[0]
+        if head in ("ext.w", "ext.l", "extb.l", "andi.l", "clr.l"):
+            # clr.l is before the move for zero-extend; only collect post-move ops
+            # and the pre-move clr separately via caller when needed.
+            if head == "clr.l":
+                break
+            ops.append(ln)
+            continue
+        break
+    pre_clr = lines[idx - 1] == f"clr.l {dest}" if idx > 0 else False
+    return load, dest, ops, pre_clr
+
+
+@pytest.mark.parametrize("target", TARGETS, ids=("68000", "68020"))
+@pytest.mark.parametrize("var_proc,idx_proc,suffix,signed", [
+    ("r_leg_var", "r_leg_idx", ".w", True),
+    ("r_leb_var", "r_leb_idx", ".b", True),
+    ("r_uw_var", "r_uw_idx", ".w", False),
+])
+def test_bare_varref_and_index0_agree_on_extension(target, var_proc, idx_proc, suffix, signed):
+    bodies = _bodies(VARREF_VS_INDEX_SOURCE, PROC_ORDER_VARREF, target)
+    for proc in (var_proc, idx_proc):
+        load, dest, ops, pre_clr = _extension_ops_after_move(bodies[proc], suffix)
+        assert load.startswith(f"move{suffix} "), bodies[proc]
+        if signed:
+            expected = (_sign_extend_bytes(target) if suffix == ".b" else ["ext.l"])
+            assert ops[:len(expected)] == [f"{op} {dest}" for op in expected], bodies[proc]
+            assert not pre_clr, bodies[proc]
+            assert not any(op.startswith("andi.l") for op in ops), bodies[proc]
+        else:
+            # Zero-extend: either clr.l before move, or andi after (VarRef path).
+            assert pre_clr or (ops and ops[0].startswith("andi.l")), bodies[proc]
+

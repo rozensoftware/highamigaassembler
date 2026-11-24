@@ -5,6 +5,11 @@
 // have been read back as +253 and the "moving left" branch below would
 // never have been taken - silently breaking leftward movement.
 //
+// Note: for *array* velocities use legacy ".w[N]" / ".b[N]" or typed
+// "i16[N]" / "i8[N]" — those element loads sign-extend. Legacy *scalar*
+// ".b"/".w" still zero-extend; prefer "dx: i8" / "dx: i16" for scalars.
+// Unsigned bit-pattern arrays need "u16[N]" / "u8[N]".
+//
 // Compile with:
 //   python -m hasc.cli examples/games/signed_global_velocity_demo.has --cpu 68000 -o out.s
 //   python -m hasc.cli examples/games/signed_global_velocity_demo.has --cpu 68020 -o out.s

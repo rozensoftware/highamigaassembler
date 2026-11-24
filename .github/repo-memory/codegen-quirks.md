@@ -370,12 +370,10 @@
   across `_emit_expr` VarRef, post/pre inc-dec, push-arg codegen, and
   assignment/increment statement codegen; only LOAD sites need the actual
   signed/unsigned branch, store-only sites just needed the `['size']` unwrap).
-- Only `data_var`/`data_var_typed` (DATA section) got the typed form in this
-  pass - `bss_var` grammar was NOT extended with an equivalent typed form
-  (still `.b`/`.w`/`.l`-suffix only for bss). If a signed BSS global is ever
-  needed, add `bss_var_typed` mirroring `data_var_typed` - not done yet, out
-  of scope for this fix (BSS vars have no init value to demonstrate sign with
-  anyway, but the type is still meaningful for the load-time sign-extension).
+- BSS typed form is now available: `name: i16[N]` / `name: u8` etc.
+  (`bss_var_typed` / `bss_var_typed_or_bytecount`). Legacy `.b`/`.w` **array**
+  element loads sign-extend (BYTE/WORD); use `u8`/`u16`/`UWORD` for
+  zero-extend. Legacy **scalar** `.b`/`.w` globals still zero-extend.
 - **Gotcha hit during implementation**: the first draft of
   `data_var_typed`'s array_dims-vs-value-list disambiguation used
   `isinstance(items[idx][0], (int, str))` to detect array dims, but lark's

@@ -60,7 +60,9 @@ data assets:                    // also: data_chip
 
 bss workspace:                  // also: bss_chip
     buffer.b: 256               // bss_var: NAME[.suffix] : COUNT  (count of that size unit)
-    grid.w[10][10]              // bss_var: NAME[.suffix] dims
+    grid.w[10][10]              // bss_var: NAME[.suffix] dims — legacy .w/.b arrays sign-extend on load
+    brick_vy: i16[8]            // bss_var_typed: NAME: TYPE dims (signed word array)
+    tile_id: u16[64]            // typed unsigned — zero-extends (use for IDs/bit patterns)
     struct enemy[8] { x.w, y.w, hp.b }              // struct_bss_var
 
 code main:                      // also: code_chip
@@ -72,7 +74,8 @@ The `_chip` section variants (`data_chip`, `bss_chip`, `code_chip`) place data i
 **only** for data the custom chips DMA from - bitplanes, BOB/sprite graphics and masks, copper lists,
 audio samples - or when explicitly told to. Everything else goes in plain `data`/`bss` (fast RAM).
 Ask rather than guess when the consumer is unclear.
-Only `data_var` has the typed (`: i8`) form; `bss_var` is suffix-only.
+Both `data_var` and `bss_var` support typed (`: i8` / `: i16[N]` / `: u16[N]`) forms.
+Legacy `.b`/`.w` **arrays** sign-extend on element load; legacy **scalars** still zero-extend.
 A `[N]`-dimensioned array with exactly **one** initializer value silently drops the initializer
 (the parser stores a lone value as a scalar) - use 2+ values or accept the reservation.
 

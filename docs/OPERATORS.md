@@ -25,8 +25,9 @@
 	- named constants, global/extern scalars, byte-sized struct fields (`s.f`,
 	  `arr[i].f`, `p->f`), and `x & C` masks with a constant `C` in range are
 	  recognised as provably safe;
-	- word-sized struct fields and global array elements are **not** provable,
-	  because they are read without sign extension;
+	- signed global array elements (legacy `.w[N]`/`.b[N]` and typed `i16`/`i8`
+	  arrays) **are** provable; unsigned word arrays (`u16`/`UWORD`) and
+	  word-sized struct fields are **not** (zero-extend to 0..65535);
 	- the error names the operand, the operator, and the line, and states both
 	  remedies.
 - `#pragma strict16arith(off)` (default) keeps permissive behavior for dynamic operands.

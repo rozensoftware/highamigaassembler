@@ -1,0 +1,117 @@
+// Regression: narrow signed array element loads must sign-extend into int.
+// Legacy ".w"/".b" BSS/data arrays and typed i16/i8 arrays store -2 and reload
+// as -2 (not 65534 / 254). Typed u16/u8 stay zero-extended.
+//
+// Compile:
+//   .venv/bin/python3 -m hasc.cli examples/tests/compiler/signed_array_element_load_test.has --cpu 68000 -o /tmp/signed_arr.s
+//   .venv/bin/python3 -m hasc.cli examples/tests/compiler/signed_array_element_load_test.has --cpu 68020 -o /tmp/signed_arr20.s
+
+data signed_data:
+    data_vy.w[4] = {0, 0, 0, 0}
+    data_i16: i16[4] = {0, 0, 0, 0}
+    data_u16: u16[4] = {0, 0, 0, 0}
+    data_b.b[4] = {0, 0, 0, 0}
+    data_i8: i8[4] = {0, 0, 0, 0}
+
+bss signed_bss:
+    bss_vy.w[8]
+    bss_i16: i16[8]
+    bss_u16: u16[8]
+    bss_b.b[8]
+    bss_i8: i8[8]
+
+code main:
+    public main;
+
+    // expect (68000/68020): move.w ... then ext.l (not clr.l before move.w)
+    proc load_legacy_w_bss() -> int {
+        var v: int;
+        bss_vy[0] = 0 - 2;
+        v = bss_vy[0];
+        // expect: v == -2 and v < 0
+        if (v < 0) {
+            return v;
+        }
+        return 1;
+    }
+
+    // expect: move.w ... then ext.l
+    proc load_typed_i16_bss() -> int {
+        var v: int;
+        bss_i16[0] = 0 - 2;
+        v = bss_i16[0];
+        if (v == (0 - 2)) {
+            return v;
+        }
+        return 1;
+    }
+
+    // expect: clr.l then move.w (unsigned path unchanged)
+    proc load_typed_u16_bss() -> int {
+        var v: int;
+        bss_u16[0] = 0 - 2;
+        v = bss_u16[0];
+        // 0xFFFE zero-extended == 65534, never < 0
+        if (v < 0) {
+            return 1;
+        }
+        return v;
+    }
+
+    // expect: move.b ... then sign-extension
+    proc load_legacy_b_bss() -> int {
+        var v: int;
+        bss_b[0] = 0 - 2;
+        v = bss_b[0];
+        if (v < 0) {
+            return v;
+        }
+        return 1;
+    }
+
+    // expect: move.w data_vy then ext.l
+    proc load_legacy_w_data() -> int {
+        var v: int;
+        data_vy[0] = 0 - 2;
+        v = data_vy[0];
+        if (v == (0 - 2)) {
+            return 0;
+        }
+        return 1;
+    }
+
+    // expect: move.w data_i16 then ext.l
+    proc load_typed_i16_data() -> int {
+        var v: int;
+        data_i16[0] = 0 - 2;
+        v = data_i16[0];
+        if (v < 0) {
+            return 0;
+        }
+        return 1;
+    }
+
+    // Bare VarRef ``return data_vy`` must sign-extend like ``data_vy[0]``.
+    proc load_legacy_w_varref() -> int {
+        data_vy[0] = 0 - 2;
+        // expect: move.w data_vy / ext.l (not andi.l #$FFFF)
+        return data_vy;
+    }
+
+    proc load_legacy_b_varref() -> int {
+        data_b[0] = 0 - 2;
+        // expect: move.b data_b then sign-extension
+        return data_b;
+    }
+
+    proc main() -> int {
+        if (load_legacy_w_bss() >= 0) { return 1; }
+        if (load_typed_i16_bss() >= 0) { return 2; }
+        if (load_typed_u16_bss() < 0) { return 3; }
+        if (load_legacy_b_bss() >= 0) { return 4; }
+        if (load_legacy_w_data() != 0) { return 5; }
+        if (load_typed_i16_data() != 0) { return 6; }
+        if (load_legacy_w_varref() >= 0) { return 7; }
+        if (load_legacy_b_varref() >= 0) { return 8; }
+        return 0;
+    }

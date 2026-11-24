@@ -67,6 +67,8 @@ class Validator:
                         else:
                             self.constants[var.name] = var.value
                     else:
+                        if isinstance(var, ast.GlobalVarDecl):
+                            self._validate_global_var_type(var)
                         # Resolve array dimensions into side table (no AST mutation)
                         resolved_dims = None
                         if isinstance(var, ast.GlobalVarDecl) and var.dimensions:
@@ -101,6 +103,7 @@ class Validator:
                             self.constants[var.name] = var.value
                     else:
                         if isinstance(var, ast.GlobalVarDecl):
+                            self._validate_global_var_type(var)
                             resolved_dims = None
                             if var.dimensions:
                                 resolved_dims = self._resolve_dimensions(var)
@@ -287,6 +290,20 @@ class Validator:
 
         return effective_size
     
+    def _validate_global_var_type(self, var):
+        """Reject unusable types in the opt-in "name: type" data/bss form."""
+        type_name = getattr(var, 'type_name', None)
+        if not type_name:
+            return
+        if type_name not in ast.ALL_TYPES:
+            self.errors.append(
+                f"Unknown type '{type_name}' for global variable '{var.name}'"
+            )
+        elif ast.type_size(type_name) not in (1, 2, 4) or type_name == 'void':
+            self.errors.append(
+                f"Type '{type_name}' is not a valid global variable type for '{var.name}'"
+            )
+
     def _validate_struct_fields(self, struct_var):
         """Reject unusable declared types in the "name: type" struct-field form."""
         for field in getattr(struct_var, 'fields', []) or []:

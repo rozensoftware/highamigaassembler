@@ -74,8 +74,10 @@ struct_field: CNAME SIZE_SUFFIX
 bss_section: "bss" CNAME ":" bss_item* -> bss_section
           | "bss_chip" CNAME ":" bss_item* -> bss_chip_section
 ?bss_item: bss_var | struct_bss_var | const_decl_nosemi
-bss_var: CNAME [SIZE_SUFFIX] array_dims
-    | CNAME [SIZE_SUFFIX] ":" (NUMBER | CNAME)
+bss_var: CNAME [SIZE_SUFFIX] array_dims -> bss_var_array
+    | CNAME ":" CNAME array_dims -> bss_var_typed
+    | CNAME SIZE_SUFFIX ":" (NUMBER | CNAME) -> bss_var_sized
+    | CNAME ":" (NUMBER | CNAME) -> bss_var_typed_or_bytecount
 
 struct_bss_var: "struct" CNAME array_dims? "{" struct_field_list "}"
 
@@ -687,7 +689,8 @@ class ASTBuilder(Transformer):
             dimensions=dimensions,
             values=values,
             size_suffix=size_suffix,
-            signed=signed
+            signed=signed,
+            type_name=type_name,
         )
 
     def data_var_typed_uninit(self, items):
@@ -711,7 +714,8 @@ class ASTBuilder(Transformer):
             dimensions=dimensions,
             values=None,
             size_suffix=size_suffix,
-            signed=signed
+            signed=signed,
+            type_name=type_name,
         )
 
     def struct_field(self, items):
@@ -775,44 +779,111 @@ class ASTBuilder(Transformer):
         fields = items[idx] if idx < len(items) else []
         return ast.StructVarDecl(name=name, fields=fields, dimensions=dimensions, init_values=None, is_array=is_array, is_bss=True)
 
-    def bss_var(self, items):
+    def _bss_array_byte_count(self, size_suffix, dimensions):
+        """Total bytes for a BSS array when every dimension is numeric; else None."""
+        if not dimensions or not all(isinstance(dim, int) for dim in dimensions):
+            return None
+        total_elements = 1
+        for dim in dimensions:
+            total_elements *= dim
+        element_size = 1 if size_suffix == 'b' else (2 if size_suffix == 'w' else 4)
+        return str(total_elements * element_size)
+
+    def bss_var_array(self, items):
+        # Legacy "name.w[N]" / "name[N]" form — size suffix only. Narrow (.b/.w)
+        # array element loads sign-extend; use "name: u8[N]" / "name: u16[N]"
+        # for zero-extend. (Legacy scalar ".b"/".w" still zero-extends.)
         items = [item for item in items if item is not None]
         name = self._val(items[0])
-        dimensions = None
-        byte_count = None
-        size = 'l'  # default
+        size = 'l'
         idx = 1
-        
-        # Check for SIZE_SUFFIX
         if len(items) > idx and hasattr(items[idx], 'type') and items[idx].type == 'SIZE_SUFFIX':
             size_str = self._val(items[idx])
             if size_str.startswith('.'):
-                size = size_str[1]  # Extract 'b', 'w', or 'l'
+                size = size_str[1]
             idx += 1
-        
-        # Check for array dimensions or colon
-        if len(items) > idx:
-            if isinstance(items[idx], list):
-                # Array form: name[dims]
-                dimensions = items[idx]
-                # Calculate total bytes if all dims are numeric; otherwise defer
-                if all(isinstance(dim, int) for dim in dimensions):
-                    total_elements = 1
-                    for dim in dimensions:
-                        total_elements *= dim
-                    element_size = 1 if size == 'b' else (2 if size == 'w' else 4)
-                    byte_count = str(total_elements * element_size)
-            else:
-                # Old form: name: bytes
-                byte_count = self._val(items[idx])
-        
+        dimensions = items[idx] if len(items) > idx and isinstance(items[idx], list) else None
         return ast.GlobalVarDecl(
-            name=name, 
-            value=None, 
-            size=byte_count,
+            name=name,
+            value=None,
+            size=self._bss_array_byte_count(size, dimensions),
             is_array=dimensions is not None,
             dimensions=dimensions,
-            size_suffix=size
+            size_suffix=size,
+        )
+
+    def bss_var_typed(self, items):
+        # Opt-in "name: i16[N]" / "name: u8[N]" — signedness from the type name.
+        items = [item for item in items if item is not None]
+        name = self._val(items[0])
+        type_name = self._val(items[1])
+        size_suffix = ast.size_suffix(ast.type_size(type_name))[1:]
+        dimensions = items[2] if len(items) > 2 and isinstance(items[2], list) else None
+        return ast.GlobalVarDecl(
+            name=name,
+            value=None,
+            size=self._bss_array_byte_count(size_suffix, dimensions),
+            is_array=True,
+            dimensions=dimensions,
+            size_suffix=size_suffix,
+            signed=ast.is_signed(type_name),
+            type_name=type_name,
+        )
+
+    def bss_var_sized(self, items):
+        # Legacy "name.l: COUNT" reservation (COUNT may be a const name).
+        items = [item for item in items if item is not None]
+        name = self._val(items[0])
+        size_str = self._val(items[1])
+        size = size_str[1] if size_str.startswith('.') else size_str
+        byte_count = self._val(items[2])
+        return ast.GlobalVarDecl(
+            name=name,
+            value=None,
+            size=byte_count,
+            is_array=False,
+            dimensions=None,
+            size_suffix=size,
+        )
+
+    def bss_var_typed_or_bytecount(self, items):
+        # "name: NUMBER" is always a legacy byte-count. "name: CNAME" is a typed
+        # scalar when CNAME is a known type, else a legacy named byte-count
+        # (e.g. "buf: BUFFER_SIZE").
+        items = [item for item in items if item is not None]
+        name = self._val(items[0])
+        second = self._val(items[1])
+        # Numeric literal → byte count (may arrive as int from NUMBER token).
+        if isinstance(second, int) or (isinstance(second, str) and (
+                second.isdigit() or (second.startswith('-') and second[1:].isdigit())
+                or second.startswith('0x') or second.startswith('0X'))):
+            return ast.GlobalVarDecl(
+                name=name,
+                value=None,
+                size=str(second) if not isinstance(second, str) else second,
+                is_array=False,
+                dimensions=None,
+                size_suffix='l',
+            )
+        if second in ast.ALL_TYPES:
+            size_suffix = ast.size_suffix(ast.type_size(second))[1:]
+            return ast.GlobalVarDecl(
+                name=name,
+                value=None,
+                size=None,
+                is_array=False,
+                dimensions=None,
+                size_suffix=size_suffix,
+                signed=ast.is_signed(second),
+                type_name=second,
+            )
+        return ast.GlobalVarDecl(
+            name=name,
+            value=None,
+            size=second,
+            is_array=False,
+            dimensions=None,
+            size_suffix='l',
         )
 
 
