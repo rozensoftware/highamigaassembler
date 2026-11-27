@@ -1,0 +1,78 @@
+// Dual-playfield depth wash: FillPlayfield + CopperGradient on COLOR1.
+//
+// Mode 3 (320x256 dual PF). PF1 is filled solid with logical color 1 so every
+// pixel samples COLOR1; a COP2 tail then lerps COLOR1 from dark to bright blue
+// across the visible OCS copper range ($2C..$FF). PF2 is left clear (transparent).
+//
+// Build: ./scripts/build_example.sh examples/dualpf_gradient.has
+
+const KEY_ESC = 69;
+
+// OCS copper WAIT is 8-bit vertical: full DIW is $2C..$12B (256 lines), but
+// WAIT can only hit $00..$FF. Use $2C..$FF; lines $100..$12B keep final rgb1.
+const GRAD_Y0 = $2C;
+const GRAD_Y1 = $FF;
+
+bss_chip copper_chip:
+    // (y1-y0+1) * (WAIT 2 words + COLOR 2 words) + END 2 words
+    wash.w: 1024
+
+code main:
+    extern func TakeSystem() -> void;
+    extern func ReleaseSystem() -> void;
+    extern func SetGraphicsMode(mode: int) -> int;
+    extern func SetColor(id: int, col: int) -> int;
+    extern func FillPlayfield(playfield: int, color_code: int) -> int;
+    extern func ClearPlayfield(playfield: int) -> int;
+    extern func Show() -> void;
+    extern func WaitVBlank() -> int;
+    extern func InitKeyboard() -> void;
+    extern func GetKey() -> byte;
+
+    extern func CopperReset(list: int) -> void;
+    extern func CopperGradient(list: int, color_idx: int, y0: int, y1: int,
+                               rgb0: int, rgb1: int) -> int;
+    extern func CopperEnd(list: int) -> int;
+    extern func AttachCopperTail(list: int) -> int;
+    extern func DetachCopperTail() -> int;
+
+    public main;
+
+    asm {
+        jsr TakeSystem
+        jsr main
+        jsr ReleaseSystem
+        rts
+    }
+
+    proc main() -> int {
+        var list: int;
+        var key: byte;
+
+        call SetGraphicsMode(3);
+        call SetColor(0, $000);      // backdrop
+        call SetColor(1, $001);      // PF1 code 1 (overwritten per line by copper)
+
+        call FillPlayfield(1, 1);    // solid PF1 -> COLOR1
+        call ClearPlayfield(2);      // PF2 transparent
+
+        list = &wash;
+        call CopperReset(list);
+        call CopperGradient(list, 1, GRAD_Y0, GRAD_Y1, $001, $00F);
+        call CopperEnd(list);
+        call AttachCopperTail(list);
+
+        call Show();
+        call InitKeyboard();
+
+        while (1) {
+            call WaitVBlank();
+            key = GetKey();
+            if (key == KEY_ESC) {
+                break;
+            }
+        }
+
+        call DetachCopperTail();
+        return 0;
+    }

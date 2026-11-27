@@ -161,6 +161,21 @@ call SetGraphicsMode(3);
 call ClearPlayfield(2);   // Wipe only Playfield 2, leaving Playfield 1 untouched
 ```
 
+#### FillPlayfield(playfield: int, color_code: int) -> int
+Blitter-fills the 3 bitplanes owned by one dual-playfield layer so every pixel shows the given
+logical color code (0..7), leaving the sibling playfield untouched.
+- **Valid only in mode 3** — returns `-1` in any other graphics mode.
+- **playfield**: `1` or `2`, same ownership as `ClearPlayfield` / `SetActivePlayfield`.
+- **color_code**: logical 0..7; bit *N* selects owned plane *N* (clear vs all bits set). Out of
+  range returns `-1` without writing.
+- Does **not** reset the text cursor.
+- Returns 0 on success, -1 on error.
+
+```has
+call SetGraphicsMode(3);
+call FillPlayfield(1, 1);   // Solid PF1 color code 1 (COLOR1); PF2 unchanged
+```
+
 #### ScrollHorizontalScreen(px: int) -> int
 Sets the OCS/ECS hardware fine horizontal scroll register (`BPLCON1`) directly for the active
 playfield, instead of moving pixel data like `Scroll()` does.
@@ -276,6 +291,14 @@ cookie-cut (`BlitTileTrans`, `DrawTilemapLayerTrans`) paths are available;
 BOBs for overlays, not these routines. Full API and import layouts:
 [LIBRARY_REFERENCE.md](LIBRARY_REFERENCE.md#tilemaps--tiled-map-blit);
 how-to: [DEVELOPERS_GUIDE.md](DEVELOPERS_GUIDE.md#guide-multi-layer-tiled-maps).
+
+#### Pixel collision (`lib/collision.s`)
+`BuildCollisionPlane` turns a tilemap layer into a 1bpp CHIP world plane;
+`BobCollidePlane` / `MaskCollidePlane` blit-test BOB masks against it (A&B + `BLTZERO`,
+cookie shift on channel A only) and `BobCollideBob` tests two BOBs on the CPU. BOB-based
+calls work in modes 0, 1 and 3 (not HAM6). `a5` must remain `CUSTOM` after
+`TakeSystem()`. See
+[LIBRARY_REFERENCE.md](LIBRARY_REFERENCE.md#collisions--pixel-collision).
 
 ### Text Functions
 
@@ -457,6 +480,8 @@ extern func CopperWait(list: int, vpos: int, hpos: int) -> int;
 extern func CopperMove(list: int, reg: int, value: int) -> int;
 extern func CopperEnd(list: int) -> int;
 extern func CopperColor(list: int, index: int, rgb12: int) -> int;
+extern func CopperGradient(list: int, color_idx: int, y0: int, y1: int,
+                           rgb0: int, rgb1: int) -> int;
 extern func AttachCopperTail(list: int) -> int;
 extern func DetachCopperTail() -> int;
 extern func GetCopperTail() -> int;
@@ -477,7 +502,18 @@ extern func SetCopperList(list: int) -> int;  // advanced: replace COP1 entirely
 
 `CopperMove` writes any copper-reachable custom register (offsets from
 [`lib/hardware.i`](../lib/hardware.i)). `CopperColor` is only a convenience for
-`COLOR0 + index`. Example — mid-frame scroll plus a color change:
+`COLOR0 + index`.
+
+#### CopperGradient(list, color_idx, y0, y1, rgb0, rgb1) -> int
+Appends a per-line `CopperWait(list, y, $07)` + `CopperColor(list, color_idx, rgb)` pair for
+every copper line `y0..y1` inclusive, with RGB4 R/G/B nibbles independently lerped from
+`rgb0` to `rgb1`. Does **not** call `CopperEnd` or `AttachCopperTail` — the caller finishes
+the list.
+- Returns `0` on success, `-1` if `y1 < y0` or `color_idx` is outside `0..31`.
+- Preserves `a5` (CUSTOM). Call `CopperReset` before building.
+- **Full-screen PAL 320×256 (OCS):** DIW is VPOS `$2C`..`$12B` (256 lines), but OCS copper
+  WAIT compares only 8 vertical bits, so use `y0=$2C`, `y1=$FF`. Lines `$100`..`$12B` keep
+  the final `rgb1` from the last WAIT.
 
 ```has
 const BPLCON1 = $102;
@@ -489,9 +525,16 @@ call CopperMove(&bars, BPLCON1, $0011);   // scroll
 call CopperMove(&bars, COLOR0, $00F);     // same as CopperColor(&bars, 0, $00F)
 call CopperEnd(&bars);
 call AttachCopperTail(&bars);
+
+// Dual-playfield depth wash on COLOR1 (PF1 logical color 1):
+call CopperReset(&wash);
+call CopperGradient(&wash, 1, $2C, $FF, $001, $00F);
+call CopperEnd(&wash);
+call AttachCopperTail(&wash);
 ```
 
 Full raster-bars demo: [`examples/demos/raster_bars.has`](../examples/demos/raster_bars.has).
+Dual-PF gradient wash: [`examples/dualpf_gradient.has`](../examples/dualpf_gradient.has).
 
 ## Opt-in Memory Savings: Disabling Unused Screen Buffers and Copper Lists
 

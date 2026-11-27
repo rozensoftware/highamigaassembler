@@ -1,0 +1,36 @@
+// Compile/link regression: lib/collision.s externs (bob/tile pixel collision).
+//
+// Recipe: BuildCollisionPlane() ORs solid tile bitplanes into a CHIP 1bpp
+// world plane; BobCollidePlane()/MaskCollidePlane() blit-test A&B (BLTZERO).
+
+code main:
+    extern func BuildCollisionPlane(plane: int, plane_bpr: int, plane_h: int,
+                                    layer: int, tileset: int, tile_w: int,
+                                    tile_h: int, planes: int, map_w: int,
+                                    map_h: int, empty_id: int) -> int;
+    extern func BobExtractMask1bpp(handle: int, dest: int) -> int;
+    extern func MaskCollidePlane(cookie: int, cookie_bpr: int, cookie_h: int,
+                                 plane: int, plane_bpr: int, x: int, y: int) -> int;
+    extern func BobCollidePlane(handle: int, plane: int, plane_bpr: int,
+                                x: int, y: int) -> int;
+    extern func BobCollideBob(handle_a: int, ax: int, ay: int,
+                              handle_b: int, bx: int, by: int) -> int;
+
+    asm {
+        jsr main
+        rts
+    }
+
+    proc main() -> int {
+        var rc: int;
+
+        // Never executed (null args -> -1); keeps the externs referenced.
+        if (0 != 0) {
+            rc = BuildCollisionPlane(0, 0, 0, 0, 0, 16, 16, 3, 0, 0, 0);
+            rc = BobExtractMask1bpp(0, 0);
+            rc = MaskCollidePlane(0, 0, 0, 0, 0, 0, 0);
+            rc = BobCollidePlane(0, 0, 0, 0, 0);
+            rc = BobCollideBob(0, 0, 0, 0, 0, 0);
+        }
+        return 0;
+    }

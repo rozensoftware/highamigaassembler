@@ -37,7 +37,7 @@ def test_clearplayfield_is_exported_and_declared():
 
 def test_clearplayfield_validates_mode_and_playfield():
     graphics_s = _read_norm(GRAPHICS_S)
-    block = _slice(graphics_s, "ClearPlayfield:", "Text:")
+    block = _slice(graphics_s, "ClearPlayfield:", "FillPlayfield:")
 
     # Only valid in mode 3, playfield must be 1 or 2 - same shape as
     # SetActivePlayfield's own validation.
@@ -47,7 +47,7 @@ def test_clearplayfield_validates_mode_and_playfield():
 
 def test_clearplayfield_clears_only_owned_planes_and_leaves_cursor_alone():
     graphics_s = _read_norm(GRAPHICS_S)
-    block = _slice(graphics_s, "ClearPlayfield:", "Text:")
+    block = _slice(graphics_s, "ClearPlayfield:", "FillPlayfield:")
 
     # PF2 offset (+40), skip-sibling modulo (40), and the derived
     # 768-row/20-word BLTSIZE encoding (256 scanlines x 3 owned planes).
@@ -57,6 +57,41 @@ def test_clearplayfield_clears_only_owned_planes_and_leaves_cursor_alone():
 
     # Unlike ClearScreen, ClearPlayfield must not reset the shared text
     # cursor - cursor state isn't playfield-specific.
+    assert "gfx_text_cursor_x" not in block
+    assert "gfx_text_cursor_y" not in block
+
+
+# ---------------------------------------------------------------------------
+# FillPlayfield (lib/graphics.s)
+# ---------------------------------------------------------------------------
+
+def test_fillplayfield_is_exported_and_declared():
+    graphics_s = _read_norm(GRAPHICS_S)
+    assert re.search(r"^\s*XDEF\s+FillPlayfield\b", graphics_s, re.MULTILINE)
+    assert re.search(r"^FillPlayfield:", graphics_s, re.MULTILINE)
+
+
+def test_fillplayfield_validates_mode_playfield_and_color():
+    graphics_s = _read_norm(GRAPHICS_S)
+    block = _slice(graphics_s, "FillPlayfield:", "ScrollHorizontalScreen:")
+
+    assert "cmp.w #3,gfx_current_mode" in block
+    assert re.search(r"cmp\.l #1,d0\s*\n\s*beq\.s \.flpf_pf_ok\s*\n\s*cmp\.l #2,d0", block)
+    assert re.search(r"cmp\.l #7,d1\s*\n\s*bhi \.flpf_error", block)
+
+
+def test_fillplayfield_blits_owned_planes_per_color_bit():
+    graphics_s = _read_norm(GRAPHICS_S)
+    block = _slice(graphics_s, "FillPlayfield:", "ScrollHorizontalScreen:")
+
+    # Same PF2 +40 base as ClearPlayfield; per-plane stride 80; same-plane
+    # modulo 200 (240-byte scanline - 40 payload); D=0 / D=1 minterms.
+    assert re.search(r"adda\.w #40,a0", block)
+    assert "mulu.w #80,d3" in block
+    assert re.search(r"move\.w #200,BLTDMOD\(a5\)", block)
+    assert re.search(r"move\.w #\$0100,d3", block)
+    assert re.search(r"move\.w #\$01FF,d3", block)
+    assert re.search(r"move\.w #\(256<<6\)\|20,BLTSIZE\(a5\)", block)
     assert "gfx_text_cursor_x" not in block
     assert "gfx_text_cursor_y" not in block
 

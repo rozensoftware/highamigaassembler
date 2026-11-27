@@ -43,6 +43,20 @@ All notable changes to the HAS (High Assembler) project will be documented in th
 
 ### Added
 
+- **Pixel collision library (`lib/collision.s`):** `BuildCollisionPlane`,
+  `BobExtractMask1bpp`, `MaskCollidePlane`, `BobCollidePlane` and `BobCollideBob`.
+  Build a 1bpp CHIP world plane from solid tilemap tiles, then test BOB masks
+  against it with the blitter (A AND B, `BLTZERO`; only channel A is shifted, never B)
+  or test two BOBs on the CPU. Returns `1` hit / `0` miss / `-1` error. BOB-based
+  calls need graphics mode 0, 1 or 3 and CHIP masks/planes; `a5` is preserved
+  (must remain CUSTOM after `TakeSystem()`). Auto-linked (with `bob.s` / `graphics.s`)
+  when declared `extern`. Plain 68000-safe code. See
+  [collision.s](LIBRARY_REFERENCE.md#collisions--pixel-collision); compile
+  regression: `examples/tests/compiler/collision_lib_test.has`.
+- **Dual-playfield depth wash helpers:** `CopperGradient(list, color_idx, y0, y1, rgb0, rgb1)`
+  in `lib/copper.s` (per-line WAIT+COLOR RGB4 nibble lerp; no END/attach) and
+  `FillPlayfield(playfield, color_code)` in `lib/graphics.s` (mode-3 blitter fill of one
+  playfield's 3 owned planes). Example: `examples/dualpf_gradient.has`.
 - **Storage volume helpers:** `FileGetHardDriveVolume(buffer, capacity)` and
   `FileGetLaunchVolume(buffer, capacity)` copy an actual `Volume:` root, with
   distinct unavailable, error, too-small and unsupported statuses. HDD lookup

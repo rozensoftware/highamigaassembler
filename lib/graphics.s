@@ -79,6 +79,7 @@ WAITBLIT:MACRO
     XDEF Scroll
     XDEF SetActivePlayfield
     XDEF ClearPlayfield
+    XDEF FillPlayfield
     XDEF ScrollHorizontalScreen
     XDEF gfx_sprcop_dualpf
     XDEF gfx_active_playfield
@@ -826,6 +827,70 @@ ClearPlayfield:
 .clpf_error:
     moveq #-1,d0
 .clpf_done:
+    unlk a6
+    rts
+
+; -----------------------------------------------------------------------------
+; Function: FillPlayfield
+; Input: 8(a6)=playfield (1 or 2), 12(a6)=color_code (0..7 logical)
+; Output: d0=0 on success, -1 on error (wrong mode, bad playfield, or color)
+; Description: Blitter-fills the 3 bitplanes owned by one dual-playfield layer
+;              so every pixel shows the given logical color code, leaving the
+;              sibling playfield untouched.
+; Notes: Mode 3 only. Same plane ownership as ClearPlayfield / SetActivePlayfield
+;        (PF1 = even slots 0/2/4, PF2 = odd slots 1/3/5). color_code bit N
+;        selects owned plane N (0=clear / 1=all bits set). Preserves a5.
+; -----------------------------------------------------------------------------
+FillPlayfield:
+    link a6,#0
+    movem.l d1-d3/a0-a1,-(sp)
+    cmp.w #3,gfx_current_mode
+    bne .flpf_error
+    move.l 8(a6),d0                 ; playfield
+    cmp.l #1,d0
+    beq.s .flpf_pf_ok
+    cmp.l #2,d0
+    bne .flpf_error
+.flpf_pf_ok:
+    move.l 12(a6),d1                ; color_code
+    cmp.l #7,d1
+    bhi .flpf_error                 ; reject >7 and negatives (unsigned)
+
+    move.l gfx_current_screen_ptr,a0
+    cmp.l #2,d0
+    bne.s .flpf_have_base
+    adda.w #40,a0                   ; PF2 owned planes start +40
+.flpf_have_base:
+    moveq #0,d2                     ; plane bit 0..2
+.flpf_plane:
+    move.l a0,a1
+    move.w d2,d3
+    mulu.w #80,d3                   ; next owned plane is +80 (skip sibling)
+    adda.l d3,a1
+
+    move.w #$0100,d3                ; USED only, minterm $00 -> D=0
+    btst d2,d1
+    beq.s .flpf_blit
+    move.w #$01FF,d3                ; USED only, minterm $FF -> D=1
+.flpf_blit:
+    WAITBLIT
+    move.l a1,BLTDPT(a5)
+    move.w #200,BLTDMOD(a5)         ; next same plane: scanline 240 - 40 payload
+    move.w #0,BLTCON1(a5)
+    move.w d3,BLTCON0(a5)
+    move.w #(256<<6)|20,BLTSIZE(a5) ; height=256 rows, width=20 words (40 bytes)
+    WAITBLIT
+
+    addq.w #1,d2
+    cmp.w #3,d2
+    bne .flpf_plane
+
+    moveq #0,d0
+    bra.s .flpf_done
+.flpf_error:
+    moveq #-1,d0
+.flpf_done:
+    movem.l (sp)+,d1-d3/a0-a1
     unlk a6
     rts
 

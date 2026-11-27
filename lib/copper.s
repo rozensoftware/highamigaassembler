@@ -34,6 +34,7 @@ copper_attached_end:
     XDEF CopperMove
     XDEF CopperEnd
     XDEF CopperColor
+    XDEF CopperGradient
     XDEF AttachCopperTail
     XDEF DetachCopperTail
     XDEF GetCopperTail
@@ -142,6 +143,129 @@ CopperColor:
     move.l a0,copper_build_cursor
     moveq #0,d0
     movem.l (sp)+,d1/a0
+    unlk a6
+    rts
+
+; -----------------------------------------------------------------------------
+; Function: CopperGradient
+; Input: 8(a6)=list, 12(a6)=color_idx (0..31), 16(a6)=y0, 20(a6)=y1,
+;        24(a6)=rgb0, 28(a6)=rgb1
+; Output: d0=0 on success, -1 on bad args
+; Description: Appends WAIT+COLOR pairs for each copper line y0..y1 inclusive,
+;              with RGB4 components (R/G/B nibbles) independently lerped from
+;              rgb0 to rgb1. Does not write END or attach the COP2 tail.
+; Notes: Call CopperReset first. list is API-shaped; cursor from CopperReset
+;        is authoritative. Preserves a5 (CUSTOM). OCS WAIT VPOS is 8-bit, so
+;        practical full-screen PAL DIW ($2C..$12B) is y0=$2C, y1=$FF.
+; -----------------------------------------------------------------------------
+CopperGradient:
+    link a6,#0
+    movem.l d1-d7/a0-a1,-(sp)
+
+    move.l 12(a6),d0            ; color_idx
+    cmp.l #31,d0
+    bhi .cg_fail
+
+    move.l 16(a6),d2            ; y0 / current y
+    move.l 20(a6),d3            ; y1
+    cmp.l d2,d3
+    blt .cg_fail                ; y1 < y0
+
+    move.l 8(a6),a1             ; list (passed through to Wait/Color)
+    move.l 24(a6),d5            ; rgb0
+    move.l 28(a6),d6            ; rgb1
+    and.l #$0FFF,d5
+    and.l #$0FFF,d6
+
+    move.l d3,d7
+    sub.l d2,d7                 ; den = y1 - y0 (0 when single line)
+
+.cg_line:
+    ; ---- RGB4 component lerp ----
+    tst.l d7
+    bne.s .cg_lerp
+    move.l d5,d4                ; den==0 -> rgb0
+    bra.s .cg_emit
+
+.cg_lerp:
+    move.l d2,d1
+    sub.l 16(a6),d1             ; num = y - y0
+
+    ; R nibble (bits 11-8)
+    move.l d5,d0
+    lsr.l #8,d0
+    and.w #$000F,d0             ; r0
+    move.l d6,d4
+    lsr.l #8,d4
+    and.w #$000F,d4             ; r1
+    sub.w d0,d4
+    muls.w d1,d4
+    divs.w d7,d4
+    add.w d0,d4
+    and.w #$000F,d4
+    lsl.w #8,d4                 ; r in place
+    move.w d4,a0                ; stash rgb accum in a0 low (word)
+
+    ; G nibble (bits 7-4)
+    move.l d5,d0
+    lsr.l #4,d0
+    and.w #$000F,d0             ; g0
+    move.l d6,d4
+    lsr.l #4,d4
+    and.w #$000F,d4             ; g1
+    sub.w d0,d4
+    muls.w d1,d4
+    divs.w d7,d4
+    add.w d0,d4
+    and.w #$000F,d4
+    lsl.w #4,d4
+    move.w a0,d0
+    or.w d4,d0
+    move.w d0,a0
+
+    ; B nibble (bits 3-0)
+    move.l d5,d0
+    and.w #$000F,d0             ; b0
+    move.l d6,d4
+    and.w #$000F,d4             ; b1
+    sub.w d0,d4
+    muls.w d1,d4
+    divs.w d7,d4
+    add.w d0,d4
+    and.w #$000F,d4
+    move.w a0,d0
+    or.w d4,d0
+    move.l d0,d4                ; lerped_rgb in d4
+
+.cg_emit:
+    ; CopperWait(list, y, $07)
+    move.l #7,-(sp)
+    move.l d2,-(sp)
+    move.l a1,-(sp)
+    jsr CopperWait
+    lea 12(sp),sp
+
+    ; CopperColor(list, color_idx, lerped_rgb)
+    move.l d4,-(sp)
+    move.l 12(a6),-(sp)
+    move.l a1,-(sp)
+    jsr CopperColor
+    lea 12(sp),sp
+
+    cmp.l d3,d2
+    beq.s .cg_ok
+    addq.l #1,d2
+    bra .cg_line
+
+.cg_ok:
+    moveq #0,d0
+    bra.s .cg_done
+
+.cg_fail:
+    moveq #-1,d0
+
+.cg_done:
+    movem.l (sp)+,d1-d7/a0-a1
     unlk a6
     rts
 

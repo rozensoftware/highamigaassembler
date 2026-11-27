@@ -22,6 +22,7 @@ Libraries with dedicated documentation are listed first; libraries documented he
 | `bob.s`           | Blitter Objects (software sprites)        | this file                                            |
 | `textbob.s`       | Bake font text into BOB handles           | this file (Text BOBs)                                |
 | `tilemap.s`       | Opaque + colour-0 cookie-cut tile blit for `#import` tilesets/maps | this file + [DEVELOPERS_GUIDE.md](DEVELOPERS_GUIDE.md#guide-multi-layer-tiled-maps) |
+| `collision.s`     | Pixel-accurate BOB↔tile and BOB↔BOB collision (blitter A&B + `BLTZERO`) | this file + [DEVELOPERS_GUIDE.md](DEVELOPERS_GUIDE.md#guide-pixel-collision) |
 | `helpers.s`       | VBlank sync, AMOS-compatible RNG          | this file                                            |
 | `timer.s`         | Millisecond delay (CIA-A hardware timer)  | this file                                            |
 | `cpu.s`           | Exec `AttnFlags` CPU detection            | this file                                            |
@@ -488,6 +489,8 @@ extern func CopperWait(list: int, vpos: int, hpos: int) -> int;
 extern func CopperMove(list: int, reg: int, value: int) -> int;
 extern func CopperEnd(list: int) -> int;
 extern func CopperColor(list: int, index: int, rgb12: int) -> int;
+extern func CopperGradient(list: int, color_idx: int, y0: int, y1: int,
+                           rgb0: int, rgb1: int) -> int;
 extern func AttachCopperTail(list: int) -> int;
 extern func DetachCopperTail() -> int;
 extern func GetCopperTail() -> int;
@@ -502,7 +505,9 @@ list has ended (or double-buffer).
 
 `CopperMove(list, reg, value)` accepts any custom-chip offset from
 [`lib/hardware.i`](../lib/hardware.i) (`BPLCON1`, `BPLxMOD`, `COLOR0`, …).
-`CopperColor` is only a palette helper.
+`CopperColor` is only a palette helper. `CopperGradient` appends WAIT+COLOR
+pairs with per-nibble RGB4 lerp over `y0..y1` (no END/attach); full-screen
+PAL OCS wash uses `y0=$2C`, `y1=$FF`.
 
 ```has
 const BPLCON1 = $102;
@@ -515,6 +520,10 @@ call CopperMove(&bars, COLOR0, $00F);     // same as CopperColor(&bars, 0, $00F)
 call CopperEnd(&bars);
 call AttachCopperTail(&bars);
 ```
+
+Also see `FillPlayfield(playfield, color_code)` in
+[GRAPHICS_LIBRARY_INTERFACE.md](GRAPHICS_LIBRARY_INTERFACE.md#fillplayfieldplayfield-int-color_code-int---int)
+for solid dual-PF fills that pair with a COLOR1 gradient wash.
 
 ## palette_fade.s — RGB4 Palette Fade
 
@@ -989,6 +998,160 @@ call DrawTilemapLayer(&level_map__l0, &ground_tiles, 32, 32, 5,
 call DrawTilemapLayerTrans(&level_map__l1, &object_tiles, 32, 32, 5,
                            gfx_current_screen_ptr, 40, 0, 0, map_w, map_h);
 ```
+
+---
+
+## collision.s — Pixel collision
+
+Pixel-accurate collision for BOBs against solid tiles and against other BOBs.
+Auto-linked (with `bob.s` and `graphics.s`) when any symbol below is declared
+`extern`. CPU target: the library is plain 68000-safe assembly (not 68020-specific),
+so it is usable from programs built with either `--cpu` target.
+
+**Recipe (proven in Abyssal600):**
+
+1. Once per level: `BuildCollisionPlane` ORs every bitplane of each solid tile
+   into a **1bpp CHIP "world plane"** (opaque texels only; colour index 0 stays empty).
+2. Per actor per frame: `BobCollidePlane` blits the BOB's mask plane 0 (**A**) against
+   the world plane (**B**) with minterm **A AND B** and no D channel, then reads
+   `BLTZERO` (`DMACONR` bit 13): set = no overlapping pixel, clear = hit.
+3. Actor-vs-actor: `BobCollideBob` (CPU only, no blitter).
+
+> **Warning — shift channel A only.** The blitter shifts the cookie (**A**, `ASH = x & 15`).
+> `BLTCON1` (the **B** shift) is always `0`. Shifting B snaps the world plane to
+> 16-pixel columns, so hits would be reported at the wrong X. Do not copy this
+> test into your own blitter code with a B shift.
+
+> **Register ABI:** the library never modifies `a5`. After `TakeSystem()`, `a5` must
+> remain `$DFF000` (CUSTOM); the collision routines load their own `CUSTOM` base
+> into `a4` for blitter access. Your own hardware code around these calls must not
+> clobber `a5` either.
+
+### Requirements
+
+| Rule | Detail |
+|------|--------|
+| Graphics mode | `BobExtractMask1bpp`, `BobCollidePlane`, `BobCollideBob` need a BOB layout: mode **0** (5 planes), **1** (4), **3** (3). HAM6 (mode 2) returns `-1`. `BuildCollisionPlane` / `MaskCollidePlane` do not read the mode |
+| BOB mask | The BOB must have a mask (`mask_ptr != 0`); an opaque BOB with no mask returns `-1` |
+| CHIP RAM | **World plane** (all blitter calls), **cookie** (`MaskCollidePlane`), and the BOB **mask** (`BobCollidePlane`) must be below 2 MB; higher addresses return `-1` (blitter DMA only reaches Chip). Declare buffers in `bss_chip` / `data_chip`. `BobCollideBob` is CPU-only, so masks may be in any RAM; the tileset for `BuildCollisionPlane` is read by the CPU and may be in any RAM |
+| Coordinates | `x`, `y` are pixels relative to the **plane origin** and must be `>= 0` for plane tests (negative returns `-1`; clip in the caller). Pixels right of the plane edge count as empty. The plane **height is not known** to the test: keep `y + height` inside the plane |
+| Limits | Cookie/BOB height `1..1023`, cookie width up to 62 words (~992 px); `plane_bpr` even and `< 65536`; `y <= 65535` |
+| Blitter | Calls wait for an idle blitter first and wait for completion before reading `BLTZERO`; they use the blitter synchronously (do not call while another routine expects the blitter to still be running) |
+
+### Return codes
+
+| Function | `0` | `1` | `-1` |
+|----------|-----|-----|------|
+| `BuildCollisionPlane` | success | – | invalid argument, plane/tileset NULL or plane above Chip limit, plane too small for map |
+| `BobExtractMask1bpp` | – | – | invalid handle/dest/mode/size; otherwise returns cookie bytes per row (`> 0`) |
+| `MaskCollidePlane` | miss | hit | invalid argument (incl. negative `x`/`y`, non-Chip pointer) |
+| `BobCollidePlane` | miss | hit | invalid handle/mask/mode, non-Chip mask or plane, negative `x`/`y` |
+| `BobCollideBob` | miss | hit | NULL handle, no mask, or HAM6 / unsupported mode |
+
+### `BuildCollisionPlane(plane, plane_bpr, plane_h, layer, tileset, tile_w, tile_h, planes, map_w, map_h, empty_id) -> int`
+
+Clears the 1bpp `plane` (`plane_bpr * plane_h` bytes), then ORs every bitplane of
+each tileset cell with tile id `!= 0` and `!= empty_id` into it at
+`(tx * tile_w, ty * tile_h)`. Pass `empty_id = 0` for "none".
+
+- `plane` — CHIP buffer; `plane_bpr` even bytes per row (`>= map_w * tile_w / 8`),
+  `plane_h >= map_h * tile_h`.
+- `layer` — multi-layer map layer pointer (`label__lN`): `DC.W firstgid` followed by
+  **1-based** `DC.W` indices (`0` = no tile). Same layout as `DrawTilemapLayer`.
+- `tileset` — `#import tileset` data (row-interleaved: all planes per row).
+- `tile_w` — **multiple of 16** (16, 32, … up to 256); `tile_h` `1..256`; `planes` `1..6`
+  (must match the tileset import); tile size must stay `< 64 KB`.
+- Returns `0` or `-1`. CPU fill; it waits for an idle blitter only.
+- Collision "solid" means any non-zero colour index in the tile. Use
+  `match_palette=` on the tileset import so transparent texels really are index 0.
+
+### `BobExtractMask1bpp(handle, dest) -> int`
+
+Copies the plane-0 words of the BOB mask into the contiguous 1bpp CHIP buffer
+`dest` (even address, `cookie_bpr * height` bytes). Returns the cookie bytes per row
+(`(width + 15) / 16 * 2`) for use as `cookie_bpr` in `MaskCollidePlane`
+(`cookie_h` = BOB height). Use this only when you want a packed cookie;
+`BobCollidePlane` needs no extraction.
+
+### `MaskCollidePlane(cookie, cookie_bpr, cookie_h, plane, plane_bpr, x, y) -> int`
+
+Blitter overlap test of a 1bpp cookie placed at pixel `(x, y)` of the world plane.
+Returns `1` hit, `0` miss, `-1` error. Use for hand-made hit masks (feet-only,
+bullets, etc.) in addition to `BobExtractMask1bpp`. The routine adds one extra
+A word (masked by `BLTALWM`) to carry bits shifted out, whenever it still fits in
+the plane row.
+
+### `BobCollidePlane(handle, plane, plane_bpr, x, y) -> int`
+
+Same test using the BOB mask plane 0 directly: `BLTAMOD` skips the other
+interleaved mask planes, so no extraction or scratch buffer is needed. Mask must
+be in CHIP. Returns `1` hit, `0` miss, `-1` error.
+
+### `BobCollideBob(handle_a, ax, ay, handle_b, bx, by) -> int`
+
+Rejects with an AABB test on the stored BOB widths/heights, then ANDs the two mask
+plane-0 bitmaps over the overlap rectangle on the CPU, 16 pixels at a time (any
+relative X alignment). No blitter use, so it is safe to call while the blitter is
+busy with other work; masks may live in any RAM. Coordinates are signed screen/world
+pixels (no clipping restriction). Returns `1` hit, `0` miss, `-1` error.
+
+### Broadphase for many actors (A600 / 68000 at 7 MHz)
+
+Each `*CollidePlane` call is a full blitter setup + synchronous wait, and
+`BobCollideBob` is O(overlap area) on a plain 68000. Do not call them for every
+actor every frame. Reject first with cheap integer rectangle tests in HAS code:
+
+1. **AABB / grid broadphase:** compare actor boxes (`x < bx + bw && bx < x + w && ...`)
+   before any pixel test. For actor-vs-actor, bucket actors into a coarse grid
+   (e.g. 32×32 cells) or sort by X and only test neighbours; avoid the O(n²) pair loop.
+2. **Tiles:** only call `BobCollidePlane` if the actor box overlaps a cell where the map
+   has a solid tile (look up `layer` indices on the CPU), or skip actors that are
+   off-screen / asleep.
+3. **Clip before you call:** negative `x`/`y` returns `-1`; treat actors outside the
+   map as a wall/miss in your own code.
+4. **Prefer a smaller cookie:** `MaskCollidePlane` with a hand-made feet/hit box is
+   cheaper than a full-sprite mask for the same actor.
+5. Do the pixel test once per actor per frame (after movement), not per axis, unless
+   you need axis-separated resolution.
+
+### Example
+
+```has
+#import palette "assets/mini_tiles.png" as level_pal colors=16 dither=none;
+#import tileset "assets/mini_tiles.png" as level_tiles tile_w=16 tile_h=16 planes=4 match_palette=level_pal;
+#import tilemap "assets/mini_map_layers.tmx" as level_map layers=all;
+
+bss_chip col_chip:
+    solid_plane.b[10240]          // 320/8 = 40 bytes/row * 256 rows, CHIP
+
+code main:
+    extern func BuildCollisionPlane(plane: int, plane_bpr: int, plane_h: int,
+                                    layer: int, tileset: int, tile_w: int,
+                                    tile_h: int, planes: int, map_w: int,
+                                    map_h: int, empty_id: int) -> int;
+    extern func BobCollidePlane(handle: int, plane: int, plane_bpr: int,
+                                x: int, y: int) -> int;
+    extern func BobCollideBob(handle_a: int, ax: int, ay: int,
+                              handle_b: int, bx: int, by: int) -> int;
+
+    // Level load (after TakeSystem; a5 stays CUSTOM):
+    //   rc = BuildCollisionPlane(&solid_plane, 40, 256, &level_map__l0,
+    //                            &level_tiles, 16, 16, 4, 20, 16, 0);
+
+    proc actor_hits_wall(bob: int, x: int, y: int, w: int, h: int) -> int {
+        if (x < 0 || y < 0 || x + w > 320 || y + h > 256) {
+            return 1;                 // outside the plane: treat as solid
+        }
+        if (BobCollidePlane(bob, &solid_plane, 40, x, y) == 1) {
+            return 1;
+        }
+        return 0;
+    }
+```
+
+Compile/link regression: [collision_lib_test.has](../examples/tests/compiler/collision_lib_test.has).
+Tilemap import and map layouts: [tilemap.s](#tilemaps--tiled-map-blit);
+BOB handles: [bob.s](#bobs--blitter-objects-bobs).
 
 ---
 

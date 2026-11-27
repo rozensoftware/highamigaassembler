@@ -739,6 +739,7 @@ code main:
 
 How-to (import + draw): [docs/DEVELOPERS_GUIDE.md](docs/DEVELOPERS_GUIDE.md#guide-multi-layer-tiled-maps),
 API: [docs/LIBRARY_REFERENCE.md](docs/LIBRARY_REFERENCE.md#tilemaps--tiled-map-blit).
+Pixel collision (tile plane + BOB masks): [collision.s in the library reference](docs/LIBRARY_REFERENCE.md#collisions--pixel-collision).
 Worked examples: `examples/tests/compiler/import_bob_load_test.has`,
 `import_sprite_load_test.has`, `import_tiles_load_test.has`,
 `import_tilemap_layers_test.has`, `import_font_load_test.has`.

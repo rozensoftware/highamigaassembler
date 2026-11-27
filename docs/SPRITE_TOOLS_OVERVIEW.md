@@ -86,6 +86,7 @@ python3 tools/texturepacker_atlas_importer.py walk.xml --outdir build/gen --dedu
 
 **Use case**: Tile-based backgrounds; optional `match_palette=` via `#import`. Draw with
 `lib/tilemap.s` (`BlitTile` / `DrawTilemap*`) in graphics mode 0 (blit needs tile width 16 or 32).
+For solid-tile and BOB pixel collision see `lib/collision.s` ([LIBRARY_REFERENCE.md](LIBRARY_REFERENCE.md#collisions--pixel-collision)).
 With `match_palette=`, index 0 is reserved as transparent: source index 0 stays 0, and
 other colours never nearest-match onto dest index 0 (cookie-cut safe overlays).
 

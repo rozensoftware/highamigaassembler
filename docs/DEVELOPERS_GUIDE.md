@@ -1321,6 +1321,25 @@ Working regression: [import_tilemap_layers_test.has](../examples/tests/compiler/
 Also: [import_atlas_load_test.has](../examples/tests/compiler/import_atlas_load_test.has),
 [import_bob_sprite_load_test.has](../examples/tests/compiler/import_bob_sprite_load_test.has).
 
+##### Guide: pixel collision
+
+`lib/collision.s` gives pixel-accurate BOB↔tile and BOB↔BOB tests on top of the
+tileset/tilemap and BOB imports above:
+
+1. At level load, `BuildCollisionPlane(plane, plane_bpr, plane_h, &map__lN, &tiles,
+   tile_w, tile_h, planes, map_w, map_h, empty_id)` ORs every solid tile's bitplanes into
+   a 1bpp **CHIP** world plane (`bss_chip`, e.g. 40 × 256 = 10240 bytes for a 320×256 map).
+2. Each frame, after a cheap AABB broadphase in HAS code,
+   `BobCollidePlane(bob, plane, plane_bpr, x, y)` returns `1` hit / `0` miss / `-1` error
+   (negative `x`/`y` is an error: clip first). `BobCollideBob` handles actor-vs-actor on the CPU.
+3. Only the cookie (A) channel is shifted; never add a B shift to the test (it snaps to
+   16 px columns). The BOB mask and the plane must be in CHIP RAM.
+4. `a5` must stay `$DFF000` after `TakeSystem()`; the routines preserve it.
+
+Full signatures, return codes, limits and A600 broadphase advice:
+[LIBRARY_REFERENCE.md](LIBRARY_REFERENCE.md#collisions--pixel-collision).
+Compile regression: [collision_lib_test.has](../examples/tests/compiler/collision_lib_test.has).
+
 Conditional compilation directives are resolved at compile time:
 
 ```has
