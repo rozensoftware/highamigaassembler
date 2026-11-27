@@ -6,6 +6,9 @@ All notable changes to the HAS (High Assembler) project will be documented in th
 
 ### Fixed
 
+- **`--adf` boot block:** generated disks now install the standard 2.x/3.x boot
+  block; previously they were formatted without boot code. The image does not
+  include Workbench or DOS command files.
 - **Legacy `.b`/`.w` array element loads sign-extend:** BSS/data arrays such as
   `brick_vy.w[8]` now emit `ext.l` (or `ext.w`+`ext.l` for bytes) so negative
   velocities reload as negative `int` values, not `65534`/`254`. Typed

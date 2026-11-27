@@ -136,8 +136,9 @@ Optional bootable ADF (requires amitools / xdftool; install with
 hasc examples/mintest.has -o mintest.s --adf disks/mintest.adf
 ```
 
-The ADF includes the executable and `S/startup-sequence` so an emulator or
-real Amiga boots straight into the program.
+The ADF includes a 2.x/3.x boot block, the executable, and
+`S/startup-sequence`, but not Workbench or DOS command files. Successful startup
+depends on the target Amiga environment.
 
 Legacy helpers still work: `./scripts/build.sh` (assemble/link) and
 `./scripts/create_disk.sh` (ADF from an existing exe).

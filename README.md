@@ -164,9 +164,10 @@ hasc hello.has -o hello.s --adf disks/hello.adf
 hasc hello.has -o hello.s --exe build/hello.exe --adf disks/hello.adf
 ```
 
-The ADF is a standard DD floppy image with `S/startup-sequence` that launches
-the program on Amiga startup (FS-UAE / real hardware). Override tool paths with
-`VASM`, `VLINK`, or `XDFTOOL` if needed.
+The ADF is a standard DD floppy image with an installed 2.x/3.x boot block,
+the executable, and `S/startup-sequence`. It does not include Workbench or DOS
+command files; successful startup depends on the target Amiga environment.
+Override tool paths with `VASM`, `VLINK`, or `XDFTOOL` if needed.
 
 Legacy two-step scripts remain available: `./scripts/build.sh` and
 `./scripts/create_disk.sh`.

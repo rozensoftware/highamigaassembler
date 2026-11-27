@@ -195,7 +195,8 @@ def test_cli_exe_68020_and_lib_link(tmp_path: Path) -> None:
 
 
 @requires_adf
-def test_cli_adf_bootable_disk(tmp_path: Path) -> None:
+@pytest.mark.parametrize("cpu", ["68000", "68020"])
+def test_cli_adf_bootable_disk(tmp_path: Path, cpu: str) -> None:
     src = ROOT / "examples" / "mintest.has"
     out_s = tmp_path / "mintest.s"
     out_adf = tmp_path / "mintest.adf"
@@ -208,6 +209,8 @@ def test_cli_adf_bootable_disk(tmp_path: Path) -> None:
             str(src),
             "-o",
             str(out_s),
+            "--cpu",
+            cpu,
             "--exe",
             str(out_exe),
             "--adf",
@@ -221,6 +224,13 @@ def test_cli_adf_bootable_disk(tmp_path: Path) -> None:
     assert out_adf.is_file()
     # Standard DD ADF size
     assert out_adf.stat().st_size == 901120
+    boot_block = out_adf.read_bytes()[:1024]
+    assert any(boot_block[12:])
+    checksum = 0
+    for offset in range(0, len(boot_block), 4):
+        checksum += int.from_bytes(boot_block[offset:offset + 4], "big")
+        checksum = (checksum & 0xFFFFFFFF) + (checksum >> 32)
+    assert checksum == 0xFFFFFFFF
     list_cmd = resolve_xdftool_cmd(python=str(PYTHON)) + [str(out_adf), "list"]
     listed = subprocess.run(list_cmd, capture_output=True, text=True)
     assert listed.returncode == 0, listed.stderr
