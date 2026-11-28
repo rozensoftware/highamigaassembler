@@ -8,6 +8,7 @@
 // - DestroyBob cleans up all handles
 
 code main:
+    extern func HeapInit() -> void;
     extern func CreateBob(descriptor_ptr: int, save_background: int) -> int;
     extern func MirrorBobHorizontally(handle: int) -> int;
     extern func MirrorBobVertically(handle: int) -> int;
@@ -27,6 +28,8 @@ code main:
         var mirrored_h2: int;
         var mirrored_v2: int;
         var mirrored_bg: int;
+
+        call HeapInit();
 
         // Build base BOB from local descriptor.
         src = CreateBob(&bob_mirror_test_desc, 0);

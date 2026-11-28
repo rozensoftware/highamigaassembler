@@ -6,6 +6,19 @@ All notable changes to the HAS (High Assembler) project will be documented in th
 
 ### Fixed
 
+- **`MirrorBobHorizontally` mask + add_word layout** in `lib/bob.s`:
+  - `MirrorBobLine` clobbered `d7` (height), so the mask copy was skipped and
+    masked `PasteBob` drew heap garbage (Abyssal right-facing fish: blinking
+    white lines). Height is reloaded from the dest handle; `MirrorBobLine`
+    now preserves `d5-d7`.
+  - Full-row reverse moved importer `add_word` trailing zero pad to the
+    leading word; `PasteBob` blits from row start, so content vanished. Trailing
+    all-zero data+mask chunks are now stripped from the mirror span and cleared
+    on the dest (content stays left-aligned).
+  - MirrorBob* save/restore `a5` (HeapAlloc scratches CUSTOM).
+  - Tests: `bob_mirror_format_test.has` (add_word case),
+    `bob_mirror_addword_dualpf_test.has`, static guards in
+    `tests/test_bob_scroll_dualpf_api.py`.
 - **`--adf` boot block:** generated disks now install the standard 2.x/3.x boot
   block; previously they were formatted without boot code. The image does not
   include Workbench or DOS command files.

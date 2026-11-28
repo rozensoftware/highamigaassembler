@@ -217,28 +217,35 @@
   - mismatching the two will make the edit tool fail to find the string (or silently
   match the wrong thing).
 
-## lib/bob.s MirrorBobHorizontally bug (fixed 2026-08-18)
+## lib/bob.s MirrorBobHorizontally bugs
+### Fixed 2026-08-18 (unconditional -16 strip)
 - `tools/bob_importer.py` writes the BOB data/mask block header word as
   `stored_width = w + (16 if add_word else 0)` (raw/unrounded `w`, not the
   chunk-rounded `conv_w` stored in the descriptor/runtime struct's `width`
   field). Since add_word's `+16` is indistinguishable from ordinary width at
   runtime (no flag is persisted), `MirrorBobHorizontally` cannot reliably
-  know whether to strip a trailing 16px "scroll" chunk.
+  know whether to strip a trailing 16px "scroll" chunk by width alone.
 - Old code unconditionally did `subi.w #16,d5` on the header width before
   mirroring - broke (or even underflowed to <=0, forcing `.mbh_fail`) for any
-  BOB built WITHOUT `--add-word` (the common case per
-  `examples/games/launchers/Makefile` comments).
-- Fix: mirror the *entire* stored row bit-for-bit (`d4 = d3` total chunks,
-  `d1 = 0` pad bits) instead of assuming a scroll chunk to strip. This is
-  correct for both add-word and non-add-word BOBs (any all-zero add-word
-  padding just moves from trailing to leading position, which is harmless).
-  `MirrorBobVertically` never had this bug (row-copy only, no per-row bit
-  reversal).
-- Regression tests: `examples/tests/compiler/bob_mirror_api_test.has` (was
-  silently failing at runtime before the fix - width=16 single-chunk,
-  non-add-word fixture) and `examples/tests/compiler/bob_mirror_format_test.has`
-  (rewritten with a plain 32px/2-row non-add-word fixture; expected mirrored
-  words hand-verified via manual 16-bit bit-reversal).
+  BOB built WITHOUT `--add-word`.
+- Interim fix mirrored the *entire* stored row. That stopped the -16 failure
+  for plain BOBs but was **not** harmless for add_word: PasteBob blits
+  `ceil(handle_width/16)` chunks from the row start, so a trailing zero pad
+  that becomes a *leading* pad after full-row reverse hides the mirrored art.
+
+### Fixed 2026-11-28 (mask d7 clobber + add_word pad layout)
+- `MirrorBobLine` clobbered `d7` (height). After the data loop, mask setup did
+  `move.w d7,d5` / `mulu` with d7=0 → mask copy skipped → HeapAlloc garbage
+  mask → masked PasteBob showed blinking white lines (Abyssal right-facing
+  fish). Fix: preserve d5-d7 in `MirrorBobLine` and reload height from
+  `20(a3)` before the mask line count.
+- add_word layout fix: if every plane-row's last data+mask word is 0, treat
+  that chunk as scroll pad, mirror only the leading content chunks, clear
+  trailing dest words (content stays left-aligned for PasteBob).
+- Also save/restore `a5` across MirrorBob* (HeapAlloc scratches CUSTOM).
+- Regression tests: `bob_mirror_format_test.has` (plain + add_word),
+  `bob_mirror_addword_dualpf_test.has` (mode 3 / 3-plane), static guards in
+  `tests/test_bob_scroll_dualpf_api.py`.
 
 ## New lib/timer.s WaitMs (added 2026-08-19)
 - Added `lib/timer.s`: `WaitMs(ms: int) -> void`, CIA-A Timer A one-shot busy-wait

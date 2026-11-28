@@ -1,0 +1,143 @@
+// Regression: MirrorBobHorizontally with atlas add_word + dual-playfield
+// (mode 3, 3 interleaved planes) — Abyssal fish geometry.
+// Source row: [content][pad=0]. After mirror must stay [rev(content)][0]
+// in both data and mask (PasteBob blits from row start using handle width).
+
+code main:
+    extern func HeapInit() -> void;
+    extern func CreateBob(descriptor_ptr: int, save_background: int) -> int;
+    extern func MirrorBobHorizontally(handle: int) -> int;
+    extern func DestroyBob(handle: int) -> void;
+    extern var gfx_current_mode: word;
+    extern var bob_mirror_dpf_desc: int;
+
+    asm {
+        jsr main
+        rts
+    }
+
+    proc validate(handle: int) -> int {
+        var status: int = 0;
+
+        asm {
+            move.l @handle,a0
+            move.l (a0),a0
+            addq.l #4,a0
+
+            ; 3 planes, 2 chunks/row, height 2 → plane-row stride = 4 bytes
+            cmpi.w #$8000,(a0)       ; r0 p0 bitrev($0001)
+            bne.s .f10
+            cmpi.w #$0000,2(a0)
+            bne.s .f11
+            cmpi.w #$4000,4(a0)      ; r0 p1 bitrev($0002)
+            bne.s .f12
+            cmpi.w #$0000,6(a0)
+            bne.s .f13
+            cmpi.w #$C000,8(a0)      ; r0 p2 bitrev($0003)
+            bne.s .f14
+            cmpi.w #$0000,10(a0)
+            bne.s .f15
+            cmpi.w #$2000,12(a0)     ; r1 p0 bitrev($0004)
+            bne.s .f16
+            cmpi.w #$0000,14(a0)
+            bne.s .f17
+
+            move.l @handle,a0
+            move.l 4(a0),a0
+            addq.l #4,a0
+            cmpi.w #$8000,(a0)       ; mask copied + mirrored (not heap junk)
+            bne.s .f20
+            cmpi.w #$0000,2(a0)
+            bne.s .f21
+            cmpi.w #$4000,4(a0)
+            bne.s .f22
+            cmpi.w #$0000,6(a0)
+            bne.s .f23
+            bra.s .done
+
+.f10:       move.l #-410,@status
+            bra.s .done
+.f11:       move.l #-411,@status
+            bra.s .done
+.f12:       move.l #-412,@status
+            bra.s .done
+.f13:       move.l #-413,@status
+            bra.s .done
+.f14:       move.l #-414,@status
+            bra.s .done
+.f15:       move.l #-415,@status
+            bra.s .done
+.f16:       move.l #-416,@status
+            bra.s .done
+.f17:       move.l #-417,@status
+            bra.s .done
+.f20:       move.l #-420,@status
+            bra.s .done
+.f21:       move.l #-421,@status
+            bra.s .done
+.f22:       move.l #-422,@status
+            bra.s .done
+.f23:       move.l #-423,@status
+.done:
+        }
+
+        return status;
+    }
+
+    proc main() -> int {
+        var src: int;
+        var mir: int;
+        var status: int;
+
+        call HeapInit();
+        asm {
+            move.w #3,gfx_current_mode
+        }
+
+        src = CreateBob(&bob_mirror_dpf_desc, 0);
+        if (src == -1) {
+            return -10;
+        }
+
+        mir = MirrorBobHorizontally(src);
+        if (mir == -1) {
+            call DestroyBob(src);
+            return -20;
+        }
+
+        status = validate(mir);
+        call DestroyBob(mir);
+        call DestroyBob(src);
+        return status;
+    }
+
+    asm {
+bob_mirror_dpf_data:
+        dc.w 32,2
+        dc.w $0001,$0000             ; row0 plane0 content|pad
+        dc.w $0002,$0000             ; row0 plane1
+        dc.w $0003,$0000             ; row0 plane2
+        dc.w $0004,$0000             ; row1 plane0
+        dc.w $0005,$0000             ; row1 plane1
+        dc.w $0006,$0000             ; row1 plane2
+
+bob_mirror_dpf_mask:
+        dc.w 32,2
+        dc.w $0001,$0000
+        dc.w $0002,$0000
+        dc.w $0003,$0000
+        dc.w $0004,$0000
+        dc.w $0005,$0000
+        dc.w $0006,$0000
+
+bob_mirror_dpf_palette:
+        dc.w $000,$00F,$0F0,$F00,$FFF,$111,$222,$333
+
+bob_mirror_dpf_desc:
+        dc.l bob_mirror_dpf_data
+        dc.l bob_mirror_dpf_mask
+        dc.l bob_mirror_dpf_palette
+        dc.w 32
+        dc.w 2
+        dc.w 8
+    }

@@ -190,7 +190,8 @@ CreateBob:
     XDEF MirrorBobHorizontally
 MirrorBobHorizontally:
     link a6,#0
-    movem.l d1-d7/a0-a4,-(sp)
+    ; a5 = CUSTOM after TakeSystem; HeapAlloc/CreateBob scratch it — save/restore.
+    movem.l d1-d7/a0-a5,-(sp)
 
     moveq #0,d0
     move.l d0,a4                   ; a4 = dst_data_ptr (for cleanup)
@@ -317,12 +318,12 @@ MirrorBobHorizontally:
     move.l d0,a3                   ; a3 = destination handle
 
     ; Read stored_width from source data buffer header (offset 0 of data_ptr).
-    ; This is the full chunk-aligned row width as stored by the importer -
-    ; whether or not --add-word was used, the whole row is mirrored bit-for-bit
-    ; below, so any trailing padding chunk correctly becomes leading padding in
-    ; the mirrored copy (no assumption about the source BOB's build options).
-    ; The same stored_width is written to the new block headers so the
-    ; mirrored handle blits identically.
+    ; PasteBob blits ceil(handle_width/16) chunks from the start of each
+    ; plane-row. Importer add_word puts a trailing zero scroll chunk after the
+    ; visible art; a naive full-row bit-reverse would move that pad to the
+    ; *leading* word so PasteBob would show pad/garbage instead of the fish.
+    ; Detect a trailing all-zero chunk and mirror only the content span, then
+    ; clear the trailing dest word(s) so layout stays content|pad.
     move.l 8(a6),a0
     move.l (a0),a1                 ; a1 = source data_ptr
     move.w (a1),d5                 ; d5 = stored_width from source header
@@ -337,9 +338,50 @@ MirrorBobHorizontally:
     move.w d3,d2
     add.w d2,d2                    ; d2 = total row_bytes
 
-    ; Mirror the whole row - no scroll-chunk to strip, no logical pad bits.
-    move.w d3,d4                   ; d4 = chunks to mirror (entire row)
+    ; Default: mirror every chunk (plain BOBs with no trailing scroll pad).
+    move.w d3,d4                   ; d4 = chunks to mirror
     moveq #0,d1                    ; d1 = logical pad bits (none)
+
+    ; Trailing add_word pad heuristic: if every plane-row's last word is 0 in
+    ; both data and mask, treat that chunk as scroll padding and exclude it.
+    cmp.w #1,d3
+    bls.s .mbh_pad_done
+    move.w gfx_current_mode,d0
+    tst.w d0
+    beq.s .mbh_pad_5planes
+    cmpi.w #1,d0
+    beq.s .mbh_pad_4planes
+    moveq #3,d0
+    bra.s .mbh_pad_have_planes
+.mbh_pad_4planes:
+    moveq #4,d0
+    bra.s .mbh_pad_have_planes
+.mbh_pad_5planes:
+    moveq #5,d0
+.mbh_pad_have_planes:
+    move.w d7,d5
+    mulu d0,d5                     ; d5 = plane-rows to scan
+    tst.w d5
+    beq.s .mbh_pad_done
+    move.w d2,d6
+    subq.w #2,d6                   ; d6 = byte offset of last word in row
+    move.l 8(a6),a0
+    move.l (a0),a1                 ; data payload
+    addq.l #4,a1
+    move.l 4(a0),a0                ; mask payload
+    addq.l #4,a0
+    move.w d5,d0
+    subq.w #1,d0
+.mbh_pad_scan:
+    tst.w 0(a1,d6.w)
+    bne.s .mbh_pad_done            ; content in last chunk → not add_word pad
+    tst.w 0(a0,d6.w)
+    bne.s .mbh_pad_done
+    adda.w d2,a1
+    adda.w d2,a0
+    dbra d0,.mbh_pad_scan
+    subq.w #1,d4                   ; strip one trailing zero chunk
+.mbh_pad_done:
 
     ; Mirror object data payload (height * planes lines)
     move.w gfx_current_mode,d0
@@ -407,6 +449,9 @@ MirrorBobHorizontally:
     move.l 4(a0),a0                ; source mask payload
     addq.l #4,a0
     lea 4(a2),a1                   ; destination mask payload
+    ; Reload height: MirrorBobLine historically clobbered d7 (chunk counter).
+    ; Even with MirrorBobLine preserving d7, prefer the dest handle height.
+    move.w 20(a3),d7
     move.w d7,d5
     mulu d0,d5                     ; d5 = mask lines (height * planes)
     subq.w #1,d5
@@ -440,7 +485,7 @@ MirrorBobHorizontally:
     ; Mark this handle as owning data/mask blocks so DestroyBob can free them.
     ori.w #$8000,16(a3)
     move.l a3,d0
-    movem.l (sp)+,d1-d7/a0-a4
+    movem.l (sp)+,d1-d7/a0-a5
     unlk a6
     rts
 
@@ -457,7 +502,7 @@ MirrorBobHorizontally:
     jsr HeapFree
     addq.l #4,sp
 .mbh_fail_return:
-    movem.l (sp)+,d1-d7/a0-a4
+    movem.l (sp)+,d1-d7/a0-a5
     moveq #-1,d0
     unlk a6
     rts
@@ -474,7 +519,8 @@ MirrorBobHorizontally:
     XDEF MirrorBobVertically
 MirrorBobVertically:
     link a6,#0
-    movem.l d1-d7/a0-a4,-(sp)
+    ; a5 = CUSTOM after TakeSystem; HeapAlloc/CreateBob scratch it — save/restore.
+    movem.l d1-d7/a0-a5,-(sp)
 
     moveq #0,d0
     move.l d0,a4                   ; a4 = dst_data_ptr (for cleanup)
@@ -697,7 +743,7 @@ MirrorBobVertically:
     ; Mark this handle as owning data/mask blocks so DestroyBob can free them.
     ori.w #$8000,16(a3)
     move.l a3,d0
-    movem.l (sp)+,d1-d7/a0-a4
+    movem.l (sp)+,d1-d7/a0-a5
     unlk a6
     rts
 
@@ -714,7 +760,7 @@ MirrorBobVertically:
     jsr HeapFree
     addq.l #4,sp
 .mbv_fail_return:
-    movem.l (sp)+,d1-d7/a0-a4
+    movem.l (sp)+,d1-d7/a0-a5
     moveq #-1,d0
     unlk a6
     rts
@@ -725,8 +771,10 @@ MirrorBobVertically:
 ;   A1 = destination line start
 ;   D0.W = visible chunks (16-pixel words in logical image span)
 ;   D1.W = logical pad bits (visible_chunks*16 - logical_width)
-; Preserves A1 so caller can advance to the next row explicitly.
+; Preserves A0/A1 and D5-D7 so MirrorBobHorizontally can keep height (D7)
+; and the plane-row counter (D5) across calls. Clobbers D0/D2-D4 and A2.
 MirrorBobLine:
+    movem.l d5-d7,-(sp)
     move.l a1,-(sp)
     move.w d0,d7
     subq.w #1,d7
@@ -784,6 +832,7 @@ MirrorBobLine:
 
 .mbl_restore:
     move.l (sp)+,a1
+    movem.l (sp)+,d5-d7
 .mbl_done:
     rts
 

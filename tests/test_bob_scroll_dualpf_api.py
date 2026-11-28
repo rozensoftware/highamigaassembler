@@ -211,6 +211,48 @@ def test_horizontal_mirror_reloads_source_handle_before_mask_copy():
     )
 
 
+def test_horizontal_mirror_reloads_height_before_mask_line_count():
+    """MirrorBobLine used to clobber d7 (height); mask copy then skipped."""
+    bob_s = _read_norm(BOB_S)
+    block = _slice(bob_s, "MirrorBobHorizontally:", "MirrorBobVertically:")
+    mask_copy = block[block.index(".mbh_copy_mask:"):]
+
+    assert re.search(
+        r"move\.w 20\(a3\),d7[^\n]*\n\s*move\.w d7,d5[^\n]*\n\s*mulu d0,d5",
+        mask_copy,
+    )
+
+
+def test_horizontal_mirror_strips_trailing_zero_add_word_pad():
+    """PasteBob blits from row start; trailing add_word pad must stay trailing."""
+    bob_s = _read_norm(BOB_S)
+    block = _slice(bob_s, "MirrorBobHorizontally:", "MirrorBobVertically:")
+
+    assert ".mbh_pad_scan:" in block
+    assert re.search(r"subq\.w #1,d4", block)
+    assert "add_word" in block.lower() or "scroll pad" in block.lower() or "trailing" in block.lower()
+
+
+def test_mirror_bob_line_preserves_d5_d7():
+    bob_s = _read_norm(BOB_S)
+    start = _label_pos(bob_s, "MirrorBobLine:")
+    end = _label_pos(bob_s, "BitReverse16:")
+    block = bob_s[start:end]
+    assert re.search(r"movem\.l d5-d7,-\(sp\)", block)
+    assert re.search(r"movem\.l \(sp\)\+,d5-d7", block)
+
+
+def test_mirror_bob_preserves_a5_custom():
+    bob_s = _read_norm(BOB_S)
+    for label, end in (
+        ("MirrorBobHorizontally:", "MirrorBobVertically:"),
+        ("MirrorBobVertically:", "MirrorBobLine:"),
+    ):
+        block = _slice(bob_s, label, end)
+        assert re.search(r"movem\.l d1-d7/a0-a5,-\(sp\)", block), label
+        assert re.search(r"movem\.l \(sp\)\+,d1-d7/a0-a5", block), label
+
+
 def test_prepbob_drawbob_dispatch_to_new_dualpf_siblings_and_noop_on_ham6():
     bob_s = _read_norm(BOB_S)
 

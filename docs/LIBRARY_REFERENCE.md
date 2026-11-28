@@ -832,7 +832,7 @@ Alias for `DestroyBob` (same ownership rules).
 
 ### `MirrorBobHorizontally(handle: int) -> int`
 
-Creates a new BOB handle with horizontally mirrored data and mask copied from `handle`. Preserves the source palette pointer and save-background policy (allocates background when the source handle has it). Mirrors the entire stored row (bit-reversed), so it works whether or not the source BOB was built with `--add-word`. Returns the new handle on success, `-1` on failure.
+Creates a new BOB handle with horizontally mirrored data and mask copied from `handle`. Preserves the source palette pointer and save-background policy (allocates background when the source handle has it). Bit-reverses the visible span and keeps a trailing importer `add_word` scroll pad (all-zero last chunk) on the right so `PasteBob` still blits content from the row start. Returns the new handle on success, `-1` on failure.
 
 ```has
 extern func MirrorBobHorizontally(handle: int) -> int;

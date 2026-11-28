@@ -1,15 +1,17 @@
 // Regression test for BOB mirror row format.
-// The source BOB is a plain 32px, 2-row image built WITHOUT --add-word (the
-// common case). Horizontal mirroring must bit-reverse the entire stored row
-// (no assumption about optional --add-word scroll padding); vertical
-// mirroring must preserve plane order while reversing row order.
+// Case A: plain 32px, 2-row image WITHOUT add_word — full-row bit-reverse.
+// Case B: 16px content + trailing add_word pad (Abyssal fish layout) — mirror
+// must keep content in the leading word and leave the trailing pad zero so
+// PasteBob (which blits from row start) shows the mirrored art, not pad.
 
 code main:
+    extern func HeapInit() -> void;
     extern func CreateBob(descriptor_ptr: int, save_background: int) -> int;
     extern func MirrorBobHorizontally(handle: int) -> int;
     extern func MirrorBobVertically(handle: int) -> int;
     extern func DestroyBob(handle: int) -> void;
     extern var bob_mirror_format_desc: int;
+    extern var bob_mirror_addword_desc: int;
 
     asm {
         jsr main
@@ -139,11 +141,89 @@ code main:
         return status;
     }
 
+    // add_word 16px art: source [content][0] → mirror must be [rev(content)][0]
+    // (not [0][rev(content)]). Also verify mask was actually copied (d7 clobber
+    // regression left HeapAlloc garbage in the mask block).
+    proc validate_addword_horizontal(handle: int) -> int {
+        var status: int = 0;
+
+        asm {
+            move.l @handle,a0
+            move.l (a0),a0
+            addq.l #4,a0
+
+            ; Dual-playfield fish layout uses 3 planes; this fixture is mode-0
+            ; 5-plane with the same 2-chunk add_word row geometry.
+            cmpi.w #$8000,(a0)     ; row0 pl0: bitrev($0001), pad stays 0
+            bne.s .aw_fail_10
+            cmpi.w #$0000,2(a0)
+            bne.s .aw_fail_11
+            cmpi.w #$C000,4(a0)    ; row0 pl1: bitrev($0003)
+            bne.s .aw_fail_12
+            cmpi.w #$0000,6(a0)
+            bne.s .aw_fail_13
+            cmpi.w #$A000,20(a0)   ; row1 pl0: bitrev($0005) at 5*4
+            bne.s .aw_fail_14
+            cmpi.w #$0000,22(a0)
+            bne.s .aw_fail_15
+
+            move.l @handle,a0
+            move.l 4(a0),a0
+            addq.l #4,a0
+            cmpi.w #$8000,(a0)     ; mask must be mirrored, not heap garbage
+            bne.s .aw_fail_20
+            cmpi.w #$0000,2(a0)
+            bne.s .aw_fail_21
+            cmpi.w #$C000,4(a0)
+            bne.s .aw_fail_22
+            cmpi.w #$0000,6(a0)
+            bne.s .aw_fail_23
+            bra.s .aw_done
+
+.aw_fail_10:
+            move.l #-310,@status
+            bra.s .aw_done
+.aw_fail_11:
+            move.l #-311,@status
+            bra.s .aw_done
+.aw_fail_12:
+            move.l #-312,@status
+            bra.s .aw_done
+.aw_fail_13:
+            move.l #-313,@status
+            bra.s .aw_done
+.aw_fail_14:
+            move.l #-314,@status
+            bra.s .aw_done
+.aw_fail_15:
+            move.l #-315,@status
+            bra.s .aw_done
+.aw_fail_20:
+            move.l #-320,@status
+            bra.s .aw_done
+.aw_fail_21:
+            move.l #-321,@status
+            bra.s .aw_done
+.aw_fail_22:
+            move.l #-322,@status
+            bra.s .aw_done
+.aw_fail_23:
+            move.l #-323,@status
+.aw_done:
+        }
+
+        return status;
+    }
+
     proc main() -> int {
         var src: int;
         var mirrored_h: int;
         var mirrored_v: int;
+        var aw_src: int;
+        var aw_mir: int;
         var status: int;
+
+        call HeapInit();
 
         src = CreateBob(&bob_mirror_format_desc, 0);
         if (src == -1) {
@@ -182,6 +262,26 @@ code main:
         call DestroyBob(mirrored_v);
         call DestroyBob(mirrored_h);
         call DestroyBob(src);
+
+        // --- add_word pad regression (Abyssal fish geometry) ---
+        aw_src = CreateBob(&bob_mirror_addword_desc, 0);
+        if (aw_src == -1) {
+            return -40;
+        }
+
+        aw_mir = MirrorBobHorizontally(aw_src);
+        if (aw_mir == -1) {
+            call DestroyBob(aw_src);
+            return -50;
+        }
+
+        status = validate_addword_horizontal(aw_mir);
+        call DestroyBob(aw_mir);
+        call DestroyBob(aw_src);
+        if (status != 0) {
+            return status;
+        }
+
         return 0;
     }
 
@@ -223,6 +323,48 @@ bob_mirror_format_desc:
         dc.l bob_mirror_format_mask
         dc.l bob_mirror_format_palette
         dc.w 32                         ; conv_w = 32 (2 chunks, no add_word)
+        dc.w 2
+        dc.w 32
+
+; 16px content + add_word pad (stored/conv width 32). Last chunk is zero so
+; MirrorBobHorizontally must strip it, not promote it to the leading word.
+bob_mirror_addword_data:
+        dc.w 32,2
+        dc.w $0001,$0000                 ; row 0, plane 0  content|pad
+        dc.w $0003,$0000                 ; row 0, plane 1
+        dc.w $0005,$0000                 ; row 0, plane 2
+        dc.w $0007,$0000                 ; row 0, plane 3
+        dc.w $0009,$0000                 ; row 0, plane 4
+        dc.w $0005,$0000                 ; row 1, plane 0
+        dc.w $0007,$0000                 ; row 1, plane 1
+        dc.w $0009,$0000                 ; row 1, plane 2
+        dc.w $000B,$0000                 ; row 1, plane 3
+        dc.w $000D,$0000                 ; row 1, plane 4
+
+bob_mirror_addword_mask:
+        dc.w 32,2
+        dc.w $0001,$0000
+        dc.w $0003,$0000
+        dc.w $0005,$0000
+        dc.w $0007,$0000
+        dc.w $0009,$0000
+        dc.w $0005,$0000
+        dc.w $0007,$0000
+        dc.w $0009,$0000
+        dc.w $000B,$0000
+        dc.w $000D,$0000
+
+bob_mirror_addword_palette:
+        dc.w $000,$00F,$0F0,$F00,$FFF,$111,$222,$333
+        dc.w $444,$555,$666,$777,$888,$999,$AAA,$BBB
+        dc.w $CCC,$DDD,$EEE,$012,$123,$234,$345,$456
+        dc.w $567,$678,$789,$89A,$9AB,$ABC,$BCD,$CDE
+
+bob_mirror_addword_desc:
+        dc.l bob_mirror_addword_data
+        dc.l bob_mirror_addword_mask
+        dc.l bob_mirror_addword_palette
+        dc.w 32                         ; conv_w includes add_word
         dc.w 2
         dc.w 32
     }
